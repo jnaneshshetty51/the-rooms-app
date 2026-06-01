@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { searchGuests } from "@the-rooms/queries/guestQueries";
+import { searchGuests } from "@the-rooms/db";
 
 export async function GET(request: NextRequest) {
   try {

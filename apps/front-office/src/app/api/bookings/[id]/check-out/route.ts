@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { getBookingById, updateBookingStatus } from "@the-rooms/queries/bookingQueries";
+import { getBookingById, updateBookingStatus } from "@the-rooms/db";
 import prisma from "@the-rooms/db";
 import { Prisma } from "@prisma/client";
 

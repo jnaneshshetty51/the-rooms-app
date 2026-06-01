@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { createGuest } from "@the-rooms/queries/guestQueries";
+import { createGuest } from "@the-rooms/db";
 
 export async function POST(request: NextRequest) {
   try {

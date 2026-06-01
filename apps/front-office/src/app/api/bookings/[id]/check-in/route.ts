@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { getBookingById, updateBookingStatus } from "@the-rooms/queries/bookingQueries";
-import { incrementStayCount } from "@the-rooms/queries/guestQueries";
+import { getBookingById, updateBookingStatus } from "@the-rooms/db";
+import { incrementStayCount } from "@the-rooms/db";
 import prisma from "@the-rooms/db";
 
 export async function POST(

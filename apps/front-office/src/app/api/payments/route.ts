@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { createPayment, getPaymentsByBooking } from "@the-rooms/queries/paymentQueries";
+import { createPayment, getPaymentsByBooking } from "@the-rooms/db";
 import prisma from "@the-rooms/db";
 import { Prisma } from "@prisma/client";
 

@@ -375,3 +375,41 @@ export async function getGuestDashboardStats(guestId: string) {
     openComplaints,
   };
 }
+
+// ─── Front-office helpers ──────────────────────────────────────────────────
+
+export type CreateGuestData = {
+  name: string;
+  phone: string;
+  email?: string;
+  alternatePhone?: string;
+  address?: string;
+  companyName?: string;
+  notes?: string;
+};
+
+export async function createGuest(data: CreateGuestData) {
+  return prisma.guest.create({ data });
+}
+
+export async function searchGuests(query: string) {
+  const q = query.trim();
+  return prisma.guest.findMany({
+    where: {
+      OR: [
+        { name: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q } },
+        { email: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    take: 20,
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function incrementStayCount(guestId: string) {
+  return prisma.guest.update({
+    where: { id: guestId },
+    data: { stayCount: { increment: 1 } },
+  });
+}

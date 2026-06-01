@@ -14,7 +14,7 @@ export const db = prisma;
 // Re-export all query helpers so callers can use `@the-rooms/db` as a single import
 export { createPayment, updatePaymentStatus, getPaymentsByBooking, getPaymentsByDateRange, recordRefund } from './queries/paymentQueries';
 export { createBooking, getBookingById, getBookings, getBookingsByGuest, getBookingsByDate, updateBookingStatus, cancelBooking, isRoomAvailable, generateBookingNumber } from './queries/bookingQueries';
-export { getGuestByEmail, getGuestByPhone, uploadGuestDocument, getGuestDocuments, getDocumentsByBooking, createComplaint, getGuestComplaints, getComplaintByBooking, getGuestInvoices, getInvoiceById, getExtendStayRequest, createExtendStayRequest, createAddonRequest, getGuestAddonRequests, getGuestDashboardStats } from './queries/guestQueries';
+export { getGuestByEmail, getGuestByPhone, uploadGuestDocument, getGuestDocuments, getDocumentsByBooking, createComplaint, getGuestComplaints, getComplaintByBooking, getGuestInvoices, getInvoiceById, getExtendStayRequest, createExtendStayRequest, createAddonRequest, getGuestAddonRequests, getGuestDashboardStats, createGuest, searchGuests, incrementStayCount } from './queries/guestQueries';
 export { getAllRooms, getAvailableRooms, getRoomById, getRoomsByType, updateRoomStatus, bulkUpdateRoomStatus } from './queries/roomQueries';
 export { generateInvoice, updateInvoicePdfUrl, getInvoiceByBookingId, getInvoiceByNumber } from './queries/invoiceQueries';
 export { calculatePrice, calculateBookingPrice } from './pricing';
