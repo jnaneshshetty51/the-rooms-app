@@ -8,8 +8,8 @@ import {
   Sunrise,
   Sunset,
   BedDouble,
-  Iron,
-  RoomService,
+  Wind,
+  ConciergeBell,
   ShoppingBag,
   CheckCircle2,
   AlertCircle,
@@ -42,8 +42,8 @@ const ADDON_OPTIONS = [
   { id: "late_checkout", label: "Late Checkout", icon: Sunset, desc: "Extended check-out till 3 PM" },
   { id: "early_checkin", label: "Early Check-in", icon: Sunrise, desc: "Early access from 10 AM" },
   { id: "extra_bed", label: "Extra Bed", icon: BedDouble, desc: "Additional bedding" },
-  { id: "iron_board", label: "Iron & Board", icon: Iron, desc: "Pressing service" },
-  { id: "room_service", label: "Room Service", icon: RoomService, desc: "In-room dining" },
+  { id: "iron_board", label: "Wind & Board", icon: Wind, desc: "Pressing service" },
+  { id: "room_service", label: "Room Service", icon: ConciergeBell, desc: "In-room dining" },
 ];
 
 export default function AddonsPage() {
@@ -165,7 +165,7 @@ export default function AddonsPage() {
       {bookings.length === 0 ? (
         <Card className="border-dashed border-2 border-[#E5E5E5]">
           <CardContent className="py-12 text-center">
-            <RoomService className="w-12 h-12 text-[#B2BEC3] mx-auto mb-3" />
+            <ConciergeBell className="w-12 h-12 text-[#B2BEC3] mx-auto mb-3" />
             <p className="text-[#636E72] font-medium">No active bookings</p>
             <p className="text-sm text-[#B2BEC3] mt-1">
               Services can only be requested for active stays
