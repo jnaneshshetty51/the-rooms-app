@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #2D3436;
+  --color-secondary: #E17055;
+  --color-accent: #DFE6E9;
+  --color-background: #FAFAF8;
+  --color-card: #FFFFFF;
+  --color-muted: #636E72;
+  --color-success: #00B894;
+  --color-warning: #FDCB6E;
+  --color-destructive: #E17055;
+}
+
+@layer base {
+  :root {
+    --background: 40 20% 98%;
+    --foreground: 200 10% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 200 10% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 10% 20%;
+    --primary: 200 10% 20%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 16 76% 64%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 200 14% 90%;
+    --muted-foreground: 200 10% 45%;
+    --accent: 200 14% 90%;
+    --accent-foreground: 200 10% 20%;
+    --destructive: 16 76% 64%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 200 10% 88%;
+    --input: 200 10% 88%;
+    --ring: 16 76% 64%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'DM Sans', system-ui, sans-serif;
+  }
+}
+
+.font-heading {
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+.font-body {
+  font-family: 'Inter', system-ui, sans-serif;
+}

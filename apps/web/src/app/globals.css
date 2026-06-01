@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 200 5% 21%;
+    --card: 0 0% 100%;
+    --card-foreground: 200 5% 21%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 5% 21%;
+    --primary: 200 5% 21%;
+    --primary-foreground: 40 18% 96%;
+    --secondary: 11 70% 60%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 200 6% 46%;
+    --muted-foreground: 200 6% 46%;
+    --accent: 200 10% 87%;
+    --accent-foreground: 200 5% 21%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 158 84% 38%;
+    --warning: 38 92% 50%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 11 70% 60%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground font-sans antialiased; }
+  html { scroll-behavior: smooth; }
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #FAFAF8; }
+::-webkit-scrollbar-thumb { background: #DFE6E9; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #636E72; }
+
+.hero-overlay {
+  background: linear-gradient(
+    135deg,
+    rgba(45, 52, 54, 0.85) 0%,
+    rgba(45, 52, 54, 0.4) 50%,
+    rgba(225, 112, 85, 0.2) 100%
+  );
+}
+
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(45, 52, 54, 0.12);
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+.pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #25D366;
+  animation: pulse-ring 1.5s ease-out infinite;
+  z-index: -1;
+}

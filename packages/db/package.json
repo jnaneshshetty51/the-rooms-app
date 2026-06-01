@@ -1,0 +1,33 @@
+{
+  "name": "@the-rooms/db",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./pricing": "./src/pricing.ts",
+    "./queries/booking": "./src/queries/bookingQueries.ts",
+    "./queries/guest": "./src/queries/guestQueries.ts",
+    "./queries/invoice": "./src/queries/invoiceQueries.ts",
+    "./queries/payment": "./src/queries/paymentQueries.ts",
+    "./queries/room": "./src/queries/roomQueries.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "bcryptjs": "^2.4.3",
+    "@types/bcryptjs": "^2.4.6"
+  }
+}

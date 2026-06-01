@@ -1,0 +1,429 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Core Users & Auth ───────────────────────────────────────────────────
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  role          Role      @default(GUEST)
+  createdAt     DateTime  @default(now())
+  lastLogin     DateTime?
+  isActive      Boolean   @default(true)
+  attempts      Int       @default(0)
+
+  bookings    Booking[]
+  auditLogs   AuditLog[]
+  uploadedDocs GuestDocument[]
+  createdAnnouncements Announcement[]
+  expenses    Expense[]
+
+  @@map("users")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  FRONT_OFFICE
+  GUEST
+}
+
+// ── Guests ───────────────────────────────────────────────────────────────
+model Guest {
+  id              String    @id @default(cuid())
+  name            String
+  phone           String
+  email           String?
+  alternatePhone  String?
+  address         String?
+  dateOfBirth     DateTime?
+  companyName     String?
+  stayCount       Int       @default(0)
+  loyaltyTier     LoyaltyTier @default(BRONZE)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  bookings  Booking[]
+  documents GuestDocument[]
+
+  @@index([phone])
+  @@index([email])
+  @@map("guests")
+}
+
+enum LoyaltyTier {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+// ── Rooms ────────────────────────────────────────────────────────────────────
+model Room {
+  id                  String      @id @default(cuid())
+  roomNumber         String      @unique
+  type              RoomType
+  floor             Int
+  status            RoomStatus  @default(VACANT)
+  description       String?
+  maxOccupancy      Int         @default(2)
+  sizeSqft          Int?
+
+  // Pricing (stored as Decimal for precision — amounts in INR paisa)
+  basePriceSingle   Decimal     @db.Decimal(10, 2)
+  basePriceDouble   Decimal     @db.Decimal(10, 2)
+  monthlyPriceSingle Decimal?   @db.Decimal(10, 2)
+  monthlyPriceDouble Decimal?   @db.Decimal(10, 2)
+
+  // Internal notes (admin-only, not guest-visible)
+  internalNotes    String?
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  photos        RoomPhoto[]
+  amenities     RoomAmenity[]
+  bookings      Booking[]
+
+  @@map("rooms")
+}
+
+enum RoomType {
+  STUDIO
+  PREMIUM
+}
+
+enum RoomStatus {
+  VACANT
+  OCCUPIED
+  MAINTENANCE
+  BLOCKED
+}
+
+model RoomPhoto {
+  id         String   @id @default(cuid())
+  roomId     String
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  url        String
+  caption    String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@map("room_photos")
+}
+
+// ── Amenities ────────────────────────────────────────────────────────────
+model Amenity {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  icon        String         // lucide icon name e.g. "Wifi", "Airplay"
+  description String?
+  category    AmenityCategory // "essential" | "comfort" | "entertainment" | "business"
+
+  rooms       RoomAmenity[]
+
+  @@map("amenities")
+}
+
+enum AmenityCategory {
+  ESSENTIAL
+  COMFORT
+  ENTERTAINMENT
+  BUSINESS
+}
+
+model RoomAmenity {
+  roomId    String
+  amenityId String
+  room      Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  amenity   Amenity @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, amenityId])
+  @@map("room_amenities")
+}
+
+// ── Bookings ─────────────────────────────────────────────────────────────
+model Booking {
+  id              String        @id @default(cuid())
+  bookingNumber   String        @unique
+  guestId        String
+  guest          Guest         @relation(fields: [guestId], references: [id])
+  roomId         String
+  room           Room          @relation(fields: [roomId], references: [id])
+
+  checkIn        DateTime
+  checkOut       DateTime
+  guestsCount    Int           @default(1)
+  bookingType    BookingType   @default(DAILY)
+  bookingSource  BookingSource @default(WEBSITE)
+  status         BookingStatus @default(CONFIRMED)
+  paymentStatus  PaymentStatus @default(PENDING)
+
+  baseAmount     Decimal       @db.Decimal(10, 2)
+  discountAmount Decimal       @db.Decimal(10, 2) @default(0)
+  extrasAmount   Decimal       @db.Decimal(10, 2) @default(0)
+  totalAmount    Decimal       @default(0) @db.Decimal(10, 2)
+
+  specialRequests String?
+  discountCode   String?
+  discountType   String?
+
+  checkInTime   DateTime?
+  checkOutTime  DateTime?
+
+  createdById   String?
+  createdBy     User?        @relation(fields: [createdById], references: [id])
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  payments     Payment[]
+  invoice      Invoice?
+  complaint    Complaint?
+  documents    GuestDocument[]
+  auditLogs    AuditLog[]    @relation("BookingAudit")
+
+  @@index([checkIn])
+  @@index([checkOut])
+  @@index([status])
+  @@index([guestId])
+  @@index([paymentStatus])
+  @@map("bookings")
+}
+
+enum BookingType {
+  DAILY
+  MONTHLY
+}
+
+enum BookingSource {
+  WEBSITE
+  WALK_IN
+  PHONE
+  OTA
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+  PARTIAL
+}
+
+// ── Guest Documents ─────────────────────────────────────────────────────
+model GuestDocument {
+  id            String       @id @default(cuid())
+  guestId       String
+  guest         Guest       @relation(fields: [guestId], references: [id])
+  bookingId     String?
+  booking       Booking?    @relation(fields: [bookingId], references: [id])
+  uploadedById  String?
+  uploadedBy    User?       @relation(fields: [uploadedById], references: [id])
+
+  documentType  DocumentTypeEnum
+  frontUrl      String
+  backUrl       String?
+  verified      Boolean     @default(false)
+  verifiedAt    DateTime?
+  verifiedById  String?
+
+  uploadedAt   DateTime     @default(now())
+
+  @@map("guest_documents")
+}
+
+enum DocumentTypeEnum {
+  AADHAAR
+  PASSPORT
+  VOTER_ID
+  DRIVING_LICENSE
+}
+
+// ── Payments ─────────────────────────────────────────────────────────────
+model Payment {
+  id             String        @id @default(cuid())
+  bookingId      String
+  booking        Booking      @relation(fields: [bookingId], references: [id])
+  amount         Decimal      @db.Decimal(10, 2)
+  method         PaymentMethod
+  transactionId  String?
+  gatewayRef     String?
+  gatewayResponse Json?
+  status         PaymentStatus @default(PENDING)
+  refundReason   String?
+  refundAmount   Decimal?      @db.Decimal(10, 2)
+  refundStatus   RefundStatus?
+  createdAt      DateTime      @default(now())
+
+  invoice        Invoice?
+
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  ONLINE
+  UPI
+  CARD
+  CASH
+  BANK_TRANSFER
+  CORPORATE_INVOICE
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  COMPLETED
+  FAILED
+}
+
+model Invoice {
+  id            String    @id @default(cuid())
+  bookingId     String    @unique
+  booking       Booking  @relation(fields: [bookingId], references: [id])
+  paymentId     String    @unique
+  payment       Payment  @relation(fields: [paymentId], references: [id])
+  invoiceNumber String   @unique
+  pdfUrl        String?
+  issuedAt      DateTime  @default(now())
+
+  @@map("invoices")
+}
+
+// ── Discounts ───────────────────────────────────────────────────────────
+model Discount {
+  id              String       @id @default(cuid())
+  name            String
+  code            String      @unique
+  type            DiscountType
+  discountPercent Decimal     @db.Decimal(5, 2)
+  minDays         Int         @default(1)
+  maxDays         Int?
+  validFrom       DateTime?
+  validTo         DateTime?
+  maxUses         Int?
+  usedCount       Int         @default(0)
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+
+  @@map("discounts")
+}
+
+enum DiscountType {
+  CORPORATE
+  STUDENT
+  SEASONAL
+  LOYALTY
+  EXTENDED_STAY
+  CUSTOM
+}
+
+// ── Announcements / Banners ─────────────────────────────────────────────
+model Announcement {
+  id          String    @id @default(cuid())
+  title       String
+  body        String
+  imageUrl    String?
+  linkUrl     String?
+  linkLabel   String?
+  activeFrom  DateTime
+  activeTo   DateTime?
+  priority   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdBy  User?    @relation(fields: [createdById], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("announcements")
+}
+
+// ── Complaints ───────────────────────────────────────────────────────────
+model Complaint {
+  id          String          @id @default(cuid())
+  bookingId   String         @unique
+  booking     Booking        @relation(fields: [bookingId], references: [id])
+  subject     String
+  description String
+  status      ComplaintStatus @default(OPEN)
+  isUrgent    Boolean        @default(false)
+  imageUrl    String?
+  resolution  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@map("complaints")
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+// ── Audit Log ────────────────────────────────────────────────────────────
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id])
+  bookingId String?
+  booking   Booking? @relation("BookingAudit", fields: [bookingId], references: [id])
+  action    String   // "CREATE" | "UPDATE" | "DELETE" | "CHECK_IN" | "CHECK_OUT" | "PAYMENT" | "LOGIN" | "LOGOUT"
+  entity    String  // "booking" | "room" | "guest" | "payment" | "document" | "user" | "system"
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ── Expense ──────────────────────────────────────────────────────────────
+enum ExpenseCategory {
+  UTILITIES
+  SALARIES
+  MAINTENANCE
+  SUPPLIES
+  MARKETING
+  INSURANCE
+  TAXES
+  OTHER
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  description String
+  amount      Decimal         @db.Decimal(12, 2)
+  category    ExpenseCategory
+  date        DateTime
+  vendor      String?
+  receiptUrl  String?
+  createdById String?
+  createdBy   User?           @relation(fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([category])
+  @@index([date])
+  @@index([createdById])
+  @@map("expenses")
+}

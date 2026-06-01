@@ -1,0 +1,11 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Disallow admin and portal routes
+Disallow: /api/
+Disallow: /book
+Disallow: /offline
+
+# Sitemap
+Sitemap: https://therooms.in/sitemap.xml

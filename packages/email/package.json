@@ -1,0 +1,29 @@
+{
+  "name": "@the-rooms/email",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./index.ts",
+    "./send": "./send.ts",
+    "./templates": "./templates/index.ts"
+  },
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@react-email/components": "^1.0.12",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "resend": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "@the-rooms/api": "workspace:*",
+    "@the-rooms/db": "workspace:*"
+  }
+}

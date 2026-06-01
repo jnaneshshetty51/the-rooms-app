@@ -1,0 +1,61 @@
+"use client";
+
+import { useEffect, useState, use } from "react";
+import Link from "next/link";
+import { cn } from "@the-rooms/ui";
+import { Loader2, ArrowLeft, User, Calendar, CreditCard, FileText, CheckCircle, Bed, AlertCircle } from "lucide-react";
+import { formatDate, formatCurrency } from "@the-rooms/ui";
+
+interface Booking { id: string; bookingNumber: string; status: string; paymentStatus: string; bookingSource: string; bookingType: string; checkIn: string; checkOut: string; guestsCount: number; specialRequests?: string; totalAmount: string; baseAmount: string; discountAmount: string; checkInTime?: string; checkOutTime?: string; guest: { id: string; name: string; phone: string; email?: string; companyName?: string }; room: { id: string; roomNumber: string; type: string; floor: number }; payments: Array<{ id: string; amount: string; method: string; status: string }>; documents: Array<{ id: string; documentType: string; verified: boolean }> }
+
+export default function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchBooking() {
+      try { const res = await fetch(`/api/bookings/${id}`); if (!res.ok) throw new Error("Booking not found"); setBooking(await res.json()); }
+      catch (err) { setError(err instanceof Error ? err.message : "Unknown error"); }
+      finally { setLoading(false); }
+    }
+    fetchBooking();
+  }, [id]);
+
+  const handleCheckIn = async () => {
+    if (!confirm("Check in this guest?")) return;
+    try { const res = await fetch(`/api/bookings/${id}/check-in`, { method: "POST" }); if (res.ok) { setBooking((prev) => prev ? { ...prev, status: "CHECKED_IN" } : null); alert("Checked in!"); } }
+    catch (err) { alert(err instanceof Error ? err.message : "Failed"); }
+  };
+
+  if (loading) return <div className="flex h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#E17055]" /></div>;
+  if (error || !booking) return <div className="flex h-[60vh] items-center justify-center"><div className="text-center"><AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" /><p className="text-gray-900 font-medium">{error ?? "Booking not found"}</p><Link href="/bookings" className="mt-4 text-[#E17055] hover:underline">Back</Link></div></div>;
+
+  const totalPaid = booking.payments.filter((p) => p.status === "PAID").reduce((sum, p) => sum + Number(p.amount), 0);
+  const balanceDue = Number(booking.totalAmount) - totalPaid;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/bookings" className="rounded-lg border border-gray-300 p-2 hover:bg-gray-50"><ArrowLeft className="h-5 w-5 text-gray-600" /></Link>
+          <div><div className="flex items-center gap-3"><h2 className="text-2xl font-bold text-gray-900">Booking #{booking.bookingNumber}</h2><span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{booking.bookingSource}</span></div><p className="text-gray-500">Created {formatDate(booking.createdAt, "short")}</p></div>
+        </div>
+        <span className={cn("rounded-full px-4 py-2 text-sm font-medium", booking.status === "CONFIRMED" ? "bg-green-100 text-green-700" : booking.status === "CHECKED_IN" ? "bg-blue-100 text-blue-700" : booking.status === "CHECKED_OUT" ? "bg-gray-100 text-gray-700" : "bg-red-100 text-red-700")}>{booking.status.replace("_", " ")}</span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><User className="h-5 w-5" />Guest Details</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><p className="text-sm text-gray-500">Name</p><p className="font-medium text-gray-900">{booking.guest.name}</p></div><div><p className="text-sm text-gray-500">Phone</p><p className="font-medium text-gray-900">{booking.guest.phone}</p></div>{booking.guest.email && <div><p className="text-sm text-gray-500">Email</p><p className="font-medium text-gray-900">{booking.guest.email}</p></div>}{booking.guest.companyName && <div><p className="text-sm text-gray-500">Company</p><p className="font-medium text-gray-900">{booking.guest.companyName}</p></div>}</div></div>
+          <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><Calendar className="h-5 w-5" />Stay Details</h3><div className="grid grid-cols-2 md:grid-cols-4 gap-4"><div><p className="text-sm text-gray-500">Check-in</p><p className="font-medium text-gray-900">{formatDate(booking.checkIn, "short")}</p></div><div><p className="text-sm text-gray-500">Check-out</p><p className="font-medium text-gray-900">{formatDate(booking.checkOut, "short")}</p></div><div><p className="text-sm text-gray-500">Room</p><p className="font-medium text-gray-900">{booking.room.roomNumber}</p></div><div><p className="text-sm text-gray-500">Guests</p><p className="font-medium text-gray-900">{booking.guestsCount}</p></div></div>{booking.specialRequests && <div className="mt-4 p-4 bg-gray-50 rounded-lg"><p className="text-sm text-gray-500">Special Requests</p><p className="text-gray-900">{booking.specialRequests}</p></div>}</div>
+          <div className="rounded-xl border border-gray-200 bg-white p-6"><div className="flex items-center justify-between mb-4"><h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><FileText className="h-5 w-5" />Documents</h3><Link href={`/documents?booking=${booking.id}`} className="text-sm text-[#E17055] hover:underline">Manage</Link></div>{booking.documents.length === 0 ? <div className="text-center py-8"><FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No documents uploaded</p></div> : <div className="space-y-3">{booking.documents.map((doc) => <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"><div className="flex items-center gap-3"><FileText className="h-5 w-5 text-gray-400" /><span className="font-medium text-gray-900">{doc.documentType}</span></div>{doc.verified ? <span className="flex items-center gap-1 text-sm text-green-600"><CheckCircle className="h-4 w-4" />Verified</span> : <span className="flex items-center gap-1 text-sm text-orange-600">Pending</span>}</div>)}</div>}</div>
+        </div>
+        <div className="space-y-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><CreditCard className="h-5 w-5" />Payment Summary</h3><div className="space-y-3"><div className="flex justify-between text-sm"><span className="text-gray-600">Room Charges</span><span className="text-gray-900">{formatCurrency(Number(booking.baseAmount))}</span></div>{Number(booking.discountAmount) > 0 && <div className="flex justify-between text-sm text-green-600"><span>Discount</span><span>-{formatCurrency(Number(booking.discountAmount))}</span></div>}<div className="flex justify-between font-semibold border-t border-gray-200 pt-3"><span>Total</span><span className="text-[#E17055]">{formatCurrency(Number(booking.totalAmount))}</span></div><div className="flex justify-between text-sm"><span className="text-gray-600">Paid</span><span className="text-green-600">{formatCurrency(totalPaid)}</span></div><div className="flex justify-between font-semibold text-sm"><span>Balance Due</span><span className={balanceDue > 0 ? "text-orange-600" : "text-green-600"}>{formatCurrency(balanceDue)}</span></div></div>{balanceDue > 0 && <Link href={`/payments?booking=${booking.id}`} className="mt-4 block w-full rounded-lg border border-[#E17055] py-2 text-center text-sm font-medium text-[#E17055] hover:bg-[#E17055]/5">Record Payment</Link>}</div>
+          <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3><div className="space-y-3">{booking.status === "CONFIRMED" && booking.paymentStatus === "PAID" && <button onClick={handleCheckIn} className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F]"><CheckCircle className="h-4 w-4" />Check-In Guest</button>}{booking.status === "CHECKED_IN" && <Link href={`/bookings/${id}/check-out`} className="block w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700"><Bed className="h-4 w-4" />Check-Out Guest</Link>}<Link href={`/bookings/${id}/extend`} className="block w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">Extend Stay</Link><Link href={`/guests/${booking.guest.id}`} className="block w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">View Guest Profile</Link></div></div>
+        </div>
+      </div>
+    </div>
+  );
+}

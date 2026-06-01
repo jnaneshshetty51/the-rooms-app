@@ -1,0 +1,31 @@
+{
+  "name": "@the-rooms/auth",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./index.ts",
+    "./config": "./auth.config.ts",
+    "./helpers": "./lib/helpers.ts"
+  },
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "create-user": "npx tsx scripts/create-user.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "next": "^16.2.6",
+    "next-auth": "^5.0.0-beta.25",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "@the-rooms/db": "workspace:*"
+  }
+}

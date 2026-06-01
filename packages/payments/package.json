@@ -1,0 +1,17 @@
+{
+  "name": "@the-rooms/payments",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./idfc.ts",
+    "./idfc": "./idfc.ts"
+  },
+  "main": "./idfc.ts",
+  "types": "./idfc.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

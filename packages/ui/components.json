@@ -1,0 +1,26 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "./tailwind.config.ts",
+    "css": "src/globals.css",
+    "baseColor": "slate",
+    "cssVariables": true,
+    "前缀": "cn"
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "inlineStyles": [
+    {
+      "file": "./src/globals.css",
+      "content": "@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');\n"
+    }
+  ]
+}
