@@ -57,17 +57,40 @@ export default function BookingPaymentPage() {
       });
 
       const data = await res.json();
-      if (data.error) {
-        alert(data.error);
+      if (data.error || !data.data) {
+        alert(data.error || "Booking creation failed. Please try again.");
         setProcessing(false);
         return;
       }
 
-      // In a real flow, redirect to IDFC payment
-      // For now, simulate payment success
-      setPaymentInfo(data.paymentId || "pay_mock", data.bookingId || "bk_mock", data.bookingNumber || "BKN-000");
+      const booking = data.data;
+
+      // Attempt real IDFC payment redirect
+      const payRes = await fetch("/api/payments/idfc/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId: booking.id,
+          amount: Number(booking.totalAmount),
+        }),
+      });
+
+      if (payRes.ok) {
+        const payData = await payRes.json();
+        if (payData.data?.paymentUrl) {
+          // Save minimal info to store so confirmation page can read it
+          setPaymentInfo(payData.data.paymentId ?? "pay_init", booking.id, booking.bookingNumber);
+          setStep(5);
+          // Redirect to IDFC hosted payment page
+          window.location.href = payData.data.paymentUrl;
+          return;
+        }
+      }
+
+      // IDFC not configured or unavailable — simulate payment success (dev / demo)
+      setPaymentInfo("pay_sim", booking.id, booking.bookingNumber);
       setStep(5);
-      router.push("/book/confirmation");
+      router.push(`/book/confirmation?booking_id=${booking.id}`);
     } catch {
       alert("Something went wrong. Please try again.");
       setProcessing(false);

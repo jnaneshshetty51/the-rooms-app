@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Utensils,
@@ -46,7 +46,7 @@ const ADDON_OPTIONS = [
   { id: "room_service", label: "Room Service", icon: ConciergeBell, desc: "In-room dining" },
 ];
 
-export default function AddonsPage() {
+function AddonsPageContent() {
   const searchParams = useSearchParams();
   const preselectedBookingId = searchParams.get("bookingId");
 
@@ -298,5 +298,13 @@ export default function AddonsPage() {
         </form>
       )}
     </div>
+  );
+}
+
+export default function AddonsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+      <AddonsPageContent />
+    </Suspense>
   );
 }

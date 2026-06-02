@@ -1,44 +1,71 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@the-rooms/ui";
-import { Badge } from "@the-rooms/ui";
 import { RoomCard } from "@the-rooms/ui";
+import { db } from "@the-rooms/db";
+
+export const revalidate = 60; // ISR: refresh room data every minute
 
 export const metadata: Metadata = {
   title: "Rooms",
   description: "Browse all 36 rooms — 18 Studio and 18 Premium. Filter by room type and view photos, amenities, and prices.",
 };
 
-// Static room data for the public showcase (no DB dependency in this render)
-const ROOMS = [
-  // STUDIO Rooms S101–S118
+// Fallback static data used when the DB is unavailable (seeding not done yet)
+const STATIC_ROOMS = [
   ...Array.from({ length: 18 }, (_, i) => ({
-    id: `studio-${i + 1}`,
+    id: `S${String(i + 101).padStart(3, "0")}`,
     roomNumber: `S${String(i + 101).padStart(3, "0")}`,
     type: "STUDIO" as const,
-    floor: Math.floor(i / 5) + 1,
     basePriceSingle: 999,
     basePriceDouble: 1799,
     features: ["Queen Bed", "Work Desk", "WiFi", "AC", "Hot Water"],
     image: `https://picsum.photos/seed/studio${i}/600/400`,
-    status: i % 5 === 0 ? "VACANT" as const : i % 5 === 1 ? "VACANT" as const : i % 5 === 2 ? "OCCUPIED" as const : i % 5 === 3 ? "VACANT" as const : "MAINTENANCE" as const,
+    status: "VACANT" as const,
   })),
-  // PREMIUM Rooms P101–P118
   ...Array.from({ length: 18 }, (_, i) => ({
-    id: `premium-${i + 1}`,
+    id: `P${String(i + 101).padStart(3, "0")}`,
     roomNumber: `P${String(i + 101).padStart(3, "0")}`,
     type: "PREMIUM" as const,
-    floor: Math.floor(i / 4) + 5,
     basePriceSingle: 1999,
     basePriceDouble: 2999,
     features: ["King Bed", "Mini Bar", "City View", "Room Service", "Work Desk"],
     image: `https://picsum.photos/seed/premium${i}/600/400`,
-    status: i % 4 === 0 ? "VACANT" as const : i % 4 === 1 ? "VACANT" as const : i % 4 === 2 ? "OCCUPIED" as const : "VACANT" as const,
+    status: "VACANT" as const,
   })),
 ];
 
-export default function RoomsPage() {
+async function getRooms() {
+  try {
+    const rooms = await db.room.findMany({
+      include: {
+        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+        amenities: { include: { amenity: true }, take: 5 },
+      },
+      orderBy: [{ type: "asc" }, { roomNumber: "asc" }],
+    });
+
+    if (rooms.length === 0) return STATIC_ROOMS;
+
+    return rooms.map((r) => ({
+      // Use roomNumber as the URL slug so /rooms/S101 always resolves correctly
+      id: r.roomNumber,
+      roomNumber: r.roomNumber,
+      type: r.type as "STUDIO" | "PREMIUM",
+      basePriceSingle: r.basePriceSingle.toNumber(),
+      basePriceDouble: r.basePriceDouble.toNumber(),
+      features: r.amenities.map((a) => a.amenity.name),
+      image: r.photos[0]?.url ?? `https://picsum.photos/seed/${r.roomNumber}/600/400`,
+      status: r.status as "VACANT" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED",
+    }));
+  } catch {
+    // DB not reachable (cold start, no seed) — use static fallback
+    return STATIC_ROOMS;
+  }
+}
+
+export default async function RoomsPage() {
+  const ROOMS = await getRooms();
   return (
     <div className="pt-20">
       {/* Header */}
@@ -75,32 +102,36 @@ export default function RoomsPage() {
         {/* Room Grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {ROOMS.map((room) => (
-            <RoomCard
-              key={room.id}
-              roomNumber={room.roomNumber}
-              roomType={room.type}
-              price={room.basePriceDouble}
-              status={room.status}
-              thumbnail={room.image}
-              features={room.features}
-              onClick={() => {}}
-              className="bg-white"
-            />
+            <Link href={`/rooms/${room.id}`} key={room.id} className="block">
+              <RoomCard
+                roomNumber={room.roomNumber}
+                roomType={room.type}
+                price={room.basePriceDouble}
+                status={room.status}
+                thumbnail={room.image}
+                features={room.features}
+                className="bg-white h-full"
+              />
+            </Link>
           ))}
         </div>
 
         {/* Summary */}
         <div className="mt-12 grid sm:grid-cols-3 gap-4 p-6 bg-accent/20 rounded-2xl">
           <div className="text-center">
-            <div className="font-heading text-3xl font-bold text-primary">36</div>
+            <div className="font-heading text-3xl font-bold text-primary">{ROOMS.length}</div>
             <div className="text-sm text-muted">Total Rooms</div>
           </div>
           <div className="text-center">
-            <div className="font-heading text-3xl font-bold text-vacant">28</div>
+            <div className="font-heading text-3xl font-bold text-vacant">
+              {ROOMS.filter((r) => r.status === "VACANT").length}
+            </div>
             <div className="text-sm text-muted">Currently Available</div>
           </div>
           <div className="text-center">
-            <div className="font-heading text-3xl font-bold text-secondary">18</div>
+            <div className="font-heading text-3xl font-bold text-secondary">
+              {ROOMS.filter((r) => r.type === "PREMIUM").length}
+            </div>
             <div className="text-sm text-muted">Premium Rooms</div>
           </div>
         </div>

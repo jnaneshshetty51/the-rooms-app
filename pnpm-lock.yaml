@@ -202,6 +202,9 @@ importers:
       '@the-rooms/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      bcryptjs:
+        specifier: ^2.4.3
+        version: 2.4.3
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -226,6 +229,9 @@ importers:
       react-hot-toast:
         specifier: ^2.4.1
         version: 2.6.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      resend:
+        specifier: ^4.0.0
+        version: 4.8.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       tailwind-merge:
         specifier: ^2.5.4
         version: 2.6.1
@@ -236,6 +242,9 @@ importers:
         specifier: ^5.0.0
         version: 5.0.14(@types/react@19.2.15)(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
     devDependencies:
+      '@types/bcryptjs':
+        specifier: ^2.4.6
+        version: 2.4.6
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
@@ -351,12 +360,18 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@the-rooms/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@the-rooms/auth':
         specifier: workspace:*
         version: link:../../packages/auth
       '@the-rooms/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@the-rooms/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@the-rooms/ui':
         specifier: workspace:*
         version: link:../../packages/ui

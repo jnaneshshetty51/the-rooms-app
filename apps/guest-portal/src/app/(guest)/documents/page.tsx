@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Upload, FileText, CheckCircle2, Clock, AlertCircle, Loader2, X, Eye } from "lucide-react";
 import {
@@ -37,6 +37,7 @@ type Document = {
 type Booking = {
   id: string;
   bookingNumber: string;
+  status: string;
   room: { roomNumber: string };
 };
 
@@ -47,7 +48,7 @@ const DOCUMENT_TYPES = [
   { value: "DRIVING_LICENSE", label: "Driving License" },
 ];
 
-export default function DocumentsPage() {
+function DocumentsPageContent() {
   const searchParams = useSearchParams();
   const preselectedBookingId = searchParams.get("bookingId");
 
@@ -246,6 +247,7 @@ export default function DocumentsPage() {
               >
                 {formData.frontUrl ? (
                   <div className="flex items-center gap-3 w-full">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={formData.frontUrl}
                       alt="Front"
@@ -299,6 +301,7 @@ export default function DocumentsPage() {
               >
                 {formData.backUrl ? (
                   <div className="flex items-center gap-3 w-full">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={formData.backUrl}
                       alt="Back"
@@ -410,17 +413,21 @@ export default function DocumentsPage() {
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-lg">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={doc.frontUrl}
                           alt="Document front"
                           className="w-full rounded-lg"
                         />
                         {doc.backUrl && (
-                          <img
-                            src={doc.backUrl}
-                            alt="Document back"
-                            className="w-full rounded-lg mt-2"
-                          />
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={doc.backUrl}
+                              alt="Document back"
+                              className="w-full rounded-lg mt-2"
+                            />
+                          </>
                         )}
                       </DialogContent>
                     </Dialog>
@@ -432,5 +439,13 @@ export default function DocumentsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DocumentsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+      <DocumentsPageContent />
+    </Suspense>
   );
 }

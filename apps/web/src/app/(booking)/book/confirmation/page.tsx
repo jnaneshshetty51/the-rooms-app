@@ -1,20 +1,54 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { Check, Calendar, MapPin, Phone, Mail, Download } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Check, Calendar, MapPin, Phone, Download, Loader2 } from "lucide-react";
 import { useBookingStore } from "@/stores/bookingStore";
 
-export default function BookingConfirmationPage() {
+function BookingConfirmationContent() {
+  const searchParams = useSearchParams();
+  const urlBookingId = searchParams.get("booking_id");
+
   const {
-    bookingNumber, checkIn, checkOut, selectedRoomNumber, selectedRoomPrice,
-    guestDetails, reset
+    bookingNumber: storeBookingNumber,
+    checkIn: storeCheckIn,
+    checkOut: storeCheckOut,
+    selectedRoomNumber: storeRoomNumber,
+    selectedRoomPrice,
+    guestDetails,
+    reset,
   } = useBookingStore();
 
-  // Confetti-like celebration effect
+  const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+
+  // Use URL param booking_id (IDFC redirect) or fall back to store
+  const bookingId = urlBookingId ?? null;
+
+  // Fetch invoice URL once we have a booking ID
   useEffect(() => {
-    // Auto-reset store after confirmation
-  }, []);
+    if (!bookingId) return;
+    setInvoiceLoading(true);
+    fetch(`/api/bookings/${bookingId}/invoice`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (d?.data?.pdfUrl) setInvoiceUrl(d.data.pdfUrl);
+      })
+      .finally(() => setInvoiceLoading(false));
+  }, [bookingId]);
+
+  // Dummy confirmation — real data would come from API using bookingId
+  const bookingNumber = storeBookingNumber || "BKN-2026-0001";
+  const checkIn = storeCheckIn;
+  const checkOut = storeCheckOut;
+  const selectedRoomNumber = storeRoomNumber;
+
+  // Clear booking store when the user leaves this page so stale data
+  // doesn't leak back into a new booking flow.
+  useEffect(() => {
+    return () => { reset(); };
+  }, [reset]);
 
   const nights = checkIn && checkOut
     ? Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000)
@@ -134,10 +168,26 @@ export default function BookingConfirmationPage() {
 
       {/* Actions */}
       <div className="grid sm:grid-cols-2 gap-3">
-        <button className="flex items-center justify-center gap-2 py-3 border border-primary text-primary font-semibold rounded-xl hover:bg-primary hover:text-primary-foreground transition-colors">
-          <Download className="w-4 h-4" />
-          Download Receipt
-        </button>
+        {invoiceLoading ? (
+          <div className="flex items-center justify-center gap-2 py-3 border border-primary/30 text-primary/50 rounded-xl">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading receipt…
+          </div>
+        ) : invoiceUrl ? (
+          <a
+            href={invoiceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 py-3 border border-primary text-primary font-semibold rounded-xl hover:bg-primary hover:text-primary-foreground transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Download Receipt
+          </a>
+        ) : (
+          <p className="flex items-center justify-center gap-2 py-3 text-sm text-muted rounded-xl border border-dashed border-muted">
+            Receipt will be emailed shortly
+          </p>
+        )}
         <Link
           href="/contact"
           className="flex items-center justify-center gap-2 py-3 bg-secondary text-white font-semibold rounded-xl hover:bg-secondary/90 transition-colors"
@@ -157,5 +207,13 @@ export default function BookingConfirmationPage() {
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function BookingConfirmationPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>}>
+      <BookingConfirmationContent />
+    </Suspense>
   );
 }

@@ -54,7 +54,8 @@ export default function BookingDetailsPage() {
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = "Name is required";
-    if (!phone.trim() || !/^\d{10}$/.test(phone.replace(/\D/g, ""))) errs.phone = "Valid phone required";
+    const digits = phone.replace(/\D/g, "");
+    if (!phone.trim() || (digits.length !== 10 && digits.length !== 12)) errs.phone = "Valid 10-digit phone required";
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Valid email required";
     setErrors(errs);
     return Object.keys(errs).length === 0;

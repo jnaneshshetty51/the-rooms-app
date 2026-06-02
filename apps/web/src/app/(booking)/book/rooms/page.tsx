@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Check, ArrowRight } from "lucide-react";
@@ -17,28 +17,9 @@ interface Room {
   photos: string[];
 }
 
-const MOCK_ROOMS: Room[] = [
-  ...Array.from({ length: 8 }, (_, i) => ({
-    id: `studio-${i + 1}`,
-    roomNumber: `S${String(i + 101).padStart(3, "0")}`,
-    type: "STUDIO" as const,
-    basePriceSingle: 999,
-    basePriceDouble: 1799,
-    features: ["Queen Bed", "Work Desk", "WiFi", "AC", "Hot Water"],
-    photos: [`https://picsum.photos/seed/sroom${i}/400/300`],
-  })),
-  ...Array.from({ length: 8 }, (_, i) => ({
-    id: `premium-${i + 1}`,
-    roomNumber: `P${String(i + 101).padStart(3, "0")}`,
-    type: "PREMIUM" as const,
-    basePriceSingle: 1999,
-    basePriceDouble: 2999,
-    features: ["King Bed", "Mini Bar", "City View", "Room Service", "Work Desk"],
-    photos: [`https://picsum.photos/seed/proom${i}/400/300`],
-  })),
-];
+// Removed MOCK_ROOMS
 
-export default function BookingRoomsPage() {
+function BookingRoomsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { checkIn, checkOut, guestsCount, roomType, selectRoom, setStep } = useBookingStore();
@@ -50,13 +31,34 @@ export default function BookingRoomsPage() {
   const guests = Number(searchParams.get("guests") || guestsCount || 2);
   const filterType = searchParams.get("type") || roomType;
 
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    // Simulate API call for room availability
-    const filtered = filterType
-      ? MOCK_ROOMS.filter((r) => r.type === filterType)
-      : MOCK_ROOMS;
-    setRooms(filtered);
-  }, [filterType]);
+    async function fetchAvailability() {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (checkInDate) params.set("checkIn", checkInDate);
+        if (checkOutDate) params.set("checkOut", checkOutDate);
+        if (guests) params.set("guestsCount", String(guests));
+        if (filterType) params.set("type", filterType);
+        
+        const res = await fetch(`/api/availability?${params.toString()}`);
+        const data = await res.json();
+        
+        if (res.ok && data.data) {
+          setRooms(data.data);
+        } else {
+          console.error("Failed to fetch rooms:", data.error);
+        }
+      } catch (err) {
+        console.error("Error fetching availability:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchAvailability();
+  }, [checkInDate, checkOutDate, guests, filterType]);
 
   const handleSelect = (room: Room) => {
     setSelectedRoom(room);
@@ -87,7 +89,15 @@ export default function BookingRoomsPage() {
 
       {/* Room list */}
       <div className="space-y-4">
-        {rooms.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12 text-muted">
+            <svg className="w-8 h-8 animate-spin mx-auto mb-4 text-secondary" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <p className="text-lg">Finding available rooms...</p>
+          </div>
+        ) : rooms.length === 0 ? (
           <div className="text-center py-12 text-muted">
             <p className="text-lg">No rooms found for the selected criteria.</p>
             <p className="text-sm mt-2">Try adjusting your dates or room type.</p>
@@ -187,5 +197,13 @@ export default function BookingRoomsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BookingRoomsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+      <BookingRoomsPageContent />
+    </Suspense>
   );
 }

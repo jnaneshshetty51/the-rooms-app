@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -61,7 +61,7 @@ const STATUS_COLORS: Record<string, string> = {
   CLOSED: "bg-[#636E72]/10 text-[#636E72] border-[#636E72]/20",
 };
 
-export default function ComplaintsPage() {
+function ComplaintsPageContent() {
   const searchParams = useSearchParams();
   const preselectedBookingId = searchParams.get("bookingId");
 
@@ -269,6 +269,7 @@ export default function ComplaintsPage() {
                 >
                   {photoUrl ? (
                     <div className="flex items-center gap-3 w-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={photoUrl}
                         alt="Issue"
@@ -407,5 +408,13 @@ export default function ComplaintsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ComplaintsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+      <ComplaintsPageContent />
+    </Suspense>
   );
 }

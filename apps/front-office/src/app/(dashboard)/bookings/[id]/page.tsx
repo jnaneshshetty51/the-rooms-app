@@ -6,7 +6,7 @@ import { cn } from "@the-rooms/ui";
 import { Loader2, ArrowLeft, User, Calendar, CreditCard, FileText, CheckCircle, Bed, AlertCircle } from "lucide-react";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
 
-interface Booking { id: string; bookingNumber: string; status: string; paymentStatus: string; bookingSource: string; bookingType: string; checkIn: string; checkOut: string; guestsCount: number; specialRequests?: string; totalAmount: string; baseAmount: string; discountAmount: string; checkInTime?: string; checkOutTime?: string; guest: { id: string; name: string; phone: string; email?: string; companyName?: string }; room: { id: string; roomNumber: string; type: string; floor: number }; payments: Array<{ id: string; amount: string; method: string; status: string }>; documents: Array<{ id: string; documentType: string; verified: boolean }> }
+interface Booking { id: string; bookingNumber: string; status: string; paymentStatus: string; bookingSource: string; bookingType: string; checkIn: string; checkOut: string; createdAt: string; guestsCount: number; specialRequests?: string; totalAmount: string; baseAmount: string; discountAmount: string; checkInTime?: string; checkOutTime?: string; guest: { id: string; name: string; phone: string; email?: string; companyName?: string }; room: { id: string; roomNumber: string; type: string; floor: number }; payments: Array<{ id: string; amount: string; method: string; status: string }>; documents: Array<{ id: string; documentType: string; verified: boolean }> }
 
 export default function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);

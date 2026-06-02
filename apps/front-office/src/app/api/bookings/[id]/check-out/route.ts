@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { getBookingById, updateBookingStatus } from "@the-rooms/db";
+import { getBookingById, updateBookingStatus, Prisma } from "@the-rooms/db";
 import prisma from "@the-rooms/db";
-import { Prisma } from "@prisma/client";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const booking = await getBookingById(params.id);
+    const booking = await getBookingById(id);
     if (!booking) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
@@ -29,7 +29,7 @@ export async function POST(
     if (finalPayment && finalPayment > 0) {
       await prisma.payment.create({
         data: {
-          bookingId: params.id,
+          bookingId: id,
           amount: new Prisma.Decimal(finalPayment),
           method: paymentMethod ?? "CASH",
           transactionId,
@@ -38,20 +38,20 @@ export async function POST(
       });
 
       await prisma.booking.update({
-        where: { id: params.id },
+        where: { id },
         data: { paymentStatus: "PAID" },
       });
     }
 
-    const updatedBooking = await updateBookingStatus(params.id, "CHECKED_OUT");
+    const updatedBooking = await updateBookingStatus(id, "CHECKED_OUT");
 
     await prisma.auditLog.create({
       data: {
         userId: (session.user as { id?: string }).id,
-        bookingId: params.id,
+        bookingId: id,
         action: "CHECK_OUT",
         entity: "booking",
-        entityId: params.id,
+        entityId: id,
         metadata: { checkOutTime: new Date(), finalPayment, paymentMethod, notes },
       },
     });

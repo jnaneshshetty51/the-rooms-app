@@ -1,14 +1,13 @@
 // apps/web/src/app/api/payments/idfc/initiate/route.ts
 // POST /api/payments/idfc/initiate — initiate IDFC payment
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@the-rooms/auth';
 import { getIDFCClient, toPaise, IDFCError } from '@the-rooms/payments/idfc';
-import { createPayment, updatePaymentStatus } from '@the-rooms/db';
-import { created, badRequest, serverError, unauthorized } from '@the-rooms/api';
+import { createPayment, Prisma } from '@the-rooms/db';
+import { created, badRequest, serverError } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
-import { Prisma } from '@prisma/client';
 
 import { db } from '@the-rooms/db';
 const InitiatePaymentSchema = z.object({
@@ -18,11 +17,9 @@ const InitiatePaymentSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Auth check — any authenticated user can initiate payment
+    // Auth is optional — public booking flow is unauthenticated.
+    // The bookingId itself acts as the access token for initiating payment.
     const session = await auth();
-    if (!session?.user) {
-      return unauthorized();
-    }
 
     // Parse and validate body
     const body = await request.json();

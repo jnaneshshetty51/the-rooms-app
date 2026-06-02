@@ -111,9 +111,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user) {
-      return unauthorized();
-    }
+    // Allow unauthenticated for public booking flow from website
 
     const body = await request.json();
     const data = CreateBookingSchema.parse(body);
@@ -214,7 +212,7 @@ export async function POST(request: NextRequest) {
         totalAmount: new Prisma.Decimal(pricing.totalAmount),
         specialRequests: data.specialRequests,
         discountCode: data.discountCode,
-        createdById: session.user.id,
+        createdById: session?.user?.id || null,
       },
       include: {
         guest: true,
@@ -224,7 +222,7 @@ export async function POST(request: NextRequest) {
 
     // Audit log
     await createAuditLog({
-      userId: session.user.id,
+      userId: session?.user?.id || null,
       action: 'CREATE',
       entity: 'booking',
       entityId: booking.id,

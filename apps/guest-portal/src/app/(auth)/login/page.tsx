@@ -3,46 +3,41 @@
 export const dynamic = "force-dynamic";
 
 import { useState, Suspense } from "react"
-import { signIn } from "next-auth/react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, EyeOff, Lock, AlertCircle, Loader2 } from "lucide-react"
+import { useSearchParams } from "next/navigation"
+import { AlertCircle, Loader2 } from "lucide-react"
 
 function LoginInner() {
-  const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard"
   const errorParam = searchParams.get("error")
 
   const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
 
     try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
+      const res = await fetch("/api/auth/magic-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       })
 
-      if (result?.error) {
-        if (result.error.includes("locked") || result.error.includes("Locked")) {
-          setError("Your account has been locked. Please try again in 15 minutes.")
-        } else {
-          setError("Invalid email or password. Please try again.")
-        }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? "Something went wrong. Please try again.")
         setIsLoading(false)
         return
       }
 
-      router.push(callbackUrl)
-      router.refresh()
+      // Always show "check your email" regardless of whether the account exists
+      // (prevents email enumeration)
+      setSuccess(true)
+      setIsLoading(false)
     } catch {
       setError("Something went wrong. Please try again.")
       setIsLoading(false)
@@ -110,19 +105,24 @@ function LoginInner() {
               Guest Portal
             </h2>
             <p className="text-[#636E72] text-sm">
-              Sign in to manage your bookings and requests
+              Enter your email to receive a secure login link
             </p>
           </div>
 
           {(error || (errorParam === "CredentialsSignin" && error?.includes("locked"))) && (
             <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 flex items-start gap-3">
-              {error?.includes("locked") ? (
-                <Lock className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              )}
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-700">
-                {error ?? "Invalid email or password. Please try again."}
+                {error ?? "Guest account not found. Make a booking to create an account."}
+              </p>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200 flex items-start gap-3">
+              <div className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5 font-bold">✓</div>
+              <p className="text-sm text-green-700">
+                Check your email for the magic login link!
               </p>
             </div>
           )}
@@ -145,47 +145,14 @@ function LoginInner() {
               />
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[#2D3436] mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 pr-12 rounded-lg border border-[#E5E5E5] bg-white text-[#2D3436] placeholder:text-[#B2BEC3] focus:outline-none focus:ring-2 focus:ring-[#E17055] focus:border-transparent transition-all text-sm"
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#636E72] hover:text-[#2D3436] transition-colors p-1"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <a href="/forgot-password" className="text-sm text-[#E17055] hover:text-[#D35B3F] font-medium transition-colors">
-                Forgot password?
-              </a>
-            </div>
-
             <button
               type="submit"
               disabled={isLoading}
               className="w-full py-3 px-6 rounded-lg bg-[#2D3436] hover:bg-[#3d4a4c] disabled:bg-[#636E72] text-white font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:cursor-not-allowed"
             >
               {isLoading ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Signing in...</>
-              ) : "Sign In"}
+                <><Loader2 className="w-4 h-4 animate-spin" /> Sending link...</>
+              ) : "Send Magic Link"}
             </button>
           </form>
 

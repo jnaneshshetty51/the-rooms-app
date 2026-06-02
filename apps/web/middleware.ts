@@ -1,6 +1,6 @@
 // apps/web/middleware.ts
 // Web app — primarily public, but protects admin routes if any
-import { auth } from "@the-rooms/auth"
+import { auth } from "@the-rooms/auth/edge"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 

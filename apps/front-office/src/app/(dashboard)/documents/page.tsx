@@ -255,6 +255,7 @@ export default function DocumentsPage() {
                 {selectedDoc.frontUrl && (
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-2">Front Side</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={selectedDoc.frontUrl}
                       alt="Front"
@@ -265,6 +266,7 @@ export default function DocumentsPage() {
                 {selectedDoc.backUrl && (
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-2">Back Side</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={selectedDoc.backUrl}
                       alt="Back"

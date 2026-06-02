@@ -4,6 +4,7 @@
   "exports": {
     ".": "./index.ts",
     "./config": "./auth.config.ts",
+    "./edge": "./edge.ts",
     "./helpers": "./lib/helpers.ts"
   },
   "main": "./index.ts",

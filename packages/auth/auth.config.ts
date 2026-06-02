@@ -4,13 +4,33 @@ import Credentials from "next-auth/providers/credentials"
 // @ts-ignore-next-line - NextAuthConfig type unavailable when workspace packages are compiled from different contexts
 import type { NextAuthConfig } from "next-auth";
 import bcrypt from "bcryptjs"
+import crypto from "crypto"
 import { z } from "zod"
 import { db } from "@the-rooms/db"
 
 const credentialsSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().optional(),
+  isMagicLink: z.string().optional(),
+  token: z.string().optional(),
 })
+
+function verifyMagicToken(token: string, email: string): boolean {
+  const secret = process.env.NEXTAUTH_SECRET
+  if (!secret) return false
+  try {
+    const dotIndex = token.lastIndexOf(".")
+    if (dotIndex === -1) return false
+    const payload = token.slice(0, dotIndex)
+    const sig = token.slice(dotIndex + 1)
+    const expectedSig = crypto.createHmac("sha256", secret).update(payload).digest("hex")
+    if (sig !== expectedSig) return false
+    const { email: tokenEmail, exp } = JSON.parse(Buffer.from(payload, "base64url").toString())
+    return tokenEmail === email && Date.now() < exp
+  } catch {
+    return false
+  }
+}
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -19,9 +39,31 @@ export const authConfig: NextAuthConfig = {
         const parsed = credentialsSchema.safeParse(credentials)
         if (!parsed.success) return null
 
-        const { email, password } = parsed.data
+        const { email, password, isMagicLink, token } = parsed.data
         const user = await db.user.findUnique({ where: { email } })
 
+        // Magic Link Logic
+        if (isMagicLink === "true" && !password) {
+          if (!user || user.role !== "GUEST") return null
+          if (!user.isActive) return null
+
+          // Production: token required. Dev fallback: allow without token.
+          if (token) {
+            if (!verifyMagicToken(token, email)) return null
+          } else if (process.env.NODE_ENV === "production") {
+            return null
+          }
+
+          await db.user.update({
+            where: { id: user.id },
+            data: { attempts: 0, lastLogin: new Date() },
+          })
+
+          return { id: user.id, email: user.email, name: user.name, role: user.role }
+        }
+
+        // Standard Password Logic
+        if (!password) return null
         if (!user || !user.isActive) return null
 
         // Rate limiting: if attempts >= 5, account is locked

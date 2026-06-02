@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CalendarDays,
@@ -64,7 +65,7 @@ type Booking = {
 const HOTEL_ADDRESS = "The Rooms, MG Road, Bangalore, Karnataka 560001";
 const MAP_IMAGE_URL = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/77.5946,12.9716,14,0/600x300?access_token=placeholder`;
 
-export default function StayDetailsPage() {
+function StayDetailsPageContent() {
   const searchParams = useSearchParams();
   const bookingId = searchParams.get("bookingId");
 
@@ -141,10 +142,11 @@ export default function StayDetailsPage() {
       {/* Room photo */}
       {booking.room.photos?.[0] && (
         <div className="relative h-48 sm:h-64 rounded-xl overflow-hidden">
-          <img
+          <Image
             src={booking.room.photos[0].url}
             alt={`Room ${booking.room.roomNumber}`}
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
           <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
@@ -342,10 +344,11 @@ export default function StayDetailsPage() {
             </CardHeader>
             <CardContent>
               <div className="h-40 bg-[#F0F0F0] rounded-lg mb-3 overflow-hidden relative">
-                <img
+                <Image
                   src={`https://placehold.co/600x300/2D3436/white?text=The+Rooms+Bangalore`}
                   alt="Hotel location"
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
                 />
               </div>
               <p className="text-sm text-[#636E72]">{HOTEL_ADDRESS}</p>
@@ -389,5 +392,13 @@ export default function StayDetailsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StayDetailsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+      <StayDetailsPageContent />
+    </Suspense>
   );
 }

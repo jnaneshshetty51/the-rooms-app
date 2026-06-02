@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { CalendarPlus, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import {
@@ -22,7 +22,7 @@ type Booking = {
   room: { roomNumber: string; type: string };
 };
 
-export default function ExtendStayPage() {
+function ExtendStayPageContent() {
   const searchParams = useSearchParams();
   const preselectedBookingId = searchParams.get("bookingId");
 
@@ -250,5 +250,13 @@ export default function ExtendStayPage() {
         </form>
       )}
     </div>
+  );
+}
+
+export default function ExtendStayPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+      <ExtendStayPageContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Download, Loader2, FileText, ExternalLink } from "lucide-react";
 import {
@@ -35,7 +35,7 @@ type Invoice = {
   };
 };
 
-export default function InvoicesPage() {
+function InvoicesPageContent() {
   const searchParams = useSearchParams();
   const preselectedBookingId = searchParams.get("bookingId");
 
@@ -182,5 +182,13 @@ export default function InvoicesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function InvoicesPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+      <InvoicesPageContent />
+    </Suspense>
   );
 }

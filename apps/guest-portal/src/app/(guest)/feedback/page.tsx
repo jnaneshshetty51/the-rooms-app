@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Star, Loader2, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import {
@@ -39,7 +39,7 @@ type Review = {
   };
 };
 
-export default function FeedbackPage() {
+function FeedbackPageContent() {
   const searchParams = useSearchParams();
   const preselectedBookingId = searchParams.get("bookingId");
 
@@ -386,5 +386,13 @@ export default function FeedbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function FeedbackPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+      <FeedbackPageContent />
+    </Suspense>
   );
 }

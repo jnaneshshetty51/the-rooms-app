@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import prisma from "@the-rooms/db";
-import { Prisma } from "@prisma/client";
-import { getBookings, createBooking, generateBookingNumber } from "@the-rooms/db";
+import { Prisma, getBookings, createBooking, generateBookingNumber } from "@the-rooms/db";
 import { getAvailableRooms } from "@the-rooms/db";
 
 // GET /api/bookings

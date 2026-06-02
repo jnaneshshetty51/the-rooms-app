@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@the-rooms/ui";
 import { Search, Loader2, User, Check } from "lucide-react";
@@ -12,7 +12,7 @@ interface BookingForm { guestId?: string; guestName: string; guestPhone: string;
 const STEPS = [{ id: 1, name: "Guest", icon: User }, { id: 2, name: "Room", icon: User }, { id: 3, name: "Payment", icon: User }, { id: 4, name: "Confirm", icon: Check }];
 const PRICING = { STUDIO: { single: 999, double: 1799 }, PREMIUM: { single: 1999, double: 2999 } };
 
-export default function NewBookingPage() {
+function NewBookingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedRoom = searchParams.get("room");
@@ -102,5 +102,13 @@ export default function NewBookingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function NewBookingPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+      <NewBookingPageContent />
+    </Suspense>
   );
 }

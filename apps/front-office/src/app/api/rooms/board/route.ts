@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { getAllRooms } from "@the-rooms/db";
+import prisma from "@the-rooms/db";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,20 +9,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const rooms = await getAllRooms();
+    const rooms = await prisma.room.findMany({
+      include: {
+        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+        amenities: { include: { amenity: true } },
+        bookings: {
+          where: { status: { in: ["CONFIRMED", "CHECKED_IN"] } },
+          include: { guest: { select: { name: true } } },
+          orderBy: { checkIn: "asc" },
+          take: 1,
+        },
+      },
+      orderBy: [{ floor: "asc" }, { roomNumber: "asc" }],
+    });
 
-    const boardData = rooms.map((room) => ({
-      id: room.id,
-      roomNumber: room.roomNumber,
-      type: room.type,
-      floor: room.floor,
-      status: room.status,
-      description: room.description,
-      amenities: room.amenities.map((ra) => ra.amenity.name),
-      currentBooking: room.bookings?.find((b) => b.status === "CHECKED_IN" || b.status === "CONFIRMED")
-        ? { id: room.bookings[0].id, guestName: room.bookings[0].guest?.name ?? "Unknown", checkIn: room.bookings[0].checkIn, checkOut: room.bookings[0].checkOut }
-        : null,
-    }));
+    const boardData = rooms.map((room) => {
+      const activeBooking = room.bookings[0] ?? null;
+      return {
+        id: room.id,
+        roomNumber: room.roomNumber,
+        type: room.type,
+        floor: room.floor,
+        status: room.status,
+        description: room.description,
+        amenities: room.amenities.map((ra) => ra.amenity.name),
+        currentBooking: activeBooking
+          ? { id: activeBooking.id, guestName: activeBooking.guest?.name ?? "Unknown", checkIn: activeBooking.checkIn, checkOut: activeBooking.checkOut }
+          : null,
+      };
+    });
 
     return NextResponse.json({
       rooms: boardData,

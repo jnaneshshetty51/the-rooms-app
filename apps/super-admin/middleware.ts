@@ -1,6 +1,6 @@
 // apps/super-admin/middleware.ts
 // Enforces SUPER_ADMIN role only
-import { auth } from "@the-rooms/auth"
+import { auth } from "@the-rooms/auth/edge"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import type { Role } from "@the-rooms/types"

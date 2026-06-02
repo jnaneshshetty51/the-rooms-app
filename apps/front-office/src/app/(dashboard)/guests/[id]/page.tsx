@@ -59,17 +59,11 @@ export default function GuestDetailPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     async function fetchGuest() {
       try {
-        // In production, this would be /api/guests/${id}
-        // For now, we'll search by the guest ID
-        const res = await fetch(`/api/guests/search?q=${id}`);
+        const res = await fetch(`/api/guests/${id}`);
         if (res.ok) {
-          const data = await res.json();
-          const foundGuest = data.guests?.find((g: GuestDetail) => g.id === id);
-          if (foundGuest) {
-            setGuest(foundGuest);
-          } else {
-            setError("Guest not found");
-          }
+          setGuest(await res.json());
+        } else if (res.status === 404) {
+          setError("Guest not found");
         } else {
           setError("Failed to load guest");
         }

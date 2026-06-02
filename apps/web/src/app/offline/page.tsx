@@ -1,3 +1,4 @@
+"use client";
 // apps/web/src/app/offline/page.tsx
 // Offline fallback page - shown when network is unavailable
 
