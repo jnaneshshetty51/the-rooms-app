@@ -36,7 +36,7 @@ function app(name, appDir, port, nextauthUrl, extraEnv = {}) {
 
 module.exports = {
   apps: [
-    app('rooms-web',          'apps/web',          3000, 'https://therooms.in', {
+    app('rooms-web',          'apps/web',          3005, 'https://therooms.in', {
       IDFC_MERCHANT_ID:    process.env.IDFC_MERCHANT_ID,
       IDFC_API_KEY:        process.env.IDFC_API_KEY,
       IDFC_WEBHOOK_SECRET: process.env.IDFC_WEBHOOK_SECRET,
