@@ -32,6 +32,15 @@ function verifyMagicToken(token: string, email: string): boolean {
   }
 }
 
+// Cookie name is configurable per-app so sessions don't collide across portals.
+// Fallback keeps backward compat with older deployments that don't set the var.
+const cookieName = `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}${
+  process.env.NEXTAUTH_COOKIE_NAME ?? "next-auth.session-token"
+}`
+
+// trustHost is set via the AUTH_TRUST_HOST env var (recommended for reverse-proxy
+// deployments). No code-level flag is needed — Auth.js v5 reads it automatically.
+
 export const authConfig: NextAuthConfig = {
   providers: [
     Credentials({
@@ -113,11 +122,13 @@ export const authConfig: NextAuthConfig = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24h for staff
+    // Per-app duration: guest portal sets 30d, staff portals set 8-12h.
+    // Falls back to 24h when NEXTAUTH_SESSION_MAX_AGE is not specified.
+    maxAge: Number(process.env.NEXTAUTH_SESSION_MAX_AGE ?? 24 * 60 * 60),
   },
   cookies: {
     sessionToken: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.session-token`,
+      name: cookieName,
       options: {
         httpOnly: true,
         sameSite: "lax",
