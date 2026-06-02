@@ -372,6 +372,9 @@ importers:
       '@the-rooms/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@the-rooms/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@the-rooms/ui':
         specifier: workspace:*
         version: link:../../packages/ui

@@ -16,6 +16,7 @@
     "@the-rooms/auth": "workspace:*",
     "@the-rooms/db": "workspace:*",
     "@the-rooms/email": "workspace:*",
+    "@the-rooms/payments": "workspace:*",
     "@the-rooms/ui": "workspace:*",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.460.0",
