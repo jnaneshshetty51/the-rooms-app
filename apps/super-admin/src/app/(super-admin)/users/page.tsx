@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   PageHeader,
   Card,
@@ -31,6 +31,7 @@ import {
   TableRow,
   TableCell,
   Switch,
+  LoadingSpinner,
 } from "@the-rooms/ui";
 import {
   Plus,
@@ -59,58 +60,7 @@ interface AdminUser {
   attempts: number;
 }
 
-const MOCK_USERS: AdminUser[] = [
-  {
-    id: "1",
-    name: "Jnan Shetty",
-    email: "jnan@therooms.in",
-    role: "SUPER_ADMIN",
-    isActive: true,
-    lastLogin: new Date(Date.now() - 5 * 60000).toISOString(),
-    createdAt: "2024-01-01T00:00:00Z",
-    attempts: 0,
-  },
-  {
-    id: "2",
-    name: "Priya Mehta",
-    email: "priya@therooms.in",
-    role: "ADMIN",
-    isActive: true,
-    lastLogin: new Date(Date.now() - 2 * 3600000).toISOString(),
-    createdAt: "2024-03-15T00:00:00Z",
-    attempts: 0,
-  },
-  {
-    id: "3",
-    name: "Rahul Verma",
-    email: "rahul@therooms.in",
-    role: "ADMIN",
-    isActive: true,
-    lastLogin: new Date(Date.now() - 24 * 3600000).toISOString(),
-    createdAt: "2024-05-20T00:00:00Z",
-    attempts: 1,
-  },
-  {
-    id: "4",
-    name: "Anita Desai",
-    email: "anita@therooms.in",
-    role: "ADMIN",
-    isActive: false,
-    lastLogin: new Date(Date.now() - 7 * 24 * 3600000).toISOString(),
-    createdAt: "2024-06-01T00:00:00Z",
-    attempts: 5,
-  },
-  {
-    id: "5",
-    name: "Front Office Team",
-    email: "fo@therooms.in",
-    role: "FRONT_OFFICE",
-    isActive: true,
-    lastLogin: new Date(Date.now() - 30 * 60000).toISOString(),
-    createdAt: "2024-02-01T00:00:00Z",
-    attempts: 0,
-  },
-];
+// Removed MOCK_USERS for live data
 
 const ROLE_LABELS: Record<UserRole, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -125,7 +75,8 @@ const ROLE_COLORS: Record<UserRole, string> = {
 };
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<AdminUser[]>(MOCK_USERS);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null);
@@ -137,6 +88,23 @@ export default function UsersPage() {
     role: "ADMIN" as UserRole,
     password: "",
   });
+
+  useEffect(() => {
+    async function loadUsers() {
+      try {
+        const res = await fetch("/api/users");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) setUsers(json.data);
+        }
+      } catch {
+        // error
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadUsers();
+  }, []);
 
   const activeCount = users.filter((u) => u.isActive).length;
   const adminCount = users.filter((u) => u.role === "ADMIN" && u.isActive).length;
@@ -223,6 +191,14 @@ export default function UsersPage() {
     } catch {
       toast.error("Failed to send reset email");
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
   }
 
   return (

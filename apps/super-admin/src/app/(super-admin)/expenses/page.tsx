@@ -28,6 +28,7 @@ import {
   TableHead,
   TableRow,
   TableCell,
+  LoadingSpinner,
 } from "@the-rooms/ui";
 import {
   Plus,
@@ -62,98 +63,7 @@ interface Expense {
   createdBy: string;
 }
 
-const MOCK_EXPENSES: Expense[] = [
-  {
-    id: "1",
-    description: "Electricity bill — May 2026",
-    amount: 42800,
-    category: "UTILITIES",
-    date: "2026-05-20",
-    vendor: "BSES Rajdhani",
-    createdBy: "Admin",
-  },
-  {
-    id: "2",
-    description: "Staff salaries — May 2026",
-    amount: 685000,
-    category: "SALARIES",
-    date: "2026-05-01",
-    vendor: "Internal",
-    createdBy: "Super Admin",
-  },
-  {
-    id: "3",
-    description: "AC unit repair — Room P108",
-    amount: 12400,
-    category: "MAINTENANCE",
-    date: "2026-05-18",
-    vendor: "CoolTech Services",
-    createdBy: "Admin",
-  },
-  {
-    id: "4",
-    description: "Toiletries & housekeeping supplies",
-    amount: 28750,
-    category: "SUPPLIES",
-    date: "2026-05-15",
-    vendor: "HotelMart India",
-    createdBy: "Admin",
-  },
-  {
-    id: "5",
-    description: "Google Ads campaign — May",
-    amount: 35000,
-    category: "MARKETING",
-    date: "2026-05-05",
-    vendor: "Google Ads",
-    createdBy: "Admin",
-  },
-  {
-    id: "6",
-    description: "Property insurance renewal",
-    amount: 45000,
-    category: "INSURANCE",
-    date: "2026-05-10",
-    vendor: "HDFC ERGO",
-    createdBy: "Super Admin",
-  },
-  {
-    id: "7",
-    description: "Water bill — May 2026",
-    amount: 8400,
-    category: "UTILITIES",
-    date: "2026-05-22",
-    vendor: "DJBDelhi",
-    createdBy: "Admin",
-  },
-  {
-    id: "8",
-    description: "Internet & WiFi — June",
-    amount: 12000,
-    category: "UTILITIES",
-    date: "2026-05-28",
-    vendor: "Airtel Business",
-    createdBy: "Admin",
-  },
-  {
-    id: "9",
-    description: "GST filing fees",
-    amount: 5000,
-    category: "TAXES",
-    date: "2026-05-25",
-    vendor: "TaxPartner LLP",
-    createdBy: "Super Admin",
-  },
-  {
-    id: "10",
-    description: "Linen replacement — 20 sets",
-    amount: 18000,
-    category: "SUPPLIES",
-    date: "2026-05-12",
-    vendor: "Hotel Linen Co.",
-    createdBy: "Admin",
-  },
-];
+// Removed MOCK_EXPENSES for live data
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   UTILITIES: "Utilities",
@@ -178,7 +88,7 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
 };
 
 export default function ExpensesPage() {
-  const [expenses, setExpenses] = useState<Expense[]>(MOCK_EXPENSES);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -308,6 +218,14 @@ export default function ExpensesPage() {
     toast.error("Expense deleted");
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <PageHeader
@@ -327,17 +245,7 @@ export default function ExpensesPage() {
           label="Total Expenses (MTD)"
           value={formatCurrency(thisMonth)}
           format="currency"
-          change={-4.2}
-          changeLabel="vs last month"
           icon={TrendingDown}
-        />
-        <StatCard
-          label="Net Profit (MTD)"
-          value={formatCurrency(681850 - thisMonth)}
-          format="currency"
-          change={9.1}
-          changeLabel="after expenses"
-          icon={DollarSign}
         />
         <StatCard
           label="Expense Count"

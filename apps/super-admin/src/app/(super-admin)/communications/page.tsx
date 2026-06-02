@@ -104,7 +104,7 @@ export default function CommunicationsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-4">
                       <h3 className="font-semibold text-gray-900">{alert.title}</h3>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500" suppressHydrationWarning>
                         {new Date(alert.createdAt).toLocaleString()}
                       </span>
                     </div>
@@ -141,7 +141,7 @@ export default function CommunicationsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-400" suppressHydrationWarning>
                       {new Date(comm.sentAt).toLocaleString()}
                     </span>
                     {getStatusIcon(comm.status)}

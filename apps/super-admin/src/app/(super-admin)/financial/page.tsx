@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   PageHeader,
   Card,
@@ -25,6 +25,7 @@ import {
   SelectContent,
   SelectItem,
   Input,
+  LoadingSpinner,
 } from "@the-rooms/ui";
 import {
   DollarSign,
@@ -46,64 +47,7 @@ interface RevenuePeriod {
   adr: number;
 }
 
-const REVENUE_DATA: RevenuePeriod[] = [
-  {
-    label: "Today",
-    grossRevenue: 38450,
-    netRevenue: 33480,
-    expenses: 4200,
-    profit: 29280,
-    bookings: 4,
-    adr: 1922,
-  },
-  {
-    label: "This Week",
-    grossRevenue: 287340,
-    netRevenue: 249780,
-    expenses: 31500,
-    profit: 218280,
-    bookings: 31,
-    adr: 1847,
-  },
-  {
-    label: "This Month",
-    grossRevenue: 948217,
-    netRevenue: 824150,
-    expenses: 142300,
-    profit: 681850,
-    bookings: 98,
-    adr: 1847,
-  },
-  {
-    label: "This Year",
-    grossRevenue: 6842900,
-    netRevenue: 5948900,
-    expenses: 1823400,
-    profit: 4125500,
-    bookings: 1247,
-    adr: 1789,
-  },
-];
-
-const ROOM_BREAKDOWN = [
-  { type: "Studio", daily: 18, monthly: 12, revenue: 412890, percentage: 43.5 },
-  { type: "Premium", daily: 14, monthly: 6, revenue: 535327, percentage: 56.5 },
-];
-
-const BOOKING_TYPE_BREAKDOWN = [
-  { type: "Daily", bookings: 78, revenue: 598420, percentage: 63.1 },
-  { type: "Monthly", bookings: 20, revenue: 349797, percentage: 36.9 },
-];
-
-const DAILY_TREND = [
-  { date: "May 23", revenue: 38200 },
-  { date: "May 24", revenue: 41500 },
-  { date: "May 25", revenue: 39800 },
-  { date: "May 26", revenue: 44200 },
-  { date: "May 27", revenue: 45600 },
-  { date: "May 28", revenue: 42300 },
-  { date: "May 29", revenue: 38450 },
-];
+// Mock data removed in favor of live API data
 
 function RevenueTable({ data }: { data: RevenuePeriod[] }) {
   return (
@@ -165,6 +109,35 @@ export default function FinancialPage() {
   const [roomFilter, setRoomFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadFinancials() {
+      try {
+        const res = await fetch("/api/financial");
+        if (res.ok) {
+          const json = await res.json();
+          setData(json.data);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadFinancials();
+  }, []);
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  const { periods, roomBreakdown, bookingTypeBreakdown, dailyTrend, summary } = data;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
@@ -177,33 +150,25 @@ export default function FinancialPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Gross Revenue"
-          value={formatCurrency(948217)}
+          value={formatCurrency(summary.grossRevenue)}
           format="currency"
-          change={8.2}
-          changeLabel="vs last month"
           icon={DollarSign}
         />
         <StatCard
           label="Total Expenses"
-          value={formatCurrency(142300)}
+          value={formatCurrency(summary.expenses)}
           format="currency"
-          change={-3.1}
-          changeLabel="vs last month"
           icon={TrendingDown}
         />
         <StatCard
           label="Net Profit"
-          value={formatCurrency(681850)}
+          value={formatCurrency(summary.netProfit)}
           format="currency"
-          change={11.4}
-          changeLabel="vs last month"
           icon={TrendingUp}
         />
         <StatCard
           label="Net Margin"
-          value="71.9%"
-          change={2.3}
-          changeLabel="vs last month"
+          value={summary.netMargin}
           icon={TrendingUp}
         />
       </div>
@@ -253,7 +218,7 @@ export default function FinancialPage() {
           <CardTitle className="text-base font-semibold">Revenue by Period</CardTitle>
         </CardHeader>
         <CardContent>
-          <RevenueTable data={REVENUE_DATA} />
+          <RevenueTable data={periods} />
         </CardContent>
       </Card>
 
@@ -272,7 +237,8 @@ export default function FinancialPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {ROOM_BREAKDOWN.map((r) => (
+                {roomBreakdown.length === 0 && <p className="text-sm text-muted-foreground">No data available for this period.</p>}
+                {roomBreakdown.map((r: any) => (
                   <div key={r.type} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div>
@@ -306,7 +272,8 @@ export default function FinancialPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {BOOKING_TYPE_BREAKDOWN.map((b) => (
+                {bookingTypeBreakdown.length === 0 && <p className="text-sm text-muted-foreground">No data available for this period.</p>}
+                {bookingTypeBreakdown.map((b: any) => (
                   <div key={b.type} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div>
@@ -340,11 +307,12 @@ export default function FinancialPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {DAILY_TREND.map((day, i) => {
-                  const max = Math.max(...DAILY_TREND.map((d) => d.revenue));
+                {dailyTrend.length === 0 && <p className="text-sm text-muted-foreground">No data available.</p>}
+                {dailyTrend.map((day: any, i: number) => {
+                  const max = Math.max(...dailyTrend.map((d: any) => d.revenue), 1);
                   const pct = (day.revenue / max) * 100;
                   return (
-                    <div key={day.date} className="flex items-center gap-4">
+                    <div key={day.date + i} className="flex items-center gap-4">
                       <span className="w-16 text-xs text-muted-foreground">{day.date}</span>
                       <div className="flex-1 h-6 bg-muted rounded overflow-hidden">
                         <div

@@ -62,31 +62,7 @@ interface AuditEntry {
   user?: { name: string; email: string };
 }
 
-const FALLBACK_KPIS: DashboardKPIs = {
-  mrr: 0,
-  arr: 0,
-  occupancyRate: 0,
-  activeBookings: 0,
-  grossRevenue: 0,
-  netRevenue: 0,
-  adr: 0,
-  revpar: 0,
-  totalRooms: 0,
-  availableRooms: 0,
-  occupiedCount: 0,
-  checkedInToday: 0,
-  pendingCheckIns: 0,
-};
-
-const FALLBACK_SERVICES: SystemHealthService[] = [
-  { name: "PostgreSQL", status: "ok", responseTime: 0, lastChecked: new Date().toISOString() },
-  { name: "Redis", status: "ok", responseTime: 0, lastChecked: new Date().toISOString() },
-  { name: "MinIO", status: "ok", responseTime: 0, lastChecked: new Date().toISOString() },
-  { name: "Resend", status: "ok", lastChecked: new Date().toISOString() },
-  { name: "IDFC Bank", status: "ok", responseTime: 0, lastChecked: new Date().toISOString() },
-  { name: "Nginx", status: "ok", responseTime: 0, lastChecked: new Date().toISOString() },
-  { name: "Docker", status: "ok", responseTime: 0, lastChecked: new Date().toISOString() },
-];
+// Removed fallback data for live mode
 
 function HealthIndicator({ status }: { status: "ok" | "slow" | "down" }) {
   if (status === "ok") return <CheckCircle2 className="h-4 w-4 text-green-500" />;
@@ -206,8 +182,8 @@ function RecentAuditCard({ entries }: { entries: AuditEntry[] }) {
 
 export function DashboardContent() {
   const [isPending, startTransition] = useTransition();
-  const [kpis, setKpis] = useState<DashboardKPIs>(FALLBACK_KPIS);
-  const [services, setServices] = useState<SystemHealthService[]>(FALLBACK_SERVICES);
+  const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
+  const [services, setServices] = useState<SystemHealthService[]>([]);
   const [recentAudit, setRecentAudit] = useState<AuditEntry[]>([]);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const isLoading = isPending;
@@ -233,7 +209,7 @@ export function DashboardContent() {
 
         if (healthRes.ok) {
           const healthJson = await healthRes.json();
-          setServices(healthJson.data?.services ?? FALLBACK_SERVICES);
+          setServices(healthJson.data?.services ?? []);
         }
       } catch {
         // Keep fallback data on network/API errors
@@ -241,6 +217,14 @@ export function DashboardContent() {
       }
     });
   }, []);
+
+  if (isLoading || !kpis) {
+    return (
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
@@ -263,31 +247,23 @@ export function DashboardContent() {
           label="Monthly Revenue (MRR)"
           value={formatCurrency(kpis.mrr)}
           format="currency"
-          change={8.2}
-          changeLabel="vs last month"
           icon={DollarSign}
         />
         <StatCard
           label="Annual Run Rate (ARR)"
           value={formatCurrency(kpis.arr)}
           format="currency"
-          change={12.4}
-          changeLabel="vs last year"
           icon={TrendingUp}
         />
         <StatCard
           label="Occupancy Rate"
           value={kpis.occupancyRate}
           format="percent"
-          change={3.1}
-          changeLabel="vs last month"
           icon={Bed}
         />
         <StatCard
           label="Active Bookings"
           value={kpis.activeBookings}
-          change={5}
-          changeLabel="vs last week"
           icon={CalendarDays}
         />
       </div>
@@ -304,8 +280,6 @@ export function DashboardContent() {
           label="Net Revenue (MTD)"
           value={formatCurrency(kpis.netRevenue)}
           format="currency"
-          change={6.8}
-          changeLabel="vs last month"
           icon={DollarSign}
         />
         <StatCard
