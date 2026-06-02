@@ -47,9 +47,13 @@ export default function PaymentsPage() {
     async function fetchPayments() {
       setLoading(true);
       try {
-        // In production, this would filter by date
-        // For demo, return sample data
-        setPayments([]);
+        const res = await fetch("/api/payments");
+        if (res.ok) {
+          const data = await res.json();
+          setPayments(data.payments ?? []);
+        } else {
+          throw new Error("Failed to fetch payments");
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {

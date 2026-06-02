@@ -13,12 +13,30 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const bookingId = searchParams.get("bookingId");
 
-    if (!bookingId) {
-      return NextResponse.json({ error: "Booking ID required" }, { status: 400 });
+    if (bookingId) {
+      const payments = await getPaymentsByBooking(bookingId);
+      return NextResponse.json({ payments });
+    } else {
+      const payments = await prisma.payment.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        include: {
+          booking: {
+            select: {
+              id: true,
+              bookingNumber: true,
+              guest: {
+                select: { name: true, phone: true },
+              },
+              room: {
+                select: { roomNumber: true },
+              },
+            },
+          },
+        },
+      });
+      return NextResponse.json({ payments });
     }
-
-    const payments = await getPaymentsByBooking(bookingId);
-    return NextResponse.json({ payments });
   } catch (error) {
     console.error("Error fetching payments:", error);
     return NextResponse.json({ error: "Failed to fetch payments" }, { status: 500 });

@@ -72,11 +72,19 @@ function StayDetailsPageContent() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch("/api/bookings");
+        const [res, settingsRes] = await Promise.all([
+          fetch("/api/bookings"),
+          fetch("/api/settings")
+        ]);
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
+          setSettings(data.settings);
+        }
         if (res.ok) {
           const data = await res.json();
           const bookings: Booking[] = data.bookings ?? [];
@@ -351,7 +359,7 @@ function StayDetailsPageContent() {
                   className="object-cover"
                 />
               </div>
-              <p className="text-sm text-[#636E72]">{HOTEL_ADDRESS}</p>
+              <p className="text-sm text-[#636E72]">{settings?.address || HOTEL_ADDRESS}</p>
               <Button
                 asChild
                 size="sm"
@@ -359,7 +367,7 @@ function StayDetailsPageContent() {
                 className="w-full mt-3"
               >
                 <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(HOTEL_ADDRESS)}`}
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings?.address || HOTEL_ADDRESS)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -377,15 +385,15 @@ function StayDetailsPageContent() {
             <CardContent className="space-y-2 text-sm">
               <p className="text-[#636E72]">
                 <span className="font-medium text-[#2D3436]">Phone:</span>{" "}
-                +91 80 1234 5678
+                {settings?.phone || "+91 80 1234 5678"}
               </p>
               <p className="text-[#636E72]">
                 <span className="font-medium text-[#2D3436]">WhatsApp:</span>{" "}
-                +91 98765 43210
+                {settings?.phone || "+91 98765 43210"}
               </p>
               <p className="text-[#636E72]">
                 <span className="font-medium text-[#2D3436]">Email:</span>{" "}
-                stay@therooms.in
+                {settings?.email || "stay@therooms.in"}
               </p>
             </CardContent>
           </Card>

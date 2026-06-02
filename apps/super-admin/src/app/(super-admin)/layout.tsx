@@ -1,6 +1,7 @@
 import { auth } from "@the-rooms/auth";
 import { SuperAdminLayout } from "./_components/SuperAdminLayout";
 import { redirect } from "next/navigation";
+import { ToastProvider } from "@the-rooms/ui";
 
 export default async function SuperAdminDashboardLayout({
   children,
@@ -18,8 +19,10 @@ export default async function SuperAdminDashboardLayout({
   const userEmail = session.user.email ?? undefined;
 
   return (
-    <SuperAdminLayout userName={userName} userEmail={userEmail}>
-      {children}
-    </SuperAdminLayout>
+    <ToastProvider>
+      <SuperAdminLayout userName={userName} userEmail={userEmail}>
+        {children}
+      </SuperAdminLayout>
+    </ToastProvider>
   );
 }

@@ -46,9 +46,13 @@ export default function DocumentsPage() {
   useEffect(() => {
     async function fetchDocuments() {
       try {
-        // In production, this would be /api/documents with filters
-        // For now, return empty array as documents are linked to bookings
-        setDocuments([]);
+        const res = await fetch("/api/documents");
+        if (res.ok) {
+          const data = await res.json();
+          setDocuments(data.documents ?? []);
+        } else {
+          throw new Error("Failed to fetch documents");
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {

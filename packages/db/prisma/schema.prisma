@@ -427,3 +427,20 @@ model Expense {
   @@index([createdById])
   @@map("expenses")
 }
+
+// ── Hotel Settings ───────────────────────────────────────────────────────
+model HotelSettings {
+  id                 String   @id @default("default")
+  hotelName          String   @default("The Rooms")
+  address            String?
+  phone              String?
+  email              String?
+  emailOnBooking     Boolean  @default(true)
+  emailOnCancel      Boolean  @default(true)
+  dailyReport        Boolean  @default(true)
+  maintenanceAlerts  Boolean  @default(true)
+  
+  updatedAt          DateTime @updatedAt
+
+  @@map("hotel_settings")
+}
