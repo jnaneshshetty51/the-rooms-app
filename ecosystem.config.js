@@ -8,7 +8,7 @@ function app(name, appDir, port, nextauthUrl, extraEnv = {}) {
   return {
     name,
     cwd: `${ROOT}/${appDir}`,
-    script: 'node_modules/.bin/next',
+    script: 'node_modules/next/dist/bin/next',
     args: 'start',
     instances: 1,
     exec_mode: 'fork',
