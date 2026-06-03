@@ -121,7 +121,7 @@ export default function RoomBoardPage() {
                     <p className={cn("mt-1 text-xs font-medium", config.textColor)}>{config.label}</p>
                     <div className="flex items-center justify-between mt-2">
                       <p className="text-xs text-gray-500">{room.type}</p>
-                      {room.cleaningStatus === "DIRTY" ? <Trash2 className="h-4 w-4 text-red-500" title="Dirty" /> : room.cleaningStatus === "CLEANING" ? <Clock className="h-4 w-4 text-blue-500" title="Cleaning" /> : <Sparkles className="h-4 w-4 text-green-500" title="Clean" />}
+                      {room.cleaningStatus === "DIRTY" ? <span title="Dirty"><Trash2 className="h-4 w-4 text-red-500" /></span> : room.cleaningStatus === "CLEANING" ? <span title="Cleaning"><Clock className="h-4 w-4 text-blue-500" /></span> : <span title="Clean"><Sparkles className="h-4 w-4 text-green-500" /></span>}
                     </div>
                     {room.currentBooking && <div className="mt-2 pt-2 border-t border-gray-200/50"><p className="text-xs font-medium text-gray-900 truncate">{room.currentBooking.guestName}</p><p className="text-[10px] text-gray-500">Until {formatDate(room.currentBooking.checkOut, "short")}</p></div>}
                   </button>
