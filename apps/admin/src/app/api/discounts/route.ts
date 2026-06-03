@@ -40,6 +40,14 @@ export async function POST(request: NextRequest) {
     if (!name || !code || !type || discountPercent === undefined) {
       return NextResponse.json({ error: "name, code, type, and discountPercent are required" }, { status: 400 });
     }
+    
+    if (parseFloat(discountPercent) <= 0 || parseFloat(discountPercent) > 100) {
+      return NextResponse.json({ error: "Discount percent must be between 0 and 100" }, { status: 400 });
+    }
+
+    if (validFrom && validTo && new Date(validFrom) > new Date(validTo)) {
+      return NextResponse.json({ error: "Valid From date must be before Valid To date" }, { status: 400 });
+    }
 
     const existing = await prisma.discount.findUnique({ where: { code } });
     if (existing) return NextResponse.json({ error: "Discount code already exists" }, { status: 409 });
@@ -83,11 +91,23 @@ export async function PATCH(request: NextRequest) {
     if (name !== undefined) updateData.name = name;
     if (code !== undefined) updateData.code = code;
     if (type !== undefined) updateData.type = type;
-    if (discountPercent !== undefined) updateData.discountPercent = new Prisma.Decimal(discountPercent);
+    if (discountPercent !== undefined) {
+      if (parseFloat(discountPercent) <= 0 || parseFloat(discountPercent) > 100) {
+        return NextResponse.json({ error: "Discount percent must be between 0 and 100" }, { status: 400 });
+      }
+      updateData.discountPercent = new Prisma.Decimal(discountPercent);
+    }
     if (minDays !== undefined) updateData.minDays = minDays;
     if (maxDays !== undefined) updateData.maxDays = maxDays;
     if (validFrom !== undefined) updateData.validFrom = validFrom ? new Date(validFrom) : null;
     if (validTo !== undefined) updateData.validTo = validTo ? new Date(validTo) : null;
+    
+    // Cross-field validation for PATCH requires fetching existing or trusting the frontend mostly.
+    // We'll trust the updateData object to be consistent if both are sent.
+    if (updateData.validFrom && updateData.validTo && updateData.validFrom > updateData.validTo) {
+      return NextResponse.json({ error: "Valid From date must be before Valid To date" }, { status: 400 });
+    }
+
     if (maxUses !== undefined) updateData.maxUses = maxUses;
     if (isActive !== undefined) updateData.isActive = isActive;
 
@@ -101,6 +121,9 @@ export async function PATCH(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Internal error";
     if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
     if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return NextResponse.json({ error: "Discount code already exists" }, { status: 409 });
+    }
     console.error("[DISCOUNTS_PATCH]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

@@ -89,20 +89,21 @@ export default function UsersPage() {
     password: "",
   });
 
-  useEffect(() => {
-    async function loadUsers() {
-      try {
-        const res = await fetch("/api/users");
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data) setUsers(json.data);
-        }
-      } catch {
-        // error
-      } finally {
-        setIsLoading(false);
+  const loadUsers = async () => {
+    try {
+      const res = await fetch("/api/users");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) setUsers(json.data);
       }
+    } catch {
+      // error
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadUsers();
   }, []);
 
@@ -129,50 +130,66 @@ export default function UsersPage() {
     setDialogOpen(true);
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!form.name || !form.email) return;
     if (!editing && !form.password) return;
 
-    if (editing) {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === editing.id
-            ? { ...u, name: form.name, email: form.email, role: form.role }
-            : u
-        )
-      );
-      toast.success("User updated successfully");
-    } else {
-      setUsers((prev) => [
-        ...prev,
-        {
-          id: String(Date.now()),
-          name: form.name,
-          email: form.email,
-          role: form.role,
-          isActive: true,
-          lastLogin: null,
-          createdAt: new Date().toISOString(),
-          attempts: 0,
-        },
-      ]);
-      toast.success("User created successfully");
+    try {
+      const res = await fetch("/api/users", {
+        method: editing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          editing
+            ? { id: editing.id, name: form.name, email: form.email, role: form.role }
+            : { name: form.name, email: form.email, role: form.role, password: form.password }
+        ),
+      });
+      
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to save user");
+        return;
+      }
+      
+      toast.success(`User ${editing ? "updated" : "created"} successfully`);
+      setDialogOpen(false);
+      loadUsers();
+    } catch {
+      toast.error("Failed to save user");
     }
-    setDialogOpen(false);
   }
 
-  function toggleActive(id: string) {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, isActive: !u.isActive } : u))
-    );
+  async function toggleActive(id: string) {
     const user = users.find((u) => u.id === id);
-    toast.success(user?.isActive ? "User deactivated" : "User activated");
+    if (!user) return;
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isActive: !user.isActive }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success(user.isActive ? "User deactivated" : "User activated");
+      loadUsers();
+    } catch {
+      toast.error("Failed to update status");
+    }
   }
 
-  function handleDelete(id: string) {
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    setShowDeleteDialog(null);
-    toast.error("User deleted");
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/users?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Failed to delete user");
+        return;
+      }
+      setShowDeleteDialog(null);
+      toast.success("User deleted");
+      loadUsers();
+    } catch {
+      toast.error("Failed to delete user");
+    }
   }
 
   async function resetPassword(id: string) {

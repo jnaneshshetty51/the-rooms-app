@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   PageHeader,
   Card,
@@ -39,68 +39,15 @@ interface ServiceStatus {
   uptime?: string;
 }
 
-const SERVICES: ServiceStatus[] = [
-  {
-    name: "PostgreSQL",
-    icon: Database,
-    status: "ok",
-    responseTime: 12,
-    detail: "16 connections active, 42MB buffer usage",
-    lastChecked: new Date(Date.now() - 30000).toISOString(),
-    uptime: "99.98%",
-  },
-  {
-    name: "Redis",
-    icon: Server,
-    status: "ok",
-    responseTime: 2,
-    detail: "Memory: 42MB / 256MB, Keys: 1,247",
-    lastChecked: new Date(Date.now() - 30000).toISOString(),
-    uptime: "99.99%",
-  },
-  {
-    name: "MinIO (Storage)",
-    icon: HardDrive,
-    status: "ok",
-    responseTime: 28,
-    detail: "Disk: 23% used (92GB / 400GB), 4 buckets",
-    lastChecked: new Date(Date.now() - 30000).toISOString(),
-    uptime: "99.95%",
-  },
-  {
-    name: "Resend (Email)",
-    icon: Mail,
-    status: "ok",
-    responseTime: 180,
-    detail: "API key valid, sending enabled, 0 queued",
-    lastChecked: new Date(Date.now() - 30000).toISOString(),
-  },
-  {
-    name: "INDUSIND Bank (Payments)",
-    icon: CreditCard,
-    status: "ok",
-    responseTime: 340,
-    detail: "Production mode, last transaction 5min ago",
-    lastChecked: new Date(Date.now() - 30000).toISOString(),
-  },
-  {
-    name: "Nginx (Reverse Proxy)",
-    icon: Globe,
-    status: "ok",
-    responseTime: 1,
-    detail: "12 active connections, SSL certificate valid (90 days)",
-    lastChecked: new Date(Date.now() - 30000).toISOString(),
-    uptime: "99.99%",
-  },
-  {
-    name: "Docker",
-    icon: Server,
-    status: "ok",
-    responseTime: 8,
-    detail: "6 containers running: postgres, redis, minio, nginx, app, cron",
-    lastChecked: new Date(Date.now() - 30000).toISOString(),
-  },
-];
+const SERVICE_ICONS: Record<string, React.ElementType> = {
+  "PostgreSQL": Database,
+  "Redis": Server,
+  "MinIO": HardDrive,
+  "Resend": Mail,
+  "INDUSIND Bank": CreditCard,
+  "Nginx": Globe,
+  "Docker": Server,
+};
 
 interface BackupEntry {
   id: string;
@@ -122,7 +69,7 @@ const BACKUPS: BackupEntry[] = [
 
 function ServiceCard({ svc }: { svc: ServiceStatus }) {
   const [expanded, setExpanded] = useState(false);
-  const Icon = svc.icon;
+  const Icon = svc.icon || Server;
 
   const statusIcon =
     svc.status === "ok" ? (
@@ -213,20 +160,43 @@ function ServiceCard({ svc }: { svc: ServiceStatus }) {
 }
 
 export default function SystemHealthPage() {
-  const [refreshing, setRefreshing] = useState(false);
+  const [services, setServices] = useState<ServiceStatus[]>([]);
+  const [refreshing, setRefreshing] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  function handleRefresh() {
+  async function fetchHealth() {
     setRefreshing(true);
-    setTimeout(() => {
-      setLastRefresh(new Date());
+    try {
+      const res = await fetch("/api/system-health");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data?.services) {
+          const mapped = json.data.services.map((s: any) => ({
+            ...s,
+            icon: SERVICE_ICONS[s.name] || Server,
+          }));
+          setServices(mapped);
+          setLastRefresh(new Date(json.data.summary.lastChecked || Date.now()));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
       setRefreshing(false);
-    }, 2000);
+    }
   }
 
-  const healthyCount = SERVICES.filter((s) => s.status === "ok").length;
-  const slowCount = SERVICES.filter((s) => s.status === "slow").length;
-  const downCount = SERVICES.filter((s) => s.status === "down").length;
+  useEffect(() => {
+    fetchHealth();
+  }, []);
+
+  function handleRefresh() {
+    fetchHealth();
+  }
+
+  const healthyCount = services.filter((s) => s.status === "ok").length;
+  const slowCount = services.filter((s) => s.status === "slow").length;
+  const downCount = services.filter((s) => s.status === "down").length;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
@@ -277,9 +247,15 @@ export default function SystemHealthPage() {
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">Services</h3>
         <div className="grid grid-cols-1 gap-3">
-          {SERVICES.map((svc) => (
-            <ServiceCard key={svc.name} svc={svc} />
-          ))}
+          {refreshing && services.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            services.map((svc) => (
+              <ServiceCard key={svc.name} svc={svc} />
+            ))
+          )}
         </div>
       </div>
 

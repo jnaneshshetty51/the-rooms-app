@@ -3,7 +3,7 @@
 // apps/admin/src/app/(dashboard)/discounts/page.tsx
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Pencil, Trash2, Tag, Percent, ToggleLeft, ToggleRight } from "lucide-react";
-import { PageHeader, Button, Dialog, Input, Select, SelectTrigger, SelectContent, SelectValue, Badge, DataTable, type ColumnDef } from "@the-rooms/ui";
+import { PageHeader, Button, Dialog, Input, Select, SelectTrigger, SelectContent, SelectValue, Badge, DataTable, type ColumnDef, useToast } from "@the-rooms/ui";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
 
 interface Discount {
@@ -37,6 +37,7 @@ export default function DiscountsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Discount | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
 
   const [form, setForm] = useState({
     name: "",
@@ -102,6 +103,10 @@ export default function DiscountsPage() {
         setEditing(null);
         setForm({ name: "", code: "", type: "CORPORATE", discountPercent: "10", minDays: "1", maxDays: "", validFrom: "", validTo: "", maxUses: "", isActive: true });
         fetchData();
+        toast({ title: "Success", message: `Discount successfully ${editing ? "updated" : "created"}.`, type: "success" });
+      } else {
+        const err = await res.json();
+        toast({ title: "Error", message: err.error || "Failed to save discount.", type: "error" });
       }
     } finally {
       setSubmitting(false);
@@ -110,17 +115,27 @@ export default function DiscountsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this discount code?")) return;
-    await fetch(`/api/discounts?id=${id}`, { method: "DELETE" });
-    fetchData();
+    const res = await fetch(`/api/discounts?id=${id}`, { method: "DELETE" });
+    if (res.ok) {
+      fetchData();
+      toast({ title: "Deleted", message: "Discount code removed.", type: "success" });
+    } else {
+      toast({ title: "Error", message: "Failed to delete discount.", type: "error" });
+    }
   }
 
   async function handleToggleActive(d: Discount) {
-    await fetch("/api/discounts", {
+    const res = await fetch("/api/discounts", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: d.id, isActive: !d.isActive }),
     });
-    fetchData();
+    if (res.ok) {
+      fetchData();
+      toast({ title: "Status Updated", message: `Discount is now ${!d.isActive ? "active" : "inactive"}.`, type: "success" });
+    } else {
+      toast({ title: "Error", message: "Failed to update discount status.", type: "error" });
+    }
   }
 
   const columns: ColumnDef<Discount, unknown>[] = [

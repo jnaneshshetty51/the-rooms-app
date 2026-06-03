@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   PageHeader,
   Card,
@@ -34,26 +34,55 @@ import {
 import { useToast } from "@the-rooms/ui";
 
 export default function SettingsPage() {
-  const toast = useToast();
+  const { toast } = useToast();
   const [showIndusInd, setShowIndusInd] = useState(false);
   const [showResend, setShowResend] = useState(false);
   const [showMinio, setShowMinio] = useState(false);
 
   const [settings, setSettings] = useState({
-    hotelName: "The Rooms",
-    hotelAddress: "MG Road, Near City Center, New Delhi, India",
-    hotelPhone: "+91 11 2345 6789",
-    hotelEmail: "hello@therooms.in",
-    checkInTime: "14:00",
-    checkOutTime: "11:00",
-    lateCheckOutFee: "500",
-    earlyCheckInFee: "500",
-    gstNumber: "07AAACH1234P1Z5",
-    bankName: "HDFC Bank",
-    accountNumber: "501XXXXXXX1234",
-    ifscCode: "HDFC0001234",
-    cancellationPolicy: "Free cancellation up to 24 hours before check-in. After that, first night charge applies.",
+    hotelName: "",
+    hotelAddress: "",
+    hotelPhone: "",
+    hotelEmail: "",
+    checkInTime: "",
+    checkOutTime: "",
+    lateCheckOutFee: "",
+    earlyCheckInFee: "",
+    gstNumber: "",
+    bankName: "",
+    accountNumber: "",
+    ifscCode: "",
+    cancellationPolicy: "",
   });
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function fetchSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            setSettings({
+              ...json.data,
+              hotelAddress: json.data.address || "",
+              hotelPhone: json.data.phone || "",
+              hotelEmail: json.data.email || "",
+              lateCheckOutFee: String(json.data.lateCheckOutFee || ""),
+              earlyCheckInFee: String(json.data.earlyCheckInFee || ""),
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchSettings();
+  }, []);
 
   const [configs, setConfigs] = useState({
     indusindClientId: "INDUSIND_CLIENT_XXXX",
@@ -70,8 +99,25 @@ export default function SettingsPage() {
     minioBucket: "therooms-storage",
   });
 
-  function handleSave() {
-    toast.success("Settings saved");
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...settings,
+          lateCheckOutFee: parseFloat(settings.lateCheckOutFee) || 0,
+          earlyCheckInFee: parseFloat(settings.earlyCheckInFee) || 0,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save settings");
+      toast({ title: "Success", message: "Settings saved successfully", type: "success" });
+    } catch (err) {
+      toast({ title: "Error", message: "Failed to save settings", type: "error" });
+    } finally {
+      setSaving(false);
+    }
   }
 
   function mask(str: string) {
@@ -108,6 +154,12 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {loading ? (
+                <div className="flex h-32 items-center justify-center">
+                  <span className="text-sm text-muted-foreground">Loading settings...</span>
+                </div>
+              ) : (
+                <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Hotel Name</Label>
@@ -196,11 +248,13 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button onClick={handleSave} className="gap-2">
+                <Button onClick={handleSave} disabled={saving} className="gap-2">
                   <Save className="h-4 w-4" />
-                  Save Changes
+                  {saving ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
+              </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -14,6 +14,11 @@ export default async function SuperAdminDashboardLayout({
     redirect("/login");
   }
 
+  const userRole = (session.user as { role?: string }).role;
+  if (userRole !== "SUPER_ADMIN") {
+    redirect("/access-denied");
+  }
+
   const userName =
     session.user.name ?? session.user.email?.split("@")[0] ?? "Super Admin";
   const userEmail = session.user.email ?? undefined;

@@ -462,6 +462,16 @@ model HotelSettings {
   address            String?
   phone              String?
   email              String?
+  checkInTime        String?
+  checkOutTime       String?
+  lateCheckOutFee    Decimal?  @db.Decimal(10, 2)
+  earlyCheckInFee    Decimal?  @db.Decimal(10, 2)
+  gstNumber          String?
+  bankName           String?
+  accountNumber      String?
+  ifscCode           String?
+  cancellationPolicy String?
+  
   emailOnBooking     Boolean  @default(true)
   emailOnCancel      Boolean  @default(true)
   dailyReport        Boolean  @default(true)

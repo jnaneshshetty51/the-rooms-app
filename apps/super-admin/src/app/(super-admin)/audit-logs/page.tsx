@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   PageHeader,
   Card,
@@ -16,9 +16,8 @@ import {
   SelectContent,
   SelectItem,
   Dialog,
-  DialogContent,
-  DialogHeader,
   DialogTitle,
+  LoadingSpinner,
 } from "@the-rooms/ui";
 import {
   Shield,
@@ -55,138 +54,7 @@ interface AuditEntry {
   category: ActionCategory;
 }
 
-const MOCK_AUDIT: AuditEntry[] = [
-  {
-    id: "1",
-    userId: "1",
-    userName: "Jnan Shetty",
-    userEmail: "jnan@therooms.in",
-    action: "USER_LOGIN",
-    entity: "User",
-    entityId: "1",
-    metadata: { browser: "Chrome 125", os: "macOS" },
-    ipAddress: "192.168.1.105",
-    createdAt: new Date(Date.now() - 5 * 60000).toISOString(),
-    category: "AUTH",
-  },
-  {
-    id: "2",
-    userId: "2",
-    userName: "Reception",
-    userEmail: "reception@therooms.in",
-    action: "BOOKING_CREATED",
-    entity: "Booking",
-    entityId: "BKN-20260529-0001",
-    metadata: { roomNumber: "S105", checkIn: "2026-05-30", checkOut: "2026-06-02", amount: 5999, guestName: "Arjun Rao" },
-    ipAddress: "192.168.1.101",
-    createdAt: new Date(Date.now() - 18 * 60000).toISOString(),
-    category: "BOOKING",
-  },
-  {
-    id: "3",
-    userId: "2",
-    userName: "Reception",
-    userEmail: "reception@therooms.in",
-    action: "PAYMENT_RECEIVED",
-    entity: "Payment",
-    entityId: "PAY-20260529-0001",
-    metadata: { amount: 3598, method: "UPI", transactionId: "UPI-NAHAR-XYZ123" },
-    ipAddress: "192.168.1.101",
-    createdAt: new Date(Date.now() - 25 * 60000).toISOString(),
-    category: "PAYMENT",
-  },
-  {
-    id: "4",
-    userId: "2",
-    userName: "Reception",
-    userEmail: "reception@therooms.in",
-    action: "ROOM_STATUS_CHANGED",
-    entity: "Room",
-    entityId: "S105",
-    metadata: { from: "OCCUPIED", to: "VACANT" },
-    ipAddress: "192.168.1.101",
-    createdAt: new Date(Date.now() - 52 * 60000).toISOString(),
-    category: "ROOM",
-  },
-  {
-    id: "5",
-    userId: "2",
-    userName: "Reception",
-    userEmail: "reception@therooms.in",
-    action: "CHECKIN_COMPLETED",
-    entity: "Booking",
-    entityId: "BKN-20260528-0012",
-    metadata: { roomNumber: "P203", guestName: "Meera Krishnan" },
-    ipAddress: "192.168.1.101",
-    createdAt: new Date(Date.now() - 90 * 60000).toISOString(),
-    category: "BOOKING",
-  },
-  {
-    id: "6",
-    userId: "1",
-    userName: "Jnan Shetty",
-    userEmail: "jnan@therooms.in",
-    action: "USER_CREATED",
-    entity: "User",
-    entityId: "8",
-    metadata: { newUserEmail: "newadmin@therooms.in", role: "ADMIN" },
-    ipAddress: "192.168.1.105",
-    createdAt: new Date(Date.now() - 3 * 3600000).toISOString(),
-    category: "USER",
-  },
-  {
-    id: "7",
-    userId: "2",
-    userName: "Reception",
-    userEmail: "reception@therooms.in",
-    action: "GUEST_CREATED",
-    entity: "Guest",
-    entityId: "GST-20260529-0015",
-    metadata: { guestName: "Arjun Rao", phone: "+91 98765 43210" },
-    ipAddress: "192.168.1.101",
-    createdAt: new Date(Date.now() - 20 * 60000).toISOString(),
-    category: "GUEST",
-  },
-  {
-    id: "8",
-    userId: "1",
-    userName: "Jnan Shetty",
-    userEmail: "jnan@therooms.in",
-    action: "SETTINGS_UPDATED",
-    entity: "Settings",
-    entityId: null,
-    metadata: { field: "check_in_time", from: "12:00", to: "14:00" },
-    ipAddress: "192.168.1.105",
-    createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
-    category: "SYSTEM",
-  },
-  {
-    id: "9",
-    userId: "2",
-    userName: "Reception",
-    userEmail: "reception@therooms.in",
-    action: "CHECKOUT_COMPLETED",
-    entity: "Booking",
-    entityId: "BKN-20260528-0012",
-    metadata: { roomNumber: "P203", finalAmount: 0, paymentStatus: "PAID" },
-    ipAddress: "192.168.1.101",
-    createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
-    category: "BOOKING",
-  },
-  {
-    id: "10",
-    userId: "1",
-    userName: "Jnan Shetty",
-    userEmail: "jnan@therooms.in",
-    action: "BACKUP_TRIGGERED",
-    entity: "System",
-    entityId: null,
-    metadata: { type: "Full", destination: "Backblaze B2" },
-    ipAddress: "192.168.1.105",
-    createdAt: new Date(Date.now() - 6 * 3600000).toISOString(),
-    category: "SYSTEM",
-  },
-];
+// Removed MOCK_AUDIT for live data
 
 const CATEGORY_LABELS: Record<ActionCategory, string> = {
   AUTH: "Auth",
@@ -274,33 +142,47 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
 }
 
 export default function AuditLogsPage() {
+  const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const filtered = MOCK_AUDIT.filter((e) => {
-    if (category !== "all" && e.category !== category) return false;
-    if (userFilter !== "all" && e.userId !== userFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (
-        !e.action.toLowerCase().includes(q) &&
-        !e.entity.toLowerCase().includes(q) &&
-        !e.userName.toLowerCase().includes(q) &&
-        !e.userEmail.toLowerCase().includes(q) &&
-        !JSON.stringify(e.metadata).toLowerCase().includes(q)
-      )
-        return false;
+  useEffect(() => {
+    async function fetchLogs() {
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (search) params.set("search", search);
+        if (category !== "all") params.set("category", category);
+        if (userFilter !== "all") params.set("userId", userFilter);
+        if (dateFrom) params.set("dateFrom", dateFrom);
+        if (dateTo) params.set("dateTo", dateTo);
+
+        const res = await fetch(`/api/audit-logs?${params.toString()}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) setLogs(json.data);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
     }
-    if (dateFrom && e.createdAt < dateFrom) return false;
-    if (dateTo && e.createdAt > dateTo + "T23:59:59") return false;
-    return true;
-  });
+
+    // Debounce the fetch slightly for search typing
+    const timer = setTimeout(fetchLogs, 300);
+    return () => clearTimeout(timer);
+  }, [search, category, userFilter, dateFrom, dateTo]);
+
+  const filtered = logs;
 
   const uniqueUsers = Array.from(new Map(
-    MOCK_AUDIT.map((e) => [e.userId, { id: e.userId, name: e.userName }])
+    logs.map((e) => [e.userId, { id: e.userId, name: e.userName }])
   ).values());
 
   function handleExport() {
@@ -413,6 +295,13 @@ export default function AuditLogsPage() {
       </Card>
 
       {/* Results */}
+      {isLoading ? (
+        <Card>
+          <CardContent className="flex h-48 items-center justify-center">
+            <LoadingSpinner />
+          </CardContent>
+        </Card>
+      ) : (
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -463,6 +352,7 @@ export default function AuditLogsPage() {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
