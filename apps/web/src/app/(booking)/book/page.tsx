@@ -52,7 +52,7 @@ export default function BookingDatePage() {
     }
     setDates(localCheckIn, localCheckOut);
     setGuestsCount(localGuests);
-    setRoomType(localRoomType as any || null);
+    setRoomType((localRoomType as "STUDIO" | "PREMIUM" | "MONTHLY") || null);
     setStep(2);
     const params = new URLSearchParams({
       checkIn: localCheckIn,

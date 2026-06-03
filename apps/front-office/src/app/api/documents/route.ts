@@ -32,3 +32,35 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch documents" }, { status: 500 });
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { guestId, bookingId, documentType, frontUrl, backUrl } = body;
+
+    if (!guestId || !documentType || !frontUrl) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const { uploadGuestDocument } = await import("@the-rooms/db");
+
+    const document = await uploadGuestDocument({
+      guestId,
+      bookingId: bookingId || undefined,
+      uploadedById: (session.user as { id?: string }).id,
+      documentType,
+      frontUrl,
+      backUrl: backUrl || undefined,
+    });
+
+    return NextResponse.json({ document });
+  } catch (error) {
+    console.error("Error uploading document:", error);
+    return NextResponse.json({ error: "Failed to upload document" }, { status: 500 });
+  }
+}

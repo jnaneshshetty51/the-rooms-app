@@ -16,8 +16,8 @@ When booking status changes to `CHECKED_IN` → room becomes `OCCUPIED`. When `C
 ### Decimal Handling
 Amounts stored as `Prisma.Decimal(10,2)` in INR. Always use `Number()` or `.toNumber()` before arithmetic. Never store floating-point directly.
 
-### Payment Amounts (IDFC)
-`packages/payments/idfc.ts` - IDFC amounts are in **paise**, not rupees. Use `toPaise()` / `fromPaise()` helpers.
+### Payment Amounts (INDUSIND)
+`packages/payments/indusind.ts` - INDUSIND amounts are in **paise**, not rupees. Use `toPaise()` / `fromPaise()` helpers.
 
 ### Discount Validation Multi-Condition
 Discounts in `calculatePrice()` require: validity date range + under usage limit + min/max nights satisfied. Don't assume discount code is valid just because it exists.

@@ -1,14 +1,14 @@
-// packages/payments/idfc.ts
-// IDFC Bank Payment Gateway SDK wrapper
+// packages/payments/indusind.ts
+// INDUSIND Bank Payment Gateway SDK wrapper
 
 import crypto from 'crypto';
 
-const IDFC_API_BASE = 'https://api.idfcbank.com/payment/v1';
-const IDFC_SANDBOX_BASE = 'https://sandbox.idfcbank.com/payment/v1';
+const INDUSIND_API_BASE = 'https://api.indusindbank.com/payment/v1';
+const INDUSIND_SANDBOX_BASE = 'https://sandbox.indusindbank.com/payment/v1';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface IDFCCredentials {
+export interface INDUSINDCredentials {
   clientId: string;
   clientSecret: string;
   merchantId: string;
@@ -81,18 +81,18 @@ export interface WebhookPayload {
   checksum: string;
 }
 
-// ── IDFC Client ───────────────────────────────────────────────────────────────
+// ── INDUSIND Client ───────────────────────────────────────────────────────────────
 
-export class IDFCPaymentClient {
-  private credentials: IDFCCredentials;
+export class INDUSINDPaymentClient {
+  private credentials: INDUSINDCredentials;
   private baseUrl: string;
   private accessToken?: string;
   private tokenExpiry: number = 0;
 
-  constructor(credentials: IDFCCredentials) {
+  constructor(credentials: INDUSINDCredentials) {
     this.credentials = credentials;
     this.baseUrl =
-      credentials.environment === 'sandbox' ? IDFC_SANDBOX_BASE : IDFC_API_BASE;
+      credentials.environment === 'sandbox' ? INDUSIND_SANDBOX_BASE : INDUSIND_API_BASE;
   }
 
   /**
@@ -116,7 +116,7 @@ export class IDFCPaymentClient {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new IDFCError('Failed to authenticate with IDFC', response.status, error);
+      throw new INDUSINDError('Failed to authenticate with INDUSIND', response.status, error);
     }
 
     const data = await response.json();
@@ -147,8 +147,8 @@ export class IDFCPaymentClient {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new IDFCError(
-        `IDFC API error at ${endpoint}`,
+      throw new INDUSINDError(
+        `INDUSIND API error at ${endpoint}`,
         response.status,
         error
       );
@@ -243,38 +243,38 @@ export class IDFCPaymentClient {
 
 // ── Custom Error ─────────────────────────────────────────────────────────────
 
-export class IDFCError extends Error {
+export class INDUSINDError extends Error {
   constructor(
     message: string,
     public statusCode: number,
     public responseBody?: string
   ) {
     super(message);
-    this.name = 'IDFCError';
+    this.name = 'INDUSINDError';
   }
 }
 
 // ── Singleton instance factory ───────────────────────────────────────────────
 
-let idfcClientInstance: IDFCPaymentClient | null = null;
+let indusindClientInstance: INDUSINDPaymentClient | null = null;
 
-export function getIDFCClient(): IDFCPaymentClient {
-  if (idfcClientInstance) return idfcClientInstance;
+export function getINDUSINDClient(): INDUSINDPaymentClient {
+  if (indusindClientInstance) return indusindClientInstance;
 
-  const credentials: IDFCCredentials = {
-    clientId: process.env.IDFC_CLIENT_ID ?? '',
-    clientSecret: process.env.IDFC_CLIENT_SECRET ?? '',
-    merchantId: process.env.IDFC_MERCHANT_ID ?? '',
+  const credentials: INDUSINDCredentials = {
+    clientId: process.env.INDUSIND_CLIENT_ID ?? '',
+    clientSecret: process.env.INDUSIND_CLIENT_SECRET ?? '',
+    merchantId: process.env.INDUSIND_MERCHANT_ID ?? '',
     environment:
-      (process.env.IDFC_ENV as 'sandbox' | 'production') ?? 'sandbox',
+      (process.env.INDUSIND_ENV as 'sandbox' | 'production') ?? 'sandbox',
   };
 
   if (!credentials.clientId || !credentials.clientSecret || !credentials.merchantId) {
-    throw new Error('IDFC credentials not configured');
+    throw new Error('INDUSIND credentials not configured');
   }
 
-  idfcClientInstance = new IDFCPaymentClient(credentials);
-  return idfcClientInstance;
+  indusindClientInstance = new INDUSINDPaymentClient(credentials);
+  return indusindClientInstance;
 }
 
 // ── Helper: Convert INR to paise ─────────────────────────────────────────────

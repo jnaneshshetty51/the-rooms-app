@@ -68,7 +68,7 @@ packages/
   types/          Shared TypeScript enums and interfaces
   ui/             Shared component library (shadcn/ui base + hotel-specific components)
   email/          Resend email client + typed send functions
-  payments/       IDFC Bank payment gateway wrapper
+  payments/       INDUSIND Bank payment gateway wrapper
 ```
 
 ### Data layer (`packages/db`)
@@ -122,7 +122,7 @@ Resend-based. Typed send functions in `packages/email/send.ts`: `sendBookingConf
 
 ### Payments (`packages/payments`)
 
-IDFC Bank gateway. Use `getIDFCClient()` singleton, `initiatePayment()`, `checkPaymentStatus()`, `refundPayment()`. **Amounts are in paise** — use `toPaise()` / `fromPaise()` helpers. Verify webhooks with `verifyWebhookChecksum()`.
+INDUSIND Bank gateway. Use `getINDUSINDClient()` singleton, `initiatePayment()`, `checkPaymentStatus()`, `refundPayment()`. **Amounts are in paise** — use `toPaise()` / `fromPaise()` helpers. Verify webhooks with `verifyWebhookChecksum()`.
 
 ## Non-obvious patterns
 

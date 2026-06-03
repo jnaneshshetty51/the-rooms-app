@@ -24,6 +24,7 @@ model User {
   uploadedDocs GuestDocument[]
   createdAnnouncements Announcement[]
   expenses    Expense[]
+  housekeepingTasks HousekeepingTask[]
 
   @@map("users")
 }
@@ -32,6 +33,7 @@ enum Role {
   SUPER_ADMIN
   ADMIN
   FRONT_OFFICE
+  HOUSEKEEPING
   GUEST
 }
 
@@ -72,6 +74,7 @@ model Room {
   type              RoomType
   floor             Int
   status            RoomStatus  @default(VACANT)
+  cleaningStatus    CleaningStatus @default(CLEAN)
   description       String?
   maxOccupancy      Int         @default(2)
   sizeSqft          Int?
@@ -91,6 +94,7 @@ model Room {
   photos        RoomPhoto[]
   amenities     RoomAmenity[]
   bookings      Booking[]
+  housekeepingTasks HousekeepingTask[]
 
   @@map("rooms")
 }
@@ -105,6 +109,28 @@ enum RoomStatus {
   OCCUPIED
   MAINTENANCE
   BLOCKED
+}
+
+enum CleaningStatus {
+  CLEAN
+  DIRTY
+  CLEANING
+}
+
+model HousekeepingTask {
+  id          String   @id @default(cuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id])
+  assigneeId  String
+  assignee    User     @relation(fields: [assigneeId], references: [id])
+  date        DateTime @db.Date
+  status      String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  notes       String?
+  photoUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("housekeeping_tasks")
 }
 
 model RoomPhoto {
@@ -174,6 +200,7 @@ model Booking {
   specialRequests String?
   discountCode   String?
   discountType   String?
+  signatureUrl   String?
 
   checkInTime   DateTime?
   checkOutTime  DateTime?

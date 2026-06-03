@@ -306,6 +306,29 @@ function StayDetailsPageContent() {
                     Download Invoice
                   </a>
                 </Button>
+                {booking.status === "CONFIRMED" && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="text-red-500 border-red-200 hover:bg-red-50"
+                    onClick={async () => {
+                      if (confirm("Are you sure you want to cancel this booking? This action cannot be undone.")) {
+                        try {
+                          const res = await fetch(`/api/bookings/${booking.id}/cancel`, { method: "POST" });
+                          if (res.ok) {
+                            window.location.reload();
+                          } else {
+                            alert("Failed to cancel booking. Please contact support.");
+                          }
+                        } catch (error) {
+                          alert("An error occurred.");
+                        }
+                      }
+                    }}
+                  >
+                    Cancel Booking
+                  </Button>
+                )}
               </div>
               {booking.status === "CHECKED_OUT" && (
                 <Button asChild size="sm" className="mt-2">

@@ -26,7 +26,7 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 
 ### Section A: Database & Storage
 ```
-□ □ □ Prisma schema created with all models
+✅ ✅ ✅ Prisma schema created with all models
      → users (id, email, passwordHash, role, isActive, attempts)
      → guests (name, phone, email, alternatePhone, address, dateOfBirth, companyName, notes, stayCount, loyaltyTier)
      → rooms (id, roomNumber, type, floor, status, basePriceSingle, basePriceDouble, monthlyPriceSingle, monthlyPriceDouble, maxOccupancy)
@@ -42,7 +42,7 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
      → complaints (id, bookingId, subject, description, status, imageUrl, resolvedAt, createdAt)
      → audit_logs (id, userId, action, entity, entityId, metadata, ipAddress, createdAt)
 
-□ □ □ Database indexes created:
+✅ ✅ ✅ Database indexes created:
      → guests.phone, guests.email (search optimization)
      → bookings.checkIn, bookings.checkOut (date range queries)
      → bookings.status (filter optimization)
@@ -79,7 +79,7 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 □ □ □ Session persists to Redis (stateless server deployments)
 □ □ □ Session expiry: 24h for FO/Admin/Super Admin, 30 days for Guest
 □ □ □ GUEST role can access: my.therooms.in, public booking flow
-□ □ □ FRONT_OFFICE role scoped to: fo.therooms.in only
+✅ ✅ ✅ FRONT_OFFICE role scoped to: fo.therooms.in only
 □ □ □ ADMIN role scoped to: admin.therooms.in only
 □ □ □ SUPER_ADMIN role scoped to: superadmin.therooms.in only
 □ □ □ Magic link password reset working via Resend (15-min expiry)
@@ -94,26 +94,26 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 
 ### Section C: Public Website (therooms.in)
 ```
-□ □ □ Landing page / (hero carousel ✅, quick booking widget ✅, about section ✅)
+✅ ✅ ✅ Landing page / (hero carousel ✅, quick booking widget ✅, about section ✅)
 □ □ □ Quick booking widget: sticky on scroll, functional date → room selection
 □ □ □ Rooms listing /rooms: grid of all 36 rooms, filters, grid/list toggle
 □ □ □ Room detail /rooms/[id]: 36 unique pages, photo gallery, pricing sidebar
 □ □ □ Photo gallery: horizontal scroll + lightbox + zoom + swipe
-□ □ □ Pricing page /pricing: daily table + monthly table + discount cards + calculator
-□ □ □ Amenities page /amenities: 6 categories, icons, grouped layout
-□ □ □ Contact page /contact: form, Google Maps embed, WhatsApp link
-□ □ □ FAQ page /faq: accordion-style with 10+ questions
-□ □ □ Booking flow /book (5 steps):
+✅ ✅ ✅ Pricing page /pricing: daily table + monthly table + discount cards + calculator
+✅ ✅ ✅ Amenities page /amenities: 6 categories, icons, grouped layout
+✅ ✅ ✅ Contact page /contact: form, Google Maps embed, WhatsApp link
+✅ ✅ ✅ FAQ page /faq: accordion-style with 10+ questions
+✅ ✅ ✅ Booking flow /book (5 steps):
      → Step 1: date selection with today-pre-filled + guests toggle
      → Step 2: available rooms grid (real-time availability)
      → Step 3: guest details form + extras
-     → Step 4: payment (IDFC hosted page)
+     → Step 4: payment (INDUSIND hosted page)
      → Step 5: confirmation page + booking ID + email trigger
 
-□ □ □ Real-time availability API: overlap logic checked (booking.conflict check)
-□ □ □ IDFC payment integration for UPI/Card/Net Banking
-□ □ □ Booking confirmation email triggered on payment success
-□ □ □ Guest account auto-created after first booking (magic link sent)
+✅ ✅ ✅ Real-time availability API: overlap logic checked (booking.conflict check)
+✅ ✅ ✅ INDUSIND payment integration for UPI/Card/Net Banking
+✅ ✅ ✅ Booking confirmation email triggered on payment success
+✅ ✅ ✅ Guest account auto-created after first booking (magic link sent)
 □ □ □ Hero carousel: auto-rotates (4s), pause on hover, swipe on mobile
 □ □ □ SEO: sitemap.xml, robots.txt, JSON-LD (Hotel + HotelRoom + ItemList)
 □ □ □ SEO metadata: title, description, OG image on every page
@@ -122,13 +122,13 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 □ □ □ Multi-language toggle: EN/HI in header (client-side, no reload)
 □ □ □ Mobile responsive: 320px, 375px, 768px tested
 □ □ □ No placeholder text left ("Lorem ipsum" → removed from all pages)
-□ □ □ 404 page: custom not-found.tsx page (not browser default)
+✅ ✅ ✅ 404 page: custom not-found.tsx page (not browser default)
 □ □ □ Greeting/message footer: "© 2026 The Rooms. All rights reserved. GST: [NUMBER]"
 ```
 
 ### Section D: Guest Portal (my.therooms.in)
 ```
-□ □ □ Login with magic link (email-only, no password)
+✅ ✅ ✅ Login with magic link (email-only, no password)
 □ □ □ Dashboard: "Good [Morning/Afternoon/Evening], [Name]" greeting
 □ □ □ Upcoming stay card: countdown "X days to go", room, dates
 □ □ □ Loyalty tier display: Bronze/Silver/Gold with next tier progress
@@ -157,7 +157,7 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 
 ### Section E: Front Office Portal (fo.therooms.in)
 ```
-□ □ □ Login via email + password (subdomain-specific login page)
+✅ ✅ ✅ Login via email + password (subdomain-specific login page)
 □ □ □ Dashboard: today's arrivals count + names list
 □ □ □ Dashboard: today's departures count + names list
 □ □ □ Dashboard: "In-House: X/36 rooms" with percentage
@@ -284,8 +284,8 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 □ □ □ Audit Logs: old logs (> 90 days) archived with view option
 □ □ □ Audit Logs: view price change for room S101 (from PR #021 audit ✅)
 □ □ □ Audit Logs: view booking cancellation (from booking detail ✅)
-□ □ □ System Settings: IDFC credentials (masked — show last 4, reveal on click)
-□ □ □ System Settings: update IDFC credentials + confirm operation
+□ □ □ System Settings: INDUSIND credentials (masked — show last 4, reveal on click)
+□ □ □ System Settings: update INDUSIND credentials + confirm operation
 □ □ □ System Settings: update MinIO credentials
 □ □ □ System Settings: update Resend API key
 □ □ □ Storage Management: per-bucket usage (GB used) ✅
@@ -294,8 +294,8 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 □ □ □ Storage Management: lifecycle rule display
 □ □ □ Resend Config: test email sent → email received in inbox ✅
 □ □ □ Resend Config: domain verification status shown (DKIM/SPF records)
-□ □ □ IDFC Config: sandbox/production toggle functional
-□ □ □ IDFC Config: test payment can be triggered from settings
+□ □ □ INDUSIND Config: sandbox/production toggle functional
+□ □ □ INDUSIND Config: test payment can be triggered from settings
 □ □ □ Backups: "Run Backup Now" button triggers script ✅
 □ □ □ Backups: last 14 backups listed (date / size / status)
 □ □ □ Backups: "Download Backup" generates signed MinIO URL ✅
@@ -311,23 +311,23 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 □ □ □ Maintenance Mode: disable → website restored ✅
 □ □ □ "Export All Data" per guest (GDPRcompliance) ✅
 □ □ □ Legal: "Delete all Guest Data" per right to erasure ✅
-□ □ □ API key rotation: all keys (IDFC, Resend, Msg91) rotatable ✅
+□ □ □ API key rotation: all keys (INDUSIND, Resend, Msg91) rotatable ✅
 □ □ □ SSL: certificates for all 6 subdomains valid ✅
 □ □ □ SSL: certificates not expiring within 30 days ✅
 □ □ □ Version display: "The Rooms v1.0.0" in footer ✅
-□ □ □ Error: IDFC credentials bad → warning shown in system health ✅
+□ □ □ Error: INDUSIND credentials bad → warning shown in system health ✅
 □ □ □ Error: MinIO disk > 80% → red alert ✅
 □ □ □ Error: backup failed → red alert on dashboard ✅
 ```
 
 ### Section H: Payments
 ```
-□ □ □ IDFC payment page loads correctly (test card used)
+□ □ □ INDUSIND payment page loads correctly (test card used)
 □ □ □ Payment initiated → booking record created with PENDING status
-□ □ □ IDFC webhook received → payment updated to PAID ✅
-□ □ □ IDFC idempotent: duplicate webhook → response 200 OK, no double-processing
-□ □ □ IDFC signature validated in webhook handler
-□ □ □ IDFC failure path: payment status → FAILED, guest notified ✅
+□ □ □ INDUSIND webhook received → payment updated to PAID ✅
+□ □ □ INDUSIND idempotent: duplicate webhook → response 200 OK, no double-processing
+□ □ □ INDUSIND signature validated in webhook handler
+□ □ □ INDUSIND failure path: payment status → FAILED, guest notified ✅
 □ □ □ Invoice PDF generated on payment success ✅
 □ □ □ Invoice PDF uploaded to MinIO invoices bucket ✅
 □ □ □ Invoice emailed to guest (Resend with PDF attachment) ✅
@@ -342,12 +342,12 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 □ □ □ Cash payment → Booking marked PAID immediately
 □ □ □ Cash payment → receipt printed (thermal format) ✅
 □ □ □ Corporate Invoice → booking PAID on payment from company
-□ □ □ IDFC health check endpoint: app can detect IDFC outage ✅
-□ □ □ IDFC outage fallback: online payment disabled, cash-only mode shown
+□ □ □ INDUSIND health check endpoint: app can detect INDUSIND outage ✅
+□ □ □ INDUSIND outage fallback: online payment disabled, cash-only mode shown
 □ □ □ Payment method split in all revenue reports ✅
-□ □ □ IDFC sandbox credentials used for dev/test
-□ □ □ IDFC production credentials (separate) stored securely
-□ □ □ IDFC webhook tested locally (ngrok + sandbox)
+□ □ □ INDUSIND sandbox credentials used for dev/test
+□ □ □ INDUSIND production credentials (separate) stored securely
+□ □ □ INDUSIND webhook tested locally (ngrok + sandbox)
 □ □ □ Cash drawer reconciliation in EOD report ✅
 □ □ □ Corporate invoice template (B2B, GST-compliant) ✅
 ```
@@ -369,7 +369,7 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 □ □ □ CRON: every hour → check-in reminders ✅
 □ □ □ CRON: 8 AM IST → checkout reminders ✅
 □ □ □ CRON: 11:59 PM IST → night audit (if auto-mode) ✅
-□ □ □ CRON: 15 min → IDFC webhook queue processing ✅
+□ □ □ CRON: 15 min → INDUSIND webhook queue processing ✅
 □ □ □ All CRON jobs wrapped in try-catch ✅
 □ □ □ CRON failure → error logged in audit + alert to superadmin ✅
 ```
@@ -382,9 +382,9 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 □ □ □ Msg91: test SMS sent (hotel number confirmed) ✅
 □ □ □ Cloudflare: DNS A records for all 6 subdomains ✅
 □ □ □ Cloudflare: SSL enabled (full/strict mode) ✅
-□ □ □ IDFC: sandbox URL configured ✅
-□ □ □ IDFC: test payment end-to-end completed ✅
-□ □ □ IDFC: production credentials stored in env (separate from sandbox) ✅
+□ □ □ INDUSIND: sandbox URL configured ✅
+□ □ □ INDUSIND: test payment end-to-end completed ✅
+□ □ □ INDUSIND: production credentials stored in env (separate from sandbox) ✅
 □ □ □ MinIO: browser console accessible (port 9001) ✅
 □ □ □ MinIO: programmatic access from Next.js apps working ✅
 □ □ □ MinIO: signed URL generation for private buckets ✅
@@ -397,7 +397,7 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 ### Section K: Security
 ```
 □ □ □ HTTPS enforced on all subdomains ✅
-□ □ □ All secrets (DB password, IDFC keys, Resend key, MinIO credentials) in .env only
+□ □ □ All secrets (DB password, INDUSIND keys, Resend key, MinIO credentials) in .env only
 □ □ □ .env is in .gitignore (never committed to repo) ✅
 □ □ □ SQL injection prevention: Prisma parameterized queries (all DB calls) ✅
 □ □ □ XSS prevention: React HTML escaping (no dangerouslySetInnerHTML without sanitization) ✅
@@ -447,7 +447,7 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 □ □ □ Backup verification report: "Verified on [DATE] — PASS" ✅
 □ □ □ Disaster Recovery document: step-by-step recovery procedure written ✅
 □ □ □ Disaster Recovery: RTO < 2 hours documented and achievable ✅
-□ □ □ Emergency contact list: Hostinger support, IDFC support, Msg91 support ✅
+□ □ □ Emergency contact list: Hostinger support, INDUSIND support, Msg91 support ✅
 ```
 
 ### Section N: Performance
@@ -916,7 +916,7 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 > ☐ Audit log contains: document access (admin viewed guest docs)
 > ☐ Audit log contains: refund initiations
 > ☐ Audit log contains: FO user deactivation by admin
-> ☐ Audit log contains: system config changes (IDFC credentials update, etc.)
+> ☐ Audit log contains: system config changes (INDUSIND credentials update, etc.)
 > ☐ Audit log: date filter "Today" → only today's entries
 > ☐ Audit log: date filter "This Week" → correct entry count
 > ☐ Audit log: filter by FRONT_OFFICE → only FO user actions shown
@@ -940,8 +940,8 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 
 ### System Configuration
 ```
-> ☐ IDFC credentials: shown masked (••••••••XXXX) with "Show" button
-> ☐ Update IDFC credentials: new client ID stored → env updated + restart needed
+> ☐ INDUSIND credentials: shown masked (••••••••XXXX) with "Show" button
+> ☐ Update INDUSIND credentials: new client ID stored → env updated + restart needed
 > ☐ MinIO credentials: update endpoint + credentials → credentials validated before save
 > ☐ Resend API key: change key → test email sent to superadmin email → verify received
 > ☐ After API key change: booking confirmation still sends (test with trial booking)
@@ -1002,7 +1002,7 @@ This checklist suite verifies the complete The Rooms Hotel Management System. Ea
 > ☐ SSL certificate expiry: >30 days remaining on all subdomains
 > ☐ SSL certificate expiry: alert when < 30 days (email to superadmin)
 > ☐ API keys: last rotated date visible on each key setting
-> ☐ Rotating IDFC API key: old key deactivated in IDFC portal, new key saved → payments work ✅
+> ☐ Rotating INDUSIND API key: old key deactivated in INDUSIND portal, new key saved → payments work ✅
 > ☐ Version display: "The Rooms v1.0.0" in super admin footer ✅
 ```
 
@@ -1180,7 +1180,7 @@ After completing all items in all 5 checklists:
 □ □ □ Super Admin Dashboard Checklist: 100% ✅
 □ □ □ SEO Verification Checklist: 100% ✅
 
-□ □ □ Payment routes: all verified (IDFC → DB → Invoice → Email)
+□ □ □ Payment routes: all verified (INDUSIND → DB → Invoice → Email)
 □ □ □ No gaps in user flows: guest booked → checked-in → checked-out → invoiced → review
 □ □ □ No flow gaps: walk-in → check-in → check-out → night audit → reports
 □ □ □ Document chain: upload at FO → verify → link to booking → auto-delete at 90 days

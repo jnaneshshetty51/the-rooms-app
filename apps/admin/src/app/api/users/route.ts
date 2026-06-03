@@ -16,10 +16,12 @@ export async function GET(request: NextRequest) {
     requireAdmin(session);
 
     const { searchParams } = new URL(request.url);
-    const role = searchParams.get("role") ?? "FRONT_OFFICE";
+    const roleParam = searchParams.get("role");
+
+    const whereClause = roleParam ? { role: roleParam as any } : { role: { not: "GUEST" as any } };
 
     const users = await prisma.user.findMany({
-      where: { role: role as "FRONT_OFFICE" },
+      where: whereClause,
       select: {
         id: true,
         email: true,
@@ -48,10 +50,10 @@ export async function POST(request: NextRequest) {
     requireAdmin(session);
 
     const body = await request.json();
-    const { name, email, password } = body;
+    const { name, email, password, role } = body;
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ error: "name, email, and password are required" }, { status: 400 });
+    if (!name || !email || !password || !role) {
+      return NextResponse.json({ error: "name, email, password, and role are required" }, { status: 400 });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
         name,
         email,
         passwordHash,
-        role: "FRONT_OFFICE",
+        role: role as any,
       },
       select: {
         id: true,
@@ -94,7 +96,7 @@ export async function PATCH(request: NextRequest) {
     requireAdmin(session);
 
     const body = await request.json();
-    const { id, name, email, isActive, password } = body;
+    const { id, name, email, isActive, password, role } = body;
 
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
@@ -102,6 +104,7 @@ export async function PATCH(request: NextRequest) {
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (role !== undefined) updateData.role = role;
     if (password) updateData.passwordHash = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.update({

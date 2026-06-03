@@ -14,6 +14,7 @@
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "@the-rooms/db": "workspace:*",
+    "ioredis": "^5.11.0",
     "next": "^15.5.18",
     "zod": "^3.23.8"
   },

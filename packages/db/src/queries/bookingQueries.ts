@@ -104,6 +104,7 @@ export async function getBookingById(id: string) {
       payments: true,
       invoice: true,
       complaint: true,
+      auditLogs: { orderBy: { createdAt: 'desc' } },
       createdBy: { select: { id: true, name: true, email: true } },
     },
   });

@@ -1,12 +1,11 @@
 "use client";
 
-// apps/admin/src/app/(dashboard)/users/page.tsx
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Pencil, UserX, UserCheck, Shield } from "lucide-react";
-import { PageHeader, Button, DataTable, Dialog, Input, Badge, type ColumnDef } from "@the-rooms/ui";
+import { PageHeader, Button, DataTable, Dialog, Input, Badge, type ColumnDef, Select, SelectTrigger, SelectContent, SelectValue } from "@the-rooms/ui";
 import { formatDate } from "@the-rooms/ui";
 
-interface FOUser {
+interface StaffUser {
   id: string;
   email: string;
   name: string;
@@ -16,18 +15,25 @@ interface FOUser {
   lastLogin: string | null;
 }
 
+const ROLE_PERMISSIONS: Record<string, string> = {
+  SUPER_ADMIN: "Full access to all systems, settings, and destructive actions.",
+  ADMIN: "Can manage rooms, staff, and settings. Cannot delete the property.",
+  FRONT_OFFICE: "Can manage bookings, guests, and payments. Cannot access settings or staff.",
+  HOUSEKEEPING: "Can only view assigned rooms and update cleaning statuses.",
+};
+
 export default function UsersPage() {
-  const [users, setUsers] = useState<FOUser[]>([]);
+  const [users, setUsers] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<FOUser | null>(null);
+  const [editingUser, setEditingUser] = useState<StaffUser | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
-    pin: "",
+    role: "FRONT_OFFICE",
   });
 
   const fetchUsers = useCallback(async () => {
@@ -39,7 +45,7 @@ export default function UsersPage() {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  const columns: ColumnDef<FOUser, unknown>[] = [
+  const columns: ColumnDef<StaffUser, unknown>[] = [
     {
       accessorKey: "name",
       header: "Name",
@@ -58,12 +64,19 @@ export default function UsersPage() {
     {
       accessorKey: "role",
       header: "Role",
-      cell: ({ row }) => (
-        <Badge variant="outline" className="text-xs">
-          <Shield className="h-3 w-3 mr-1" />
-          {row.original.role.replace("_", " ")}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        let variant: "default" | "outline" | "secondary" | "destructive" = "outline";
+        if (row.original.role === "SUPER_ADMIN") variant = "default";
+        if (row.original.role === "ADMIN") variant = "secondary";
+        if (row.original.role === "HOUSEKEEPING") variant = "outline";
+        
+        return (
+          <Badge variant={variant} className="text-xs">
+            <Shield className="h-3 w-3 mr-1" />
+            {row.original.role.replace("_", " ")}
+          </Badge>
+        );
+      },
     },
     {
       accessorKey: "isActive",
@@ -89,7 +102,7 @@ export default function UsersPage() {
       header: "",
       cell: ({ row }) => (
         <div className="flex items-center gap-1 justify-end">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingUser(row.original); setForm({ name: row.original.name, email: row.original.email, password: "", pin: "" }); setShowAddModal(true); }}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingUser(row.original); setForm({ name: row.original.name, email: row.original.email, password: "", role: row.original.role }); setShowAddModal(true); }}>
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
@@ -114,8 +127,8 @@ export default function UsersPage() {
         body.id = editingUser.id;
         body.name = form.name;
         body.email = form.email;
+        body.role = form.role;
         if (form.password) body.password = form.password;
-        if (form.pin !== "") body.pin = form.pin;
         await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       } else {
         await fetch("/api/users", {
@@ -126,14 +139,14 @@ export default function UsersPage() {
       }
       setShowAddModal(false);
       setEditingUser(null);
-      setForm({ name: "", email: "", password: "", pin: "" });
+      setForm({ name: "", email: "", password: "", role: "FRONT_OFFICE" });
       fetchUsers();
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleToggleActive(user: FOUser) {
+  async function handleToggleActive(user: StaffUser) {
     const action = user.isActive ? "block" : "activate";
     if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} ${user.name}?`)) return;
     await fetch("/api/users", {
@@ -147,12 +160,12 @@ export default function UsersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Front Office Users"
-        description="Manage front desk staff accounts and PINs"
+        title="Staff Management"
+        description="Manage system access, roles, and permissions for all property personnel"
         actions={
-          <Button onClick={() => { setShowAddModal(true); setEditingUser(null); setForm({ name: "", email: "", password: "", pin: "" }); }}>
+          <Button onClick={() => { setShowAddModal(true); setEditingUser(null); setForm({ name: "", email: "", password: "", role: "FRONT_OFFICE" }); }}>
             <Plus className="h-4 w-4 mr-1.5" />
-            Add FO User
+            Add Staff Member
           </Button>
         }
       />
@@ -162,7 +175,7 @@ export default function UsersPage() {
       {showAddModal && (
         <Dialog open={showAddModal} onOpenChange={(v) => { setShowAddModal(v); if (!v) { setEditingUser(null); } }}>
           <div className="space-y-4">
-            <h2 className="font-heading text-xl font-bold">{editingUser ? `Edit: ${editingUser.name}` : "Add Front Office User"}</h2>
+            <h2 className="font-heading text-xl font-bold">{editingUser ? `Edit Staff: ${editingUser.name}` : "Add New Staff Member"}</h2>
             <form onSubmit={handleSave} className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">Full Name *</label>
@@ -170,20 +183,33 @@ export default function UsersPage() {
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">Email *</label>
-                <Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@therooms.in" />
+                <Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="staff@therooms.in" />
               </div>
+
+              <div>
+                <label className="text-sm font-medium mb-1 block">Role & Permissions *</label>
+                <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <option value="SUPER_ADMIN">Super Admin</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="FRONT_OFFICE">Front Office</option>
+                    <option value="HOUSEKEEPING">Housekeeping</option>
+                  </SelectContent>
+                </Select>
+                <p className="mt-2 text-xs text-muted-foreground bg-gray-50 p-2 rounded border">
+                  <strong>Permissions:</strong> {ROLE_PERMISSIONS[form.role]}
+                </p>
+              </div>
+
               <div>
                 <label className="text-sm font-medium mb-1 block">{editingUser ? "New Password (leave blank to keep)" : "Password *"}</label>
                 <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editingUser ? "••••••••" : "Min. 8 characters"} />
               </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">PIN (4–6 digits, optional)</label>
-                <Input type="password" maxLength={6} pattern="[0-9]*" inputMode="numeric" value={form.pin} onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })} placeholder="e.g. 1234" />
-              </div>
               <div className="flex gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => { setShowAddModal(false); setEditingUser(null); }} className="flex-1">Cancel</Button>
                 <Button type="submit" disabled={submitting} className="flex-1">
-                  {submitting ? "Saving…" : editingUser ? "Update User" : "Create User"}
+                  {submitting ? "Saving…" : editingUser ? "Update Staff" : "Create Staff"}
                 </Button>
               </div>
             </form>

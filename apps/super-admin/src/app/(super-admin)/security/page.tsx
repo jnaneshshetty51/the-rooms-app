@@ -218,7 +218,7 @@ export default function SecurityPage() {
         <CardContent>
           <div className="space-y-3">
             {[
-              { name: 'IDFC Bank API', key: 'idfc_live_****', status: 'ACTIVE' },
+              { name: 'INDUSIND Bank API', key: 'indusind_live_****', status: 'ACTIVE' },
               { name: 'Resend Email API', key: 're_****', status: 'ACTIVE' },
               { name: 'MinIO Access', key: 'minio_****', status: 'ACTIVE' },
             ].map((api, i) => (

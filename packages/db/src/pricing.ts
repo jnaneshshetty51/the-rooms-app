@@ -44,7 +44,7 @@ export async function calculatePrice(
 
   let baseAmount: Prisma.Decimal;
   let rateLabel: string;
-  const isMonthly = bookingType === 'MONTHLY' && nights >= 28 && room.type === 'STUDIO';
+  const isMonthly = (bookingType === 'MONTHLY' || nights >= 28) && room.type === 'STUDIO';
 
   if (isMonthly) {
     baseAmount = guestsCount > 1

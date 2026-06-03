@@ -23,7 +23,7 @@ function BookingConfirmationContent() {
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
 
-  // Use URL param booking_id (IDFC redirect) or fall back to store
+  // Use URL param booking_id (INDUSIND redirect) or fall back to store
   const bookingId = urlBookingId ?? null;
 
   // Fetch invoice URL once we have a booking ID

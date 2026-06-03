@@ -13,6 +13,7 @@ import {
   FileText,
   Eye,
   Search,
+  Plus,
 } from "lucide-react";
 import { formatDate } from "@the-rooms/ui";
 
@@ -42,29 +43,56 @@ export default function DocumentsPage() {
   const [filter, setFilter] = useState<"all" | "pending" | "verified">("pending");
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   useEffect(() => {
-    async function fetchDocuments() {
-      try {
-        const res = await fetch("/api/documents");
-        if (res.ok) {
-          const data = await res.json();
-          setDocuments(data.documents ?? []);
-        } else {
-          throw new Error("Failed to fetch documents");
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchDocuments();
   }, []);
 
+  async function fetchDocuments() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/documents");
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data.documents ?? []);
+      } else {
+        throw new Error("Failed to fetch documents");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleVerify = async (docId: string) => {
+    try {
+      const res = await fetch(`/api/documents/${docId}/verify`, { method: "PATCH" });
+      if (res.ok) {
+        setDocuments((prev) =>
+          prev.map((doc) =>
+            doc.id === docId ? { ...doc, verified: true, verifiedAt: new Date().toISOString() } : doc
+          )
+        );
+      } else {
+        alert("Failed to verify document");
+      }
+    } catch (err) {
+      alert("An error occurred");
+    }
+  };
+
   const filteredDocs = documents.filter((doc) => {
-    if (filter === "pending") return !doc.verified;
-    if (filter === "verified") return doc.verified;
+    if (filter === "pending" && doc.verified) return false;
+    if (filter === "verified" && !doc.verified) return false;
+    
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const guestName = doc.guest.name.toLowerCase();
+      const bookingNumber = doc.booking?.bookingNumber.toLowerCase() ?? "";
+      return guestName.includes(q) || bookingNumber.includes(q);
+    }
     return true;
   });
 
@@ -73,9 +101,18 @@ export default function DocumentsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Document Management</h2>
-        <p className="text-gray-500">Upload and verify guest identity documents</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Document Management</h2>
+          <p className="text-gray-500">Upload and verify guest identity documents</p>
+        </div>
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#E17055] px-4 py-2 text-sm font-medium text-white hover:bg-[#D35B3F]"
+        >
+          <Upload className="h-4 w-4" />
+          Upload Document
+        </button>
       </div>
 
       {/* Tabs */}
@@ -227,7 +264,10 @@ export default function DocumentsPage() {
 
               {!doc.verified && (
                 <div className="border-t border-gray-100 px-6 py-3 flex gap-3">
-                  <button className="flex-1 rounded-lg bg-green-600 py-2 text-sm font-medium text-white hover:bg-green-700 flex items-center justify-center gap-2">
+                  <button 
+                    onClick={() => handleVerify(doc.id)}
+                    className="flex-1 rounded-lg bg-green-600 py-2 text-sm font-medium text-white hover:bg-green-700 flex items-center justify-center gap-2"
+                  >
                     <CheckCircle className="h-4 w-4" />
                     Verify Document
                   </button>
@@ -283,6 +323,180 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
+
+      {showUploadModal && (
+        <UploadDocumentModal 
+          onClose={() => setShowUploadModal(false)} 
+          onSuccess={() => {
+            setShowUploadModal(false);
+            fetchDocuments();
+          }} 
+        />
+      )}
+    </div>
+  );
+}
+
+function UploadDocumentModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
+  const [searchPhone, setSearchPhone] = useState("");
+  const [guest, setGuest] = useState<{ id: string; name: string } | null>(null);
+  const [documentType, setDocumentType] = useState("AADHAR");
+  const [frontUrl, setFrontUrl] = useState("");
+  const [backUrl, setBackUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const searchGuest = async () => {
+    if (searchPhone.length < 10) return;
+    try {
+      const res = await fetch(`/api/guests/search?query=${searchPhone}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.guests && data.guests.length > 0) {
+          setGuest(data.guests[0]);
+          setError(null);
+        } else {
+          setGuest(null);
+          setError("Guest not found. Please verify phone number.");
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!guest) {
+      setError("Please select a guest first");
+      return;
+    }
+    if (!frontUrl) {
+      setError("Front image URL is required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guestId: guest.id,
+          documentType,
+          frontUrl,
+          backUrl: backUrl || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        onSuccess();
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to upload document");
+      }
+    } catch (err) {
+      setError("An error occurred during upload");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900">Upload Guest Document</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <form onSubmit={handleUpload} className="p-6 space-y-4">
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Find Guest (Phone)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchPhone}
+                onChange={(e) => setSearchPhone(e.target.value)}
+                placeholder="Enter guest phone number"
+                className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={searchGuest}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+              >
+                Search
+              </button>
+            </div>
+            {guest && (
+              <p className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                <CheckCircle className="h-4 w-4" /> Found: {guest.name}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Document Type
+            </label>
+            <select
+              value={documentType}
+              onChange={(e) => setDocumentType(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+            >
+              <option value="AADHAR">Aadhar Card</option>
+              <option value="PAN">PAN Card</option>
+              <option value="PASSPORT">Passport</option>
+              <option value="DRIVING_LICENSE">Driving License</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Front Image URL *
+            </label>
+            <input
+              type="text"
+              value={frontUrl}
+              onChange={(e) => setFrontUrl(e.target.value)}
+              required
+              placeholder="https://example.com/front.jpg"
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Back Image URL (Optional)
+            </label>
+            <input
+              type="text"
+              value={backUrl}
+              onChange={(e) => setBackUrl(e.target.value)}
+              placeholder="https://example.com/back.jpg"
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+            />
+          </div>
+
+          <div className="pt-4">
+            <button
+              type="submit"
+              disabled={submitting || !guest}
+              className="w-full rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Upload Document
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

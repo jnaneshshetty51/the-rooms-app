@@ -34,7 +34,7 @@ const recentCommunications: Communication[] = [
 
 const alerts: Alert[] = [
   { id: '1', severity: 'WARNING', title: 'Low Room Availability', message: 'Only 3 rooms available for tomorrow. Consider enabling maintenance mode on some rooms.', acknowledged: false, createdAt: '2026-05-29T10:00:00Z' },
-  { id: '2', severity: 'CRITICAL', title: 'Payment Gateway Timeout', message: 'IDFC payment gateway showing increased response times (>30s). Monitor closely.', acknowledged: false, createdAt: '2026-05-29T09:45:00Z' },
+  { id: '2', severity: 'CRITICAL', title: 'Payment Gateway Timeout', message: 'INDUSIND payment gateway showing increased response times (>30s). Monitor closely.', acknowledged: false, createdAt: '2026-05-29T09:45:00Z' },
   { id: '3', severity: 'INFO', title: 'Daily Backup Complete', message: 'Automated database backup completed successfully. Backup size: 245MB', acknowledged: true, createdAt: '2026-05-29T03:00:00Z' },
 ];
 

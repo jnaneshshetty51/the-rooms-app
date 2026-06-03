@@ -17,6 +17,7 @@ const GUEST_NAV = [
   { label: "Complaints", href: "/complaints", icon: HeadphonesIcon },
   { label: "Feedback", href: "/feedback", icon: MessageSquareText },
   { label: "Invoices", href: "/invoices", icon: Receipt },
+  { label: "Profile", href: "/profile", icon: User },
 ];
 
 export default function GuestLayout({
@@ -52,14 +53,14 @@ export default function GuestLayout({
               }))}
               activeHref={pathname}
               userMenu={
-                <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-[#636E72]">
+                <a href="/profile" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-[#636E72] hover:bg-gray-100 transition-colors">
                   <div className="w-8 h-8 rounded-full bg-[#E17055] flex items-center justify-center shrink-0">
                     <User className="w-4 h-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium text-[#2D3436] truncate">Guest</p>
+                    <p className="font-medium text-[#2D3436] truncate">My Profile</p>
                   </div>
-                </div>
+                </a>
               }
               onLogout={() => signOut({ callbackUrl: "/login" })}
             />

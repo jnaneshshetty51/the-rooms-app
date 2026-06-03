@@ -204,9 +204,9 @@ Required secrets — fill before deploying:
 | NEXTAUTH_SECRET | NextAuth session secret | [openssl rand -base64 32] |
 | NEXTAUTH_URL | Base URL for auth | https://therooms.in |
 | RESEND_API_KEY | Resend email API key | re_XXXX |
-| IDFC_MERCHANT_ID | IDFC payment merchant ID | IDFCMERCH123 |
-| IDFC_API_KEY | IDFC payment API key | [from IDFC portal] |
-| IDFC_WEBHOOK_SECRET | IDFC webhook signature key | [random string] |
+| INDUSIND_MERCHANT_ID | INDUSIND payment merchant ID | INDUSINDMERCH123 |
+| INDUSIND_API_KEY | INDUSIND payment API key | [from INDUSIND portal] |
+| INDUSIND_WEBHOOK_SECRET | INDUSIND webhook signature key | [random string] |
 | MINIO_PUBLIC_URL | MinIO public URL | https://minio.therooms.in |
 
 ## Troubleshooting

@@ -76,7 +76,7 @@ const SERVICES: ServiceStatus[] = [
     lastChecked: new Date(Date.now() - 30000).toISOString(),
   },
   {
-    name: "IDFC Bank (Payments)",
+    name: "INDUSIND Bank (Payments)",
     icon: CreditCard,
     status: "ok",
     responseTime: 340,

@@ -65,8 +65,8 @@ export default function BookingPaymentPage() {
 
       const booking = data.data;
 
-      // Attempt real IDFC payment redirect
-      const payRes = await fetch("/api/payments/idfc/initiate", {
+      // Attempt real INDUSIND payment redirect
+      const payRes = await fetch("/api/payments/indusind/initiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -81,13 +81,20 @@ export default function BookingPaymentPage() {
           // Save minimal info to store so confirmation page can read it
           setPaymentInfo(payData.data.paymentId ?? "pay_init", booking.id, booking.bookingNumber);
           setStep(5);
-          // Redirect to IDFC hosted payment page
+          // Redirect to INDUSIND hosted payment page
           window.location.href = payData.data.paymentUrl;
           return;
         }
       }
 
-      // IDFC not configured or unavailable — simulate payment success (dev / demo)
+      // INDUSIND not configured or unavailable — simulate payment success (dev / demo)
+      const simRes = await fetch("/api/payments/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: booking.id }),
+      });
+      if (!simRes.ok) throw new Error("Simulation failed");
+
       setPaymentInfo("pay_sim", booking.id, booking.bookingNumber);
       setStep(5);
       router.push(`/book/confirmation?booking_id=${booking.id}`);
@@ -165,7 +172,7 @@ export default function BookingPaymentPage() {
 
       {/* Security note */}
       <div className="bg-accent/30 rounded-xl p-4 text-xs text-muted text-center">
-        <strong>Secure Payment:</strong> Your payment is processed by IDFC Bank Payment Gateway. We never store your card details.
+        <strong>Secure Payment:</strong> Your payment is processed by INDUSIND Bank Payment Gateway. We never store your card details.
       </div>
 
       {/* Pay Button */}

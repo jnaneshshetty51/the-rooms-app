@@ -28,6 +28,14 @@ export async function POST(
       return NextResponse.json({ error: "Booking must be confirmed" }, { status: 400 });
     }
 
+    const body = await request.json().catch(() => ({}));
+    if (body.signatureUrl) {
+      await prisma.booking.update({
+        where: { id },
+        data: { signatureUrl: body.signatureUrl }
+      });
+    }
+
     const updatedBooking = await updateBookingStatus(id, "CHECKED_IN");
     await incrementStayCount(booking.guestId);
 

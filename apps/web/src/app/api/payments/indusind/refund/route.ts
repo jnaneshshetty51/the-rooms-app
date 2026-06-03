@@ -1,10 +1,10 @@
-// apps/web/src/app/api/payments/idfc/refund/route.ts
-// POST /api/payments/idfc/refund — initiate refund (admin only)
+// apps/web/src/app/api/payments/indusind/refund/route.ts
+// POST /api/payments/indusind/refund — initiate refund (admin only)
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@the-rooms/auth';
-import { getIDFCClient, toPaise, IDFCError } from '@the-rooms/payments/idfc';
+import { getINDUSINDClient, toPaise, INDUSINDError } from '@the-rooms/payments/indusind';
 import { badRequest, forbidden, notFound, serverError } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { Prisma } from '@prisma/client';
@@ -65,27 +65,27 @@ export async function POST(request: NextRequest) {
       return badRequest(`Refund amount cannot exceed ${maxRefundAmount}`);
     }
 
-    // Initiate refund with IDFC
-    const idfc = getIDFCClient();
-    let idfcRefund;
+    // Initiate refund with INDUSIND
+    const indusind = getINDUSINDClient();
+    let indusindRefund;
 
     try {
-      idfcRefund = await idfc.refundPayment({
+      indusindRefund = await indusind.refundPayment({
         transactionId: payment.gatewayRef ?? payment.transactionId ?? '',
         refundAmount: toPaise(actualRefundAmount),
         reason,
         refundReference: `THR-REF-${payment.id.slice(-8)}`,
       });
     } catch (error) {
-      // If IDFC refund fails, we can still record internally
-      console.error('[Refund] IDFC error:', error);
+      // If INDUSIND refund fails, we can still record internally
+      console.error('[Refund] INDUSIND error:', error);
 
-      if (error instanceof IDFCError && error.statusCode !== 400) {
-        // Non-recoverable IDFC error
+      if (error instanceof INDUSINDError && error.statusCode !== 400) {
+        // Non-recoverable INDUSIND error
         return badRequest(`Refund gateway error: ${error.message}`, 'GATEWAY_ERROR');
       }
       // For certain errors, continue with internal refund record
-      idfcRefund = null;
+      indusindRefund = null;
     }
 
     // Update payment with refund info
@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
         status: 'REFUNDED',
         refundReason: reason,
         refundAmount: new Prisma.Decimal(actualRefundAmount),
-        refundStatus: idfcRefund?.status === 'SUCCESS' ? 'PROCESSED' : 'PENDING',
-        gatewayResponse: idfcRefund as unknown as Prisma.JsonObject ?? { internal: true },
+        refundStatus: indusindRefund?.status === 'SUCCESS' ? 'PROCESSED' : 'PENDING',
+        gatewayResponse: indusindRefund as unknown as Prisma.JsonObject ?? { internal: true },
       },
     });
 
@@ -127,17 +127,17 @@ export async function POST(request: NextRequest) {
         bookingId: payment.bookingId,
         amount: actualRefundAmount,
         reason,
-        refundId: idfcRefund?.refundId,
-        status: idfcRefund?.status ?? 'PENDING_INTERNAL',
+        refundId: indusindRefund?.refundId,
+        status: indusindRefund?.status ?? 'PENDING_INTERNAL',
       },
       ipAddress: getClientIp(request),
     });
 
     return NextResponse.json({
       data: {
-        refundId: idfcRefund?.refundId ?? `INT-${Date.now()}`,
+        refundId: indusindRefund?.refundId ?? `INT-${Date.now()}`,
         paymentId,
-        status: idfcRefund?.status ?? 'PENDING',
+        status: indusindRefund?.status ?? 'PENDING',
         refundAmount: actualRefundAmount,
         initiatedAt: new Date().toISOString(),
       },

@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { DM_Sans, Inter } from "next/font/google";
 import { ReactQueryProvider } from "@/components/providers/ReactQueryProvider";
 import { TheRoomsProvider } from "@the-rooms/ui";
 import { Toaster } from "react-hot-toast";
@@ -6,7 +7,14 @@ import { PWAProvider } from "@/components/pwa/PWAProvider";
 import { JsonLd } from "@/components/seo/JsonLd";
 import "./globals.css";
 
-const dmSans = { variable: "--font-dm-sans" };
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+});
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -44,13 +52,6 @@ export const metadata: Metadata = {
     creator: "@therooms",
   },
   manifest: "/manifest.json",
-  themeColor: "#E17055",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -68,17 +69,19 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#E17055",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${dmSans.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${dmSans.variable} ${inter.variable}`} suppressHydrationWarning>
       <head>
         <JsonLd />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body className="font-sans antialiased bg-background text-primary min-h-screen flex flex-col">
         <TheRoomsProvider>

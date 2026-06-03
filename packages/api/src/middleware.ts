@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@the-rooms/auth';
 import { Role } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
+import Redis from 'ioredis';
 
 // ── withAuth ─────────────────────────────────────────────────────────────────
 
@@ -125,10 +126,25 @@ export function getClientIp(request: NextRequest): string {
 
 // ── Rate Limiting (Redis-based) ──────────────────────────────────────────────
 
+let redisClient: Redis | null = null;
+if (process.env.REDIS_URL) {
+  redisClient = new Redis(process.env.REDIS_URL, {
+    maxRetriesPerRequest: 1,
+    retryStrategy(times) {
+      if (times > 3) return null;
+      return Math.min(times * 50, 2000);
+    }
+  });
+
+  redisClient.on('error', (err) => {
+    console.warn('[Redis] Connection error in rate limiter:', err.message);
+  });
+}
+
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 /**
- * Simple in-memory rate limiter (use Redis in production)
+ * Redis-backed rate limiter with in-memory fallback
  */
 export async function checkRateLimit(
   key: string,
@@ -136,6 +152,29 @@ export async function checkRateLimit(
   windowMs: number
 ): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
   const now = Date.now();
+  const resetAt = now + windowMs;
+
+  if (redisClient && redisClient.status === 'ready') {
+    try {
+      const current = await redisClient.incr(key);
+      if (current === 1) {
+        await redisClient.pexpire(key, windowMs);
+      }
+      
+      const ttl = await redisClient.pttl(key);
+      const actualResetAt = ttl > 0 ? now + ttl : resetAt;
+      
+      if (current > maxRequests) {
+        return { allowed: false, remaining: 0, resetAt: actualResetAt };
+      }
+      return { allowed: true, remaining: maxRequests - current, resetAt: actualResetAt };
+    } catch (err) {
+      console.warn('[Redis] Rate limiter fallback to memory due to error:', err);
+      // Fallback to memory below
+    }
+  }
+
+  // In-memory fallback
   const record = rateLimitStore.get(key);
 
   if (!record || now > record.resetAt) {

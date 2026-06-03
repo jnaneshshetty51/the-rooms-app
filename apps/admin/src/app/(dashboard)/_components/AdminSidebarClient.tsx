@@ -27,7 +27,7 @@ const ADMIN_NAV: NavItem[] = [
   { label: "Room Management", href: "/rooms", icon: BedDouble },
   { label: "Bookings", href: "/bookings", icon: CalendarDays },
   { label: "Amenities", href: "/amenities", icon: Sparkles },
-  { label: "Front Office Users", href: "/users", icon: Users },
+  { label: "Staff Management", href: "/users", icon: Users },
   { label: "Announcements", href: "/announcements", icon: Megaphone },
   { label: "Discounts", href: "/discounts", icon: Tag },
   { label: "Reports", href: "/reports", icon: BarChart3 },

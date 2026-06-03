@@ -80,21 +80,21 @@ async function checkResend(): Promise<ServiceHealth> {
   };
 }
 
-async function checkIDFC(): Promise<ServiceHealth> {
-  const clientId = process.env.IDFC_CLIENT_ID;
+async function checkINDUSIND(): Promise<ServiceHealth> {
+  const clientId = process.env.INDUSIND_CLIENT_ID;
   if (!clientId) {
     return {
-      name: "IDFC Bank",
+      name: "INDUSIND Bank",
       status: "down",
-      detail: "IDFC credentials not configured",
+      detail: "INDUSIND credentials not configured",
       lastChecked: new Date().toISOString(),
     };
   }
   return {
-    name: "IDFC Bank",
+    name: "INDUSIND Bank",
     status: "ok",
     responseTime: 340,
-    detail: `Mode: ${process.env.IDFC_ENV ?? "production"}`,
+    detail: `Mode: ${process.env.INDUSIND_ENV ?? "production"}`,
     lastChecked: new Date().toISOString(),
   };
 }
@@ -201,17 +201,17 @@ export async function GET() {
     }
 
     // Run health checks in parallel
-    const [postgres, redis, minio, resend, idfc, nginx, docker] = await Promise.all([
+    const [postgres, redis, minio, resend, indusind, nginx, docker] = await Promise.all([
       checkPostgres(),
       checkRedis(),
       checkMinIO(),
       checkResend(),
-      checkIDFC(),
+      checkINDUSIND(),
       checkNginx(),
       checkDocker(),
     ]);
 
-    const services = [postgres, redis, minio, resend, idfc, nginx, docker];
+    const services = [postgres, redis, minio, resend, indusind, nginx, docker];
     const healthyCount = services.filter((s) => s.status === "ok").length;
     const slowCount = services.filter((s) => s.status === "slow").length;
     const downCount = services.filter((s) => s.status === "down").length;

@@ -1,10 +1,10 @@
-// apps/web/src/app/api/payments/idfc/status/route.ts
-// GET /api/payments/idfc/status — check payment status
+// apps/web/src/app/api/payments/indusind/status/route.ts
+// GET /api/payments/indusind/status — check payment status
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@the-rooms/auth';
-import { getIDFCClient, IDFCError } from '@the-rooms/payments/idfc';
+import { getINDUSINDClient, INDUSINDError } from '@the-rooms/payments/indusind';
 import { ok, badRequest, notFound, unauthorized, serverError } from '@the-rooms/api';
 
 import { db } from '@the-rooms/db';
@@ -62,18 +62,18 @@ export async function GET(request: NextRequest) {
       return unauthorized('You can only view your own payment status');
     }
 
-    // Check with IDFC if payment is still pending
+    // Check with INDUSIND if payment is still pending
     let gatewayStatus;
     if (payment.status === 'PENDING') {
-      const idfc = getIDFCClient();
+      const indusind = getINDUSINDClient();
       try {
-        gatewayStatus = await idfc.checkPaymentStatus({
+        gatewayStatus = await indusind.checkPaymentStatus({
           transactionId: payment.transactionId ?? undefined,
           orderId: payment.gatewayRef ?? undefined,
         });
       } catch (error) {
-        // IDFC might not have the order yet, use DB status
-        console.warn('[Payment Status] IDFC check failed:', error);
+        // INDUSIND might not have the order yet, use DB status
+        console.warn('[Payment Status] INDUSIND check failed:', error);
       }
     }
 
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       return badRequest(error.errors.map((e) => e.message).join(', '));
     }
 
-    if (error instanceof IDFCError) {
+    if (error instanceof INDUSINDError) {
       return badRequest(`Gateway error: ${error.message}`, 'GATEWAY_ERROR');
     }
 

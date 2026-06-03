@@ -55,26 +55,28 @@ export default function GuestDetailPage({ params }: { params: Promise<{ id: stri
   const [guest, setGuest] = useState<GuestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
-    async function fetchGuest() {
-      try {
-        const res = await fetch(`/api/guests/${id}`);
-        if (res.ok) {
-          setGuest(await res.json());
-        } else if (res.status === 404) {
-          setError("Guest not found");
-        } else {
-          setError("Failed to load guest");
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchGuest();
   }, [id]);
+
+  async function fetchGuest() {
+    try {
+      const res = await fetch(`/api/guests/${id}`);
+      if (res.ok) {
+        setGuest(await res.json());
+      } else if (res.status === 404) {
+        setError("Guest not found");
+      } else {
+        setError("Failed to load guest");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -143,7 +145,7 @@ export default function GuestDetailPage({ params }: { params: Promise<{ id: stri
           <div className="rounded-xl border border-gray-200 bg-white p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Contact Information</h3>
-              <button className="text-sm text-[#E17055] hover:underline flex items-center gap-1">
+              <button onClick={() => setIsEditModalOpen(true)} className="text-sm text-[#E17055] hover:underline flex items-center gap-1">
                 <Edit className="h-4 w-4" />
                 Edit
               </button>
@@ -285,6 +287,97 @@ export default function GuestDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           )}
         </div>
+      </div>
+
+      {isEditModalOpen && (
+        <EditGuestModal 
+          guest={guest} 
+          onClose={() => setIsEditModalOpen(false)} 
+          onSuccess={() => { setIsEditModalOpen(false); fetchGuest(); }} 
+        />
+      )}
+    </div>
+  );
+}
+
+function EditGuestModal({ guest, onClose, onSuccess }: { guest: GuestDetail, onClose: () => void, onSuccess: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [name, setName] = useState(guest.name);
+  const [phone, setPhone] = useState(guest.phone);
+  const [alternatePhone, setAlternatePhone] = useState(guest.alternatePhone || "");
+  const [email, setEmail] = useState(guest.email || "");
+  const [companyName, setCompanyName] = useState(guest.companyName || "");
+  const [address, setAddress] = useState(guest.address || "");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/guests/${guest.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone, email, alternatePhone, companyName, address }),
+      });
+
+      if (res.ok) {
+        onSuccess();
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to update guest");
+      }
+    } catch (err) {
+      setError("An error occurred");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900">Edit Guest Profile</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+              <input type="text" required value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Alternate Phone</label>
+              <input type="text" value={alternatePhone} onChange={(e) => setAlternatePhone(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+              <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+              <textarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent" />
+            </div>
+          </div>
+
+          <div className="pt-4 flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={submitting} className="flex-1 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Save Changes"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

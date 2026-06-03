@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { TheRoomsProvider } from "@the-rooms/ui";
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
@@ -10,12 +10,6 @@ export const metadata: Metadata = {
   },
   description: "The Rooms Hotel Front Office Portal",
   manifest: "/manifest.json",
-  themeColor: "#E17055",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-  },
   icons: {
     icon: [
       { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
@@ -25,6 +19,13 @@ export const metadata: Metadata = {
       { url: "/icons/icon-152x152.png", sizes: "152x152", type: "image/png" },
     ],
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#E17055",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,9 +1,9 @@
-// apps/web/src/app/api/payments/idfc/webhook/route.ts
-// POST /api/payments/idfc/webhook — IDFC payment webhook receiver
+// apps/web/src/app/api/payments/indusind/webhook/route.ts
+// POST /api/payments/indusind/webhook — INDUSIND payment webhook receiver
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getIDFCClient, WebhookPayload, IDFCError } from '@the-rooms/payments/idfc';
+import { getINDUSINDClient, WebhookPayload, INDUSINDError } from '@the-rooms/payments/indusind';
 import { updatePaymentStatus } from '@the-rooms/db';
 import { ok, badRequest, serverError } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
@@ -33,27 +33,27 @@ export async function POST(request: NextRequest) {
     // Validate webhook schema
     const parseResult = WebhookSchema.safeParse(payload);
     if (!parseResult.success) {
-      console.error('[IDFC Webhook] Invalid payload:', parseResult.error);
+      console.error('[INDUSIND Webhook] Invalid payload:', parseResult.error);
       return badRequest('Invalid webhook payload');
     }
 
     // Verify checksum
-    const idfc = getIDFCClient();
-    const webhookSecret = process.env.IDFC_WEBHOOK_SECRET ?? '';
+    const indusind = getINDUSINDClient();
+    const webhookSecret = process.env.INDUSIND_WEBHOOK_SECRET ?? '';
 
     // Generate expected checksum
     const { checksum, ...payloadWithoutChecksum } = payload;
-    const expectedChecksum = idfc.generateChecksum(payloadWithoutChecksum);
+    const expectedChecksum = indusind.generateChecksum(payloadWithoutChecksum);
 
     if (checksum !== expectedChecksum) {
-      console.error('[IDFC Webhook] Checksum mismatch');
+      console.error('[INDUSIND Webhook] Checksum mismatch');
       return NextResponse.json(
         { error: 'Invalid checksum' },
         { status: 403 }
       );
     }
 
-    console.log('[IDFC Webhook] Processing:', payload.orderId, payload.status);
+    console.log('[INDUSIND Webhook] Processing:', payload.orderId, payload.status);
 
     // Find payment by order ID
     const payment = await db.payment.findFirst({
@@ -71,14 +71,14 @@ export async function POST(request: NextRequest) {
     });
 
     if (!payment) {
-      console.error('[IDFC Webhook] Payment not found for order:', payload.orderId);
-      // Return 200 to IDFC to prevent retries for unknown orders
+      console.error('[INDUSIND Webhook] Payment not found for order:', payload.orderId);
+      // Return 200 to INDUSIND to prevent retries for unknown orders
       return ok({ message: 'Payment not found' });
     }
 
     // Idempotency check — skip if already processed
     if (payment.status === 'PAID' && payload.status === 'SUCCESS') {
-      console.log('[IDFC Webhook] Already processed, skipping:', payload.orderId);
+      console.log('[INDUSIND Webhook] Already processed, skipping:', payload.orderId);
       return ok({ message: 'Already processed' });
     }
 
@@ -153,10 +153,10 @@ export async function POST(request: NextRequest) {
             gatewayTransactionId: payload.gatewayTransactionId,
             paymentMethod: payload.paymentMethod,
           },
-          ipAddress: 'idfc-webhook',
+          ipAddress: 'indusind-webhook',
         });
 
-        console.log('[IDFC Webhook] Payment success:', payload.orderId);
+        console.log('[INDUSIND Webhook] Payment success:', payload.orderId);
         break;
       }
 
@@ -188,23 +188,23 @@ export async function POST(request: NextRequest) {
             errorCode: payload.errorCode,
             errorMessage: payload.errorMessage,
           },
-          ipAddress: 'idfc-webhook',
+          ipAddress: 'indusind-webhook',
         });
 
-        console.log('[IDFC Webhook] Payment failed/cancelled:', payload.orderId);
+        console.log('[INDUSIND Webhook] Payment failed/cancelled:', payload.orderId);
         break;
       }
     }
 
     return ok({ message: 'Webhook processed' });
   } catch (error) {
-    console.error('[IDFC Webhook] Error:', error);
+    console.error('[INDUSIND Webhook] Error:', error);
 
-    if (error instanceof IDFCError) {
+    if (error instanceof INDUSINDError) {
       return badRequest(error.message, 'GATEWAY_ERROR');
     }
 
-    // Return 200 to prevent IDFC from retrying
+    // Return 200 to prevent INDUSIND from retrying
     // Log error internally
     await createAuditLog({
       action: 'WEBHOOK_ERROR',

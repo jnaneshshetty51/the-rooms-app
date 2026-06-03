@@ -48,7 +48,7 @@ const FAQ_SECTIONS = [
     faqs: [
       {
         q: "What payment methods do you accept?",
-        a: "We accept all major debit/credit cards, UPI, net banking, and cash. Online payments can be made via our website using IDFC Payment Gateway.",
+        a: "We accept all major debit/credit cards, UPI, net banking, and cash. Online payments can be made via our website using INDUSIND Payment Gateway.",
       },
       {
         q: "Is GST included in the room price?",

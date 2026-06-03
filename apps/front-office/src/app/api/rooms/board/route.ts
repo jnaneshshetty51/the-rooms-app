@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         type: room.type,
         floor: room.floor,
         status: room.status,
+        cleaningStatus: room.cleaningStatus,
         description: room.description,
         amenities: room.amenities.map((ra) => ra.amenity.name),
         currentBooking: activeBooking

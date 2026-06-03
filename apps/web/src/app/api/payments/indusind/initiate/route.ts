@@ -1,10 +1,10 @@
-// apps/web/src/app/api/payments/idfc/initiate/route.ts
-// POST /api/payments/idfc/initiate — initiate IDFC payment
+// apps/web/src/app/api/payments/indusind/initiate/route.ts
+// POST /api/payments/indusind/initiate — initiate INDUSIND payment
 
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@the-rooms/auth';
-import { getIDFCClient, toPaise, IDFCError } from '@the-rooms/payments/idfc';
+import { getINDUSINDClient, toPaise, INDUSINDError } from '@the-rooms/payments/indusind';
 import { createPayment, Prisma } from '@the-rooms/db';
 import { created, badRequest, serverError } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
@@ -50,16 +50,16 @@ export async function POST(request: NextRequest) {
       status: 'PENDING',
     });
 
-    // Initialize IDFC client
-    const idfc = getIDFCClient();
+    // Initialize INDUSIND client
+    const indusind = getINDUSINDClient();
 
     // Build return URL
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
     const returnUrl = `${baseUrl}/book/confirmation?booking_id=${bookingId}`;
-    const notifyUrl = `${baseUrl}/api/payments/idfc/webhook`;
+    const notifyUrl = `${baseUrl}/api/payments/indusind/webhook`;
 
-    // Initiate payment with IDFC
-    const idfcResponse = await idfc.initiatePayment({
+    // Initiate payment with INDUSIND
+    const indusindResponse = await indusind.initiatePayment({
       orderId,
       amount: toPaise(amount),
       customerEmail: booking.guest.email ?? 'guest@therooms.in',
@@ -74,14 +74,14 @@ export async function POST(request: NextRequest) {
     await db.payment.update({
       where: { id: payment.id },
       data: {
-        gatewayRef: idfcResponse.orderId,
-        gatewayResponse: idfcResponse as unknown as Prisma.JsonObject,
+        gatewayRef: indusindResponse.orderId,
+        gatewayResponse: indusindResponse as unknown as Prisma.JsonObject,
       },
     });
 
     // Audit log
     await createAuditLog({
-      userId: session.user.id,
+      userId: session?.user?.id || null,
       action: 'PAYMENT_INITIATED',
       entity: 'payment',
       entityId: payment.id,
@@ -89,26 +89,26 @@ export async function POST(request: NextRequest) {
         bookingId,
         amount,
         orderId,
-        gateway: 'IDFC',
+        gateway: 'INDUSIND',
       },
       ipAddress: getClientIp(request),
     });
 
     return created({
       paymentId: payment.id,
-      orderId: idfcResponse.orderId,
-      paymentUrl: idfcResponse.paymentUrl,
-      embeddedToken: idfcResponse.embeddedToken,
-      expiresAt: idfcResponse.expiresAt,
+      orderId: indusindResponse.orderId,
+      paymentUrl: indusindResponse.paymentUrl,
+      embeddedToken: indusindResponse.embeddedToken,
+      expiresAt: indusindResponse.expiresAt,
     });
   } catch (error) {
-    console.error('[IDFC Initiate] Error:', error);
+    console.error('[INDUSIND Initiate] Error:', error);
 
     if (error instanceof z.ZodError) {
       return badRequest(error.errors.map((e) => e.message).join(', '));
     }
 
-    if (error instanceof IDFCError) {
+    if (error instanceof INDUSINDError) {
       // Audit log the failure
       const session = await auth();
       await createAuditLog({

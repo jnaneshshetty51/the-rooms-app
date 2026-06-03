@@ -35,7 +35,7 @@ import { useToast } from "@the-rooms/ui";
 
 export default function SettingsPage() {
   const toast = useToast();
-  const [showIdfc, setShowIdfc] = useState(false);
+  const [showIndusInd, setShowIndusInd] = useState(false);
   const [showResend, setShowResend] = useState(false);
   const [showMinio, setShowMinio] = useState(false);
 
@@ -56,11 +56,11 @@ export default function SettingsPage() {
   });
 
   const [configs, setConfigs] = useState({
-    idfcClientId: "IDFC_CLIENT_XXXX",
-    idfcClientSecret: "IDFC_SECRET_XXXX",
-    idfcMerchantId: "MERCHANT_12345",
-    idfcWebhookUrl: "https://api.therooms.in/api/payments/idfc/webhook",
-    idfcMode: "production",
+    indusindClientId: "INDUSIND_CLIENT_XXXX",
+    indusindClientSecret: "INDUSIND_SECRET_XXXX",
+    indusindMerchantId: "MERCHANT_12345",
+    indusindWebhookUrl: "https://api.therooms.in/api/payments/indusind/webhook",
+    indusindMode: "production",
     resendApiKey: "re_XXXX_XXXX",
     resendFromEmail: "hello@therooms.in",
     resendDomainVerified: true,
@@ -89,7 +89,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="hotel" className="space-y-6">
         <TabsList>
           <TabsTrigger value="hotel">Hotel Info</TabsTrigger>
-          <TabsTrigger value="payments">Payment (IDFC)</TabsTrigger>
+          <TabsTrigger value="payments">Payment (INDUSIND)</TabsTrigger>
           <TabsTrigger value="email">Email (Resend)</TabsTrigger>
           <TabsTrigger value="storage">Storage (MinIO)</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
@@ -211,59 +211,59 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-[#E17055]" />
-                IDFC Payment Gateway
+                INDUSIND Payment Gateway
               </CardTitle>
               <CardDescription>
-                Configure IDFC Bank credentials for payment processing.
+                Configure INDUSIND Bank credentials for payment processing.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>IDFC Client ID</Label>
+                  <Label>INDUSIND Client ID</Label>
                   <div className="relative mt-1">
                     <Input
-                      type={showIdfc ? "text" : "password"}
-                      value={configs.idfcClientId}
-                      onChange={(e) => setConfigs((c) => ({ ...c, idfcClientId: e.target.value }))}
+                      type={showIndusInd ? "text" : "password"}
+                      value={configs.indusindClientId}
+                      onChange={(e) => setConfigs((c) => ({ ...c, indusindClientId: e.target.value }))}
                     />
                     <button
-                      onClick={() => setShowIdfc(!showIdfc)}
+                      onClick={() => setShowIndusInd(!showIndusInd)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      {showIdfc ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showIndusInd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
                 <div>
-                  <Label>IDFC Client Secret</Label>
+                  <Label>INDUSIND Client Secret</Label>
                   <div className="relative mt-1">
                     <Input
-                      type={showIdfc ? "text" : "password"}
-                      value={configs.idfcClientSecret}
-                      onChange={(e) => setConfigs((c) => ({ ...c, idfcClientSecret: e.target.value }))}
+                      type={showIndusInd ? "text" : "password"}
+                      value={configs.indusindClientSecret}
+                      onChange={(e) => setConfigs((c) => ({ ...c, indusindClientSecret: e.target.value }))}
                     />
                     <button
-                      onClick={() => setShowIdfc(!showIdfc)}
+                      onClick={() => setShowIndusInd(!showIndusInd)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      {showIdfc ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showIndusInd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
                 <div>
                   <Label>Merchant ID</Label>
                   <Input
-                    value={configs.idfcMerchantId}
-                    onChange={(e) => setConfigs((c) => ({ ...c, idfcMerchantId: e.target.value }))}
+                    value={configs.indusindMerchantId}
+                    onChange={(e) => setConfigs((c) => ({ ...c, indusindMerchantId: e.target.value }))}
                     className="mt-1"
                   />
                 </div>
                 <div>
                   <Label>Mode</Label>
                   <select
-                    value={configs.idfcMode}
-                    onChange={(e) => setConfigs((c) => ({ ...c, idfcMode: e.target.value }))}
+                    value={configs.indusindMode}
+                    onChange={(e) => setConfigs((c) => ({ ...c, indusindMode: e.target.value }))}
                     className="mt-1 w-full border border-input bg-white rounded-lg px-3 py-2 text-sm"
                   >
                     <option value="sandbox">Sandbox (Test)</option>
@@ -272,9 +272,9 @@ export default function SettingsPage() {
                 </div>
                 <div className="md:col-span-2">
                   <Label>Webhook URL (read-only)</Label>
-                  <Input value={configs.idfcWebhookUrl} readOnly className="mt-1 bg-accent/50" />
+                  <Input value={configs.indusindWebhookUrl} readOnly className="mt-1 bg-accent/50" />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Configure this URL in your IDFC dashboard to receive payment notifications.
+                    Configure this URL in your INDUSIND dashboard to receive payment notifications.
                   </p>
                 </div>
               </div>

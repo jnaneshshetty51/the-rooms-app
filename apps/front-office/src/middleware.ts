@@ -18,9 +18,17 @@ export default auth((req: any) => {
     if (role === 'GUEST') {
       return NextResponse.redirect(new URL('/access-denied', req.url));
     }
+
+    if (role === 'HOUSEKEEPING' && !req.nextUrl.pathname.startsWith('/housekeeping')) {
+      return NextResponse.redirect(new URL('/housekeeping', req.url));
+    }
   }
 
   if (isAuthRoute && isLoggedIn) {
+    const role = req.auth?.user?.role;
+    if (role === 'HOUSEKEEPING') {
+      return NextResponse.redirect(new URL('/housekeeping', req.url));
+    }
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 

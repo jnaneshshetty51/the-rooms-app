@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { cn } from "@the-rooms/ui";
-import { Bed, Users, Wrench, Lock, Loader2, RefreshCw, Calendar } from "lucide-react";
+import { Bed, Users, Wrench, Lock, Loader2, RefreshCw, Calendar, Sparkles, Trash2, Clock } from "lucide-react";
 import { formatDate } from "@the-rooms/ui";
 
 interface RoomBoardData {
-  rooms: Array<{ id: string; roomNumber: string; type: "STUDIO" | "PREMIUM"; floor: number; status: "VACANT" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED"; currentBooking: { id: string; guestName: string; checkIn: string; checkOut: string } | null }>;
+  rooms: Array<{ id: string; roomNumber: string; type: "STUDIO" | "PREMIUM"; floor: number; status: "VACANT" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED"; cleaningStatus: "CLEAN" | "DIRTY" | "CLEANING"; currentBooking: { id: string; guestName: string; checkIn: string; checkOut: string } | null }>;
   totalRooms: number; vacant: number; occupied: number; maintenance: number; blocked: number;
 }
 
@@ -119,7 +119,10 @@ export default function RoomBoardPage() {
                   <button key={room.id} onClick={() => setSelectedRoom(isSelected ? null : room)} className={cn("relative rounded-xl border-2 p-4 text-left transition-all min-h-[120px]", config.borderColor, config.bgColor, isSelected && "ring-2 ring-[#E17055]")}>
                     <div className="flex items-center justify-between"><span className="text-lg font-bold text-gray-900">{room.roomNumber}</span><StatusIcon className={cn("h-5 w-5", config.textColor)} /></div>
                     <p className={cn("mt-1 text-xs font-medium", config.textColor)}>{config.label}</p>
-                    <p className="mt-2 text-xs text-gray-500">{room.type}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-gray-500">{room.type}</p>
+                      {room.cleaningStatus === "DIRTY" ? <Trash2 className="h-4 w-4 text-red-500" title="Dirty" /> : room.cleaningStatus === "CLEANING" ? <Clock className="h-4 w-4 text-blue-500" title="Cleaning" /> : <Sparkles className="h-4 w-4 text-green-500" title="Clean" />}
+                    </div>
                     {room.currentBooking && <div className="mt-2 pt-2 border-t border-gray-200/50"><p className="text-xs font-medium text-gray-900 truncate">{room.currentBooking.guestName}</p><p className="text-[10px] text-gray-500">Until {formatDate(room.currentBooking.checkOut, "short")}</p></div>}
                   </button>
                 );
