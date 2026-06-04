@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   PageHeader,
   Card,
@@ -36,50 +36,7 @@ interface ADRDataPoint {
   revpar: number;
 }
 
-const OCCUPANCY_TREND: OccupancyDataPoint[] = [
-  { month: "Jun '25", occupancy: 65.2, rooms: 23 },
-  { month: "Jul '25", occupancy: 71.8, rooms: 26 },
-  { month: "Aug '25", occupancy: 69.4, rooms: 25 },
-  { month: "Sep '25", occupancy: 74.1, rooms: 27 },
-  { month: "Oct '25", occupancy: 79.6, rooms: 29 },
-  { month: "Nov '25", occupancy: 82.3, rooms: 30 },
-  { month: "Dec '25", occupancy: 91.2, rooms: 33 },
-  { month: "Jan '26", occupancy: 85.7, rooms: 31 },
-  { month: "Feb '26", occupancy: 88.4, rooms: 32 },
-  { month: "Mar '26", occupancy: 84.1, rooms: 30 },
-  { month: "Apr '26", occupancy: 80.9, rooms: 29 },
-  { month: "May '26", occupancy: 78.4, rooms: 28 },
-];
-
-const BOOKING_TRENDS: BookingTrendPoint[] = [
-  { month: "Jun '25", daily: 38, monthly: 8, total: 46 },
-  { month: "Jul '25", daily: 42, monthly: 9, total: 51 },
-  { month: "Aug '25", daily: 40, monthly: 7, total: 47 },
-  { month: "Sep '25", daily: 45, monthly: 10, total: 55 },
-  { month: "Oct '25", daily: 52, monthly: 11, total: 63 },
-  { month: "Nov '25", daily: 58, monthly: 12, total: 70 },
-  { month: "Dec '25", daily: 71, monthly: 14, total: 85 },
-  { month: "Jan '26", daily: 63, monthly: 13, total: 76 },
-  { month: "Feb '26", daily: 67, monthly: 14, total: 81 },
-  { month: "Mar '26", daily: 61, monthly: 12, total: 73 },
-  { month: "Apr '26", daily: 58, monthly: 11, total: 69 },
-  { month: "May '26", daily: 55, monthly: 10, total: 65 },
-];
-
-const ADR_DATA: ADRDataPoint[] = [
-  { month: "Jun '25", adr: 1542, revpar: 1005 },
-  { month: "Jul '25", adr: 1598, revpar: 1147 },
-  { month: "Aug '25", adr: 1612, revpar: 1119 },
-  { month: "Sep '25", adr: 1687, revpar: 1250 },
-  { month: "Oct '25", adr: 1721, revpar: 1370 },
-  { month: "Nov '25", adr: 1789, revpar: 1472 },
-  { month: "Dec '25", adr: 1923, revpar: 1753 },
-  { month: "Jan '26", adr: 1812, revpar: 1553 },
-  { month: "Feb '26", adr: 1834, revpar: 1621 },
-  { month: "Mar '26", adr: 1801, revpar: 1515 },
-  { month: "Apr '26", adr: 1820, revpar: 1473 },
-  { month: "May '26", adr: 1847, revpar: 1448 },
-];
+// Mocks removed
 
 function OccupancyChart({ data }: { data: OccupancyDataPoint[] }) {
   const maxOcc = 100;
@@ -200,20 +157,61 @@ function ADRChart({ data }: { data: ADRDataPoint[] }) {
   );
 }
 
+import { LoadingSpinner } from "@the-rooms/ui";
+
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState("occupancy");
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [occupancyTrend, setOccupancyTrend] = useState<OccupancyDataPoint[]>([]);
+  const [bookingTrends, setBookingTrends] = useState<BookingTrendPoint[]>([]);
+  const [adrData, setAdrData] = useState<ADRDataPoint[]>([]);
 
-  const latestOcc = OCCUPANCY_TREND[OCCUPANCY_TREND.length - 1];
-  const prevOcc = OCCUPANCY_TREND[OCCUPANCY_TREND.length - 2];
+  useEffect(() => {
+    async function fetchData() {
+      setIsLoading(true);
+      try {
+        const [trendsRes, occRes] = await Promise.all([
+          fetch("/api/analytics/trends?months=12"),
+          fetch("/api/analytics/occupancy?months=12")
+        ]);
+        
+        if (trendsRes.ok && occRes.ok) {
+          const trendsJson = await trendsRes.json();
+          const occJson = await occRes.json();
+          
+          setBookingTrends(trendsJson.data.bookingTrends || []);
+          setAdrData(trendsJson.data.adrData || []);
+          setOccupancyTrend(occJson.data.monthlyOccupancy || []);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  if (isLoading || occupancyTrend.length === 0 || bookingTrends.length === 0 || adrData.length === 0) {
+    return (
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  const latestOcc = occupancyTrend[occupancyTrend.length - 1];
+  const prevOcc = occupancyTrend[occupancyTrend.length - 2] || { occupancy: 0 };
   const occChange = latestOcc.occupancy - prevOcc.occupancy;
 
-  const latestBookings = BOOKING_TRENDS[BOOKING_TRENDS.length - 1];
-  const prevBookings = BOOKING_TRENDS[BOOKING_TRENDS.length - 2];
+  const latestBookings = bookingTrends[bookingTrends.length - 1];
+  const prevBookings = bookingTrends[bookingTrends.length - 2] || { total: 0 };
   const bookingChange = latestBookings.total - prevBookings.total;
 
-  const latestADR = ADR_DATA[ADR_DATA.length - 1];
-  const prevADR = ADR_DATA[ADR_DATA.length - 2];
-  const adrChange = ((latestADR.adr - prevADR.adr) / prevADR.adr) * 100;
+  const latestADR = adrData[adrData.length - 1];
+  const prevADR = adrData[adrData.length - 2] || { adr: 1 };
+  const adrChange = prevADR.adr > 0 ? ((latestADR.adr - prevADR.adr) / prevADR.adr) * 100 : 0;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
@@ -276,7 +274,7 @@ export default function AnalyticsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <OccupancyChart data={OCCUPANCY_TREND} />
+              <OccupancyChart data={occupancyTrend} />
               <div className="mt-4 p-3 bg-accent/50 rounded-lg">
                 <p className="text-xs text-muted-foreground">
                   <strong className="text-foreground">Peak season:</strong> December 2025 at{" "}
@@ -301,18 +299,18 @@ export default function AnalyticsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <BookingTrendChart data={BOOKING_TRENDS} />
+              <BookingTrendChart data={bookingTrends} />
               <div className="mt-4 grid grid-cols-2 gap-4">
                 <div className="p-3 bg-accent/50 rounded-lg">
                   <p className="text-xs text-muted-foreground">
                     <strong className="text-foreground">Daily bookings avg:</strong>{" "}
-                    {Math.round(BOOKING_TRENDS.reduce((s, d) => s + d.daily, 0) / 12)}/month
+                    {Math.round(bookingTrends.reduce((s, d) => s + d.daily, 0) / 12)}/month
                   </p>
                 </div>
                 <div className="p-3 bg-accent/50 rounded-lg">
                   <p className="text-xs text-muted-foreground">
                     <strong className="text-foreground">Monthly bookings avg:</strong>{" "}
-                    {Math.round(BOOKING_TRENDS.reduce((s, d) => s + d.monthly, 0) / 12)}/month
+                    {Math.round(bookingTrends.reduce((s, d) => s + d.monthly, 0) / 12)}/month
                   </p>
                 </div>
               </div>
@@ -333,7 +331,7 @@ export default function AnalyticsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <ADRChart data={ADR_DATA} />
+              <ADRChart data={adrData} />
               <div className="mt-4 p-3 bg-accent/50 rounded-lg">
                 <p className="text-xs text-muted-foreground">
                   <strong className="text-foreground">ADR formula:</strong> Total Room Revenue ÷ Rooms Sold.{" "}

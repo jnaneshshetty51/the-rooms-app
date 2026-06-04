@@ -3,7 +3,7 @@
 // apps/super-admin/src/app/(super-admin)/communications/page.tsx
 // Communication & Alerts management for Super Admin
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@the-rooms/ui';
 import { Bell, Mail, MessageSquare, Send, Users, AlertTriangle, CheckCircle } from 'lucide-react';
 
@@ -25,21 +25,41 @@ interface Alert {
   createdAt: string;
 }
 
-// Demo data
-const recentCommunications: Communication[] = [
-  { id: '1', type: 'EMAIL', recipient: 'admin@therooms.in', subject: 'Daily Report - May 29, 2026', status: 'SENT', sentAt: '2026-05-29T08:00:00Z' },
-  { id: '2', type: 'WHATSAPP', recipient: '+91 98765 43210', subject: 'Booking Confirmation - BKN-20260528-0001', status: 'SENT', sentAt: '2026-05-28T14:30:00Z' },
-  { id: '3', type: 'EMAIL', recipient: 'fo@therooms.in', subject: 'Night Audit Report', status: 'FAILED', sentAt: '2026-05-28T23:00:00Z' },
-];
+// Mocks removed
 
-const alerts: Alert[] = [
-  { id: '1', severity: 'WARNING', title: 'Low Room Availability', message: 'Only 3 rooms available for tomorrow. Consider enabling maintenance mode on some rooms.', acknowledged: false, createdAt: '2026-05-29T10:00:00Z' },
-  { id: '2', severity: 'CRITICAL', title: 'Payment Gateway Timeout', message: 'INDUSIND payment gateway showing increased response times (>30s). Monitor closely.', acknowledged: false, createdAt: '2026-05-29T09:45:00Z' },
-  { id: '3', severity: 'INFO', title: 'Daily Backup Complete', message: 'Automated database backup completed successfully. Backup size: 245MB', acknowledged: true, createdAt: '2026-05-29T03:00:00Z' },
-];
+import { LoadingSpinner } from '@the-rooms/ui';
 
 export default function CommunicationsPage() {
   const [activeTab, setActiveTab] = useState<'alerts' | 'logs' | 'templates'>('alerts');
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [recentCommunications, setRecentCommunications] = useState<Communication[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch("/api/communications");
+        if (res.ok) {
+          const json = await res.json();
+          setAlerts(json.data.alerts || []);
+          setRecentCommunications(json.data.communications || []);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   const getSeverityColor = (severity: Alert['severity']) => {
     switch (severity) {

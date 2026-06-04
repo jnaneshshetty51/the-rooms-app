@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   PageHeader,
   Card,
@@ -41,21 +41,13 @@ interface Backup {
   createdBy: string;
 }
 
-const MOCK_BACKUPS: Backup[] = [
-  { id: "1", date: "2026-05-29 02:00", size: "2.4 GB", status: "success", type: "Full", duration: "18m", destination: "Backblaze B2", createdBy: "System" },
-  { id: "2", date: "2026-05-28 14:00", size: "120 MB", status: "success", type: "Incremental", duration: "3m", destination: "Backblaze B2", createdBy: "System" },
-  { id: "3", date: "2026-05-28 02:00", size: "2.4 GB", status: "success", type: "Full", duration: "17m", destination: "Backblaze B2", createdBy: "System" },
-  { id: "4", date: "2026-05-27 14:00", size: "95 MB", status: "success", type: "Incremental", duration: "2m", destination: "Backblaze B2", createdBy: "System" },
-  { id: "5", date: "2026-05-27 02:00", size: "2.3 GB", status: "success", type: "Full", duration: "16m", destination: "Backblaze B2", createdBy: "System" },
-  { id: "6", date: "2026-05-26 02:00", size: "2.4 GB", status: "failed", type: "Full", duration: "-", destination: "Backblaze B2", createdBy: "System" },
-  { id: "7", date: "2026-05-25 02:00", size: "2.4 GB", status: "success", type: "Full", duration: "18m", destination: "Backblaze B2", createdBy: "System" },
-  { id: "8", date: "2026-05-24 14:00", size: "110 MB", status: "success", type: "Incremental", duration: "3m", destination: "Backblaze B2", createdBy: "System" },
-  { id: "9", date: "2026-05-24 02:00", size: "2.4 GB", status: "success", type: "Full", duration: "17m", destination: "Backblaze B2", createdBy: "System" },
-  { id: "10", date: "2026-05-23 02:00", size: "2.4 GB", status: "success", type: "Full", duration: "18m", destination: "Backblaze B2", createdBy: "System" },
-];
+// Mocks removed
+
+import { LoadingSpinner } from "@the-rooms/ui";
 
 export default function BackupsPage() {
-  const [backups, setBackups] = useState<Backup[]>(MOCK_BACKUPS);
+  const [backups, setBackups] = useState<Backup[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [restoreDialog, setRestoreDialog] = useState<string | null>(null);
   const [runningBackup, setRunningBackup] = useState(false);
   const toast = useToast();
@@ -67,26 +59,46 @@ export default function BackupsPage() {
   const lastSuccess = backups.find((b) => b.status === "success");
   const nextBackup = "2026-05-30 02:00";
 
-  function triggerBackup() {
+  async function fetchBackups() {
+    try {
+      const res = await fetch("/api/backups");
+      if (res.ok) {
+        const json = await res.json();
+        setBackups(json.data || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchBackups();
+    // Poll for updates if a backup is running
+    const interval = setInterval(fetchBackups, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function triggerBackup() {
     setRunningBackup(true);
     toast.success("Backup initiated", "Starting full backup...");
-    setTimeout(() => {
+    
+    try {
+      const res = await fetch("/api/backups", { method: "POST" });
+      if (res.ok) {
+        const json = await res.json();
+        setBackups((prev) => [json.data, ...prev]);
+        toast.success("Backup started successfully");
+      } else {
+        toast.error("Failed to start backup");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error connecting to server");
+    } finally {
       setRunningBackup(false);
-      setBackups((prev) => [
-        {
-          id: String(Date.now()),
-          date: new Date().toISOString().replace("T", " ").slice(0, 16),
-          size: "0 MB",
-          status: "success",
-          type: "Full",
-          duration: "0m",
-          destination: "Backblaze B2",
-          createdBy: "Super Admin (Manual)",
-        },
-        ...prev,
-      ]);
-      toast.success("Backup completed");
-    }, 3000);
+    }
   }
 
   function restoreBackup(id: string) {
@@ -95,6 +107,14 @@ export default function BackupsPage() {
     setTimeout(() => {
       toast.success("Restore completed");
     }, 3000);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
   }
 
   return (

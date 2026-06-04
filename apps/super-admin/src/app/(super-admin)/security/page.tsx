@@ -3,7 +3,7 @@
 // apps/super-admin/src/app/(super-admin)/security/page.tsx
 // Security Compliance for Super Admin
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@the-rooms/ui';
 import { Shield, Lock, Key, FileText, AlertTriangle, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
 
@@ -23,32 +23,42 @@ interface ComplianceFramework {
   findings: number;
 }
 
-// Demo security checks
-const securityChecks: SecurityCheck[] = [
-  { id: '1', category: 'ACCESS', name: 'Two-Factor Authentication', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: '2FA enforced for all admin accounts' },
-  { id: '2', category: 'ACCESS', name: 'Password Policy', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: 'Min 12 chars, complexity requirements enabled' },
-  { id: '3', category: 'ACCESS', name: 'Session Timeout', status: 'WARNING', lastChecked: '2026-05-29T00:00:00Z', details: '30min timeout - consider reducing to 15min' },
-  { id: '4', category: 'DATA', name: 'Encryption at Rest', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: 'AES-256 encryption enabled for all data' },
-  { id: '5', category: 'DATA', name: 'Encryption in Transit', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: 'TLS 1.3 enforced' },
-  { id: '6', category: 'DATA', name: 'Backup Encryption', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: 'Backups encrypted with customer-managed keys' },
-  { id: '7', category: 'INFRASTRUCTURE', name: 'Firewall Rules', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: 'Only whitelisted IPs have access' },
-  { id: '8', category: 'INFRASTRUCTURE', name: 'DDoS Protection', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: 'CloudFlare protection active' },
-  { id: '9', category: 'INFRASTRUCTURE', name: 'SSL Certificate', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: 'Expires in 45 days - renewal scheduled' },
-  { id: '10', category: 'COMPLIANCE', name: 'GDPR Compliance', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: 'Data retention policies implemented' },
-  { id: '11', category: 'COMPLIANCE', name: 'PCI-DSS', status: 'WARNING', lastChecked: '2026-05-29T00:00:00Z', details: 'Annual assessment due in 30 days' },
-  { id: '12', category: 'COMPLIANCE', name: 'Audit Logging', status: 'PASS', lastChecked: '2026-05-29T00:00:00Z', details: 'All admin actions logged' },
-];
+// Mocks removed
 
-const complianceFrameworks: ComplianceFramework[] = [
-  { name: 'ISO 27001', status: 'COMPLIANT', lastAudit: '2026-03-15', findings: 0 },
-  { name: 'SOC 2 Type II', status: 'COMPLIANT', lastAudit: '2026-01-20', findings: 2 },
-  { name: 'PCI-DSS 4.0', status: 'PARTIAL', lastAudit: '2025-12-10', findings: 5 },
-  { name: 'GDPR', status: 'COMPLIANT', lastAudit: '2026-02-28', findings: 0 },
-];
+import { LoadingSpinner } from '@the-rooms/ui';
 
 export default function SecurityPage() {
   const [activeCategory, setActiveCategory] = useState<SecurityCheck['category'] | 'ALL'>('ALL');
   const [showApiKeys, setShowApiKeys] = useState(false);
+  const [securityChecks, setSecurityChecks] = useState<SecurityCheck[]>([]);
+  const [complianceFrameworks, setComplianceFrameworks] = useState<ComplianceFramework[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch("/api/security");
+        if (res.ok) {
+          const json = await res.json();
+          setSecurityChecks(json.data.checks || []);
+          setComplianceFrameworks(json.data.compliance || []);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   const filteredChecks = activeCategory === 'ALL' 
     ? securityChecks 

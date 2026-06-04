@@ -481,3 +481,40 @@ model HotelSettings {
 
   @@map("hotel_settings")
 }
+
+model Backup {
+  id          String   @id @default(cuid())
+  date        DateTime @default(now())
+  size        String
+  status      String   // "success" | "failed" | "running"
+  type        String   // "Full" | "Incremental"
+  duration    String?
+  destination String
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("backups")
+}
+
+model Communication {
+  id          String   @id @default(cuid())
+  type        String   // 'EMAIL' | 'WHATSAPP' | 'SMS' | 'SYSTEM'
+  recipient   String
+  subject     String
+  status      String   // 'SENT' | 'FAILED' | 'PENDING'
+  sentAt      DateTime @default(now())
+  
+  @@map("communications")
+}
+
+model Alert {
+  id           String   @id @default(cuid())
+  severity     String   // 'INFO' | 'WARNING' | 'CRITICAL'
+  title        String
+  message      String
+  acknowledged Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  
+  @@map("alerts")
+}
