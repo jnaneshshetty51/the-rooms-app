@@ -4,6 +4,7 @@ import { auth } from "@the-rooms/auth";
 import prisma from "@the-rooms/db";
 import { uploadRoomPhoto } from "@/lib/minio";
 
+
 function requireAdmin(session: { user?: { role?: string } | null } | null) {
   if (!session?.user) throw new Error("Unauthorized");
   const role = session.user.role;
