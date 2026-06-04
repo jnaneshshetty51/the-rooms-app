@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import prisma from "@the-rooms/db";
+import { uploadRoomPhoto } from "@/lib/minio";
 
 function requireAdmin(session: { user?: { role?: string } | null } | null) {
   if (!session?.user) throw new Error("Unauthorized");
@@ -47,13 +48,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let photoUrl = url ?? "";
 
-    // If file is provided, upload to MinIO (simulated here — in production, use @the-rooms/storage)
     if (file) {
-      // In production: const { uploadFile } = await import("@the-rooms/storage");
-      // const key = `rooms-photos/${id}/${Date.now()}-${file.name}`;
-      // photoUrl = await uploadFile(key, file);
-      // For now, use a placeholder
-      photoUrl = `/uploads/rooms/${id}/${Date.now()}-${file.name}`;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      photoUrl = await uploadRoomPhoto(id, file.name, buffer);
     }
 
     // Get max sort order
