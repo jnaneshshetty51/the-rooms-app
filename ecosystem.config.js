@@ -35,7 +35,8 @@ function app(name, appDir, port, nextauthUrl, extraEnv = {}) {
       MINIO_SECRET_KEY: process.env.MINIO_SECRET_KEY || process.env.MINIO_ROOT_PASSWORD,
       MINIO_BUCKET: process.env.MINIO_BUCKET || 'therooms-storage',
       // Public URL via nginx proxy — images served at https://admin.therooms.in/media/
-      MINIO_PUBLIC_URL: process.env.MINIO_PUBLIC_URL || 'https://admin.therooms.in/media',
+      // Hardcoded because system env has wrong localhost value from docker-compose
+      MINIO_PUBLIC_URL: 'https://admin.therooms.in/media',
       MINIO_USE_SSL: 'false',
       ...extraEnv,
     },
