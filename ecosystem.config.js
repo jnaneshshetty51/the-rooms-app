@@ -27,14 +27,16 @@ function app(name, appDir, port, nextauthUrl, extraEnv = {}) {
       AUTH_TRUST_HOST: '1',
       RESEND_API_KEY: process.env.RESEND_API_KEY,
       RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
-      // MinIO — MINIO_ENDPOINT is hostname only (no port), port in MINIO_PORT
-      MINIO_ENDPOINT: process.env.MINIO_ENDPOINT,
-      MINIO_PORT: process.env.MINIO_PORT,
-      MINIO_ACCESS_KEY: process.env.MINIO_ACCESS_KEY,
-      MINIO_SECRET_KEY: process.env.MINIO_SECRET_KEY,
-      MINIO_BUCKET: process.env.MINIO_BUCKET,
-      MINIO_PUBLIC_URL: process.env.MINIO_PUBLIC_URL,
-      MINIO_USE_SSL: process.env.MINIO_USE_SSL,
+      // MinIO — hostname-only endPoint, port separate (minio SDK requirement)
+      // MINIO_ROOT_USER / MINIO_ROOT_PASSWORD are the VPS env var names
+      MINIO_ENDPOINT: process.env.MINIO_ENDPOINT || 'localhost',
+      MINIO_PORT: process.env.MINIO_PORT || '9000',
+      MINIO_ACCESS_KEY: process.env.MINIO_ACCESS_KEY || process.env.MINIO_ROOT_USER,
+      MINIO_SECRET_KEY: process.env.MINIO_SECRET_KEY || process.env.MINIO_ROOT_PASSWORD,
+      MINIO_BUCKET: process.env.MINIO_BUCKET || 'therooms-storage',
+      // Public URL via nginx proxy — images served at https://admin.therooms.in/media/
+      MINIO_PUBLIC_URL: process.env.MINIO_PUBLIC_URL || 'https://admin.therooms.in/media',
+      MINIO_USE_SSL: 'false',
       ...extraEnv,
     },
     error_file: `/var/log/therooms/${name}-error.log`,
