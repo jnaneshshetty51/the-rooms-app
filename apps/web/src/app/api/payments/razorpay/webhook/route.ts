@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@the-rooms/db";
 import { verifyWebhookSignature } from "@the-rooms/payments/razorpay";
-import { updateBookingStatus } from "@the-rooms/db/queries/bookingQueries";
-import { sendPaymentSuccess, sendPaymentFailed } from "@the-rooms/email";
+import { sendPaymentSuccess } from "@the-rooms/email";
 
 export async function POST(req: Request) {
   try {
@@ -14,18 +13,16 @@ export async function POST(req: Request) {
     }
 
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET ?? process.env.RAZORPAY_KEY_SECRET ?? "";
-    
+
     if (!verifyWebhookSignature(rawBody, signature, secret)) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
     const payload = JSON.parse(rawBody);
     const event = payload.event;
-    
-    // Process only payment events for now
+
     if (event === "payment.captured") {
       const payment = payload.payload.payment.entity;
-      const orderId = payment.order_id;
       const bookingId = payment.notes?.bookingId || payment.notes?.receipt;
 
       if (!bookingId) {
@@ -34,13 +31,12 @@ export async function POST(req: Request) {
 
       const booking = await db.booking.findUnique({
         where: { id: bookingId },
-        include: { guest: true },
+        include: { guest: true, room: true },
       });
 
       if (booking) {
         await db.$transaction(async (tx) => {
-          // Only insert if not already recorded
-          const existingPayment = await tx.payment.findUnique({
+          const existingPayment = await tx.payment.findFirst({
             where: { transactionId: payment.id },
           });
 
@@ -49,57 +45,35 @@ export async function POST(req: Request) {
               data: {
                 bookingId: booking.id,
                 amount: booking.totalAmount,
-                method: "RAZORPAY",
-                status: "SUCCESS",
+                method: "ONLINE",
+                status: "PAID",
                 transactionId: payment.id,
+                gatewayRef: payment.order_id,
                 gatewayResponse: payment,
               },
             });
 
-            // Re-fetch booking status inside transaction lock
-            const currentBooking = await tx.booking.findUnique({
+            await tx.booking.update({
               where: { id: booking.id },
+              data: { paymentStatus: "PAID" },
             });
-
-            if (currentBooking && (currentBooking.status === "PENDING" || currentBooking.status === "CONFIRMED")) {
-              await tx.booking.update({
-                where: { id: booking.id },
-                data: {
-                  paymentStatus: "PAID",
-                  status: "CONFIRMED", // Directly set confirmed here instead of query helper to keep in TX
-                  logs: {
-                    create: {
-                      action: "UPDATE",
-                      entityId: booking.id,
-                      entityType: "Booking",
-                      details: "Booking confirmed by system after payment webhook",
-                      userId: "system",
-                    },
-                  },
-                },
-              });
-            }
           }
         });
 
-        // Outside transaction, send email if needed
-        const existingPaymentCheck = await db.payment.findUnique({
-          where: { transactionId: payment.id },
-        });
-        
-        if (existingPaymentCheck && booking.guest?.email) {
-            sendPaymentSuccess({
-              to: booking.guest.email,
-              guestName: booking.guest.name,
-              bookingNumber: booking.bookingNumber,
-              transactionId: payment.id,
-              totalAmount: Number(payment.amount) / 100, // convert paise to INR
-              paymentMethod: payment.method ?? "Online",
-              hotelAddress: process.env.HOTEL_ADDRESS ?? "The Rooms, 103/2, Uniworld, Neeladri Road, Behind Karnataka Bank, Electronic City Phase 1, Bangalore, Karnataka 560100",
-              hotelPhone: process.env.HOTEL_PHONE ?? "+91 73490 47799",
-              hotelEmail: process.env.EMAIL_FROM ?? "hello@therooms.in",
-            }).catch((e) => console.error("[Webhook] Email error:", e));
-          }
+        const recorded = await db.payment.findFirst({ where: { transactionId: payment.id } });
+        if (recorded && booking.guest?.email) {
+          sendPaymentSuccess({
+            to: booking.guest.email,
+            guestName: booking.guest.name,
+            bookingNumber: booking.bookingNumber,
+            roomType: booking.room.type,
+            roomNumber: booking.room.roomNumber,
+            amount: Number(payment.amount) / 100,
+            transactionId: payment.id,
+            paymentMethod: payment.method ?? "Online",
+            checkIn: booking.checkIn.toISOString().split("T")[0],
+            checkOut: booking.checkOut.toISOString().split("T")[0],
+          }).catch((e) => console.error("[Webhook] Email error:", e));
         }
       }
     } else if (event === "payment.failed") {
@@ -107,40 +81,28 @@ export async function POST(req: Request) {
       const bookingId = payment.notes?.bookingId || payment.notes?.receipt;
 
       if (bookingId) {
-        const booking = await db.booking.findUnique({
-          where: { id: bookingId },
-          include: { guest: true },
-        });
+        const booking = await db.booking.findUnique({ where: { id: bookingId } });
 
         if (booking) {
           await db.$transaction(async (tx) => {
-            const existingPayment = await tx.payment.findUnique({
+            const existingPayment = await tx.payment.findFirst({
               where: { transactionId: payment.id },
             });
-            
+
             if (!existingPayment) {
               await tx.payment.create({
                 data: {
                   bookingId: booking.id,
                   amount: booking.totalAmount,
-                  method: "RAZORPAY",
+                  method: "ONLINE",
                   status: "FAILED",
                   transactionId: payment.id,
-                  errorMessage: payment.error_description || "Payment failed",
+                  gatewayRef: payment.order_id,
                   gatewayResponse: payment,
                 },
               });
             }
           });
-
-          if (booking.guest?.email) {
-            sendPaymentFailed({
-              to: booking.guest.email,
-              guestName: booking.guest.name,
-              bookingNumber: booking.bookingNumber,
-              retryUrl: `${process.env.NEXT_PUBLIC_APP_URL}/book/payment?retry=${booking.id}`,
-            }).catch((e) => console.error("[Webhook] Email error:", e));
-          }
         }
       }
     }
