@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 import { CreditCard, Building2, Smartphone } from "lucide-react";
 import { cn } from "@the-rooms/ui";
 import { useBookingStore } from "@/stores/bookingStore";
@@ -65,29 +66,82 @@ export default function BookingPaymentPage() {
 
       const booking = data.data;
 
-      // Attempt real INDUSIND payment redirect
-      const payRes = await fetch("/api/payments/indusind/initiate", {
+      // Attempt Razorpay payment initiation
+      const payRes = await fetch("/api/payments/razorpay/initiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId: booking.id,
-          amount: Number(booking.totalAmount),
         }),
       });
 
       if (payRes.ok) {
         const payData = await payRes.json();
-        if (payData.data?.paymentUrl) {
-          // Save minimal info to store so confirmation page can read it
-          setPaymentInfo(payData.data.paymentId ?? "pay_init", booking.id, booking.bookingNumber);
-          setStep(5);
-          // Redirect to INDUSIND hosted payment page
-          window.location.href = payData.data.paymentUrl;
+        if (payData.data?.orderId) {
+          // Open Razorpay Checkout
+          const options = {
+            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "test_key", // Fallback for dev
+            amount: payData.data.amount,
+            currency: payData.data.currency,
+            name: "The Rooms",
+            description: `Booking ${booking.bookingNumber}`,
+            image: "https://therooms.in/logo.svg",
+            order_id: payData.data.orderId,
+            handler: async function (response: any) {
+              // Verify the payment
+              const verifyRes = await fetch("/api/payments/razorpay/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  bookingId: booking.id,
+                }),
+              });
+
+              if (verifyRes.ok) {
+                setPaymentInfo(response.razorpay_payment_id, booking.id, booking.bookingNumber);
+                setStep(5);
+                router.push(`/book/confirmation?booking_id=${booking.id}`);
+              } else {
+                alert("Payment verification failed. If money was deducted, please contact support.");
+                setProcessing(false);
+              }
+            },
+            prefill: {
+              name: guestDetails.name,
+              email: guestDetails.email,
+              contact: guestDetails.phone,
+            },
+            theme: {
+              color: "#E17055", // Secondary coral color
+            },
+            modal: {
+              ondismiss: function () {
+                setProcessing(false);
+              },
+            },
+          };
+
+          if (!(window as any).Razorpay) {
+            alert("Payment gateway failed to load. Please disable adblockers or check your connection and try again.");
+            setProcessing(false);
+            return;
+          }
+
+          const rzp1 = new (window as any).Razorpay(options);
+          rzp1.on("payment.failed", function (response: any) {
+            console.error("Payment Failed", response.error);
+            alert("Payment failed: " + response.error.description);
+            setProcessing(false);
+          });
+          rzp1.open();
           return;
         }
       }
 
-      // INDUSIND not configured or unavailable — simulate payment success (dev / demo)
+      // If Razorpay initiate fails, try simulating payment success (dev / demo)
       const simRes = await fetch("/api/payments/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,6 +160,7 @@ export default function BookingPaymentPage() {
 
   return (
     <div className="space-y-6">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
       {/* Booking Summary */}
       <div className="bg-white rounded-xl border p-4 text-sm space-y-2">
         <div className="font-heading font-bold text-primary mb-2">Booking Summary</div>
@@ -172,7 +227,7 @@ export default function BookingPaymentPage() {
 
       {/* Security note */}
       <div className="bg-accent/30 rounded-xl p-4 text-xs text-muted text-center">
-        <strong>Secure Payment:</strong> Your payment is processed by INDUSIND Bank Payment Gateway. We never store your card details.
+        <strong>Secure Payment:</strong> Your payment is processed by Razorpay. We never store your card details.
       </div>
 
       {/* Pay Button */}

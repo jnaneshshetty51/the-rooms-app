@@ -164,21 +164,26 @@ export async function getBookingsByDate(date: Date) {
 /**
  * Update booking status
  */
-export async function updateBookingStatus(id: string, status: 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED' | 'NO_SHOW') {
+export async function updateBookingStatus(
+  id: string,
+  status: 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED' | 'NO_SHOW',
+  txClient?: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">
+) {
+  const dbClient = txClient || prisma;
   const updateData: Prisma.BookingUpdateInput = { status };
   if (status === 'CHECKED_IN') updateData.checkInTime = new Date();
   if (status === 'CHECKED_OUT') updateData.checkOutTime = new Date();
 
-  const booking = await prisma.booking.update({
+  const booking = await dbClient.booking.update({
     where: { id },
     data: updateData,
   });
 
   // Update room status
   if (status === 'CHECKED_IN') {
-    await prisma.room.update({ where: { id: booking.roomId }, data: { status: 'OCCUPIED' } });
+    await dbClient.room.update({ where: { id: booking.roomId }, data: { status: 'OCCUPIED' } });
   } else if (status === 'CHECKED_OUT' || status === 'CANCELLED') {
-    await prisma.room.update({ where: { id: booking.roomId }, data: { status: 'VACANT' } });
+    await dbClient.room.update({ where: { id: booking.roomId }, data: { status: 'VACANT' } });
   }
 
   return booking;

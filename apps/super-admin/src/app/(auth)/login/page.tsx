@@ -66,17 +66,13 @@ function LoginInner() {
         <div className="relative z-10 text-center">
           <div className="mb-8">
             {/* Super Admin badge with shield */}
-            <div className="w-20 h-20 mx-auto rounded-2xl bg-[#E17055] flex items-center justify-center mb-6 relative">
-              <Shield className="w-10 h-10 text-white" />
-              <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-[#E17055] border-2 border-[#2D3436] flex items-center justify-center">
-                <span className="text-[10px] font-bold text-white">SA</span>
+            <div className="mx-auto flex items-center justify-center mb-6 relative w-fit">
+              <img src="/logo.svg" alt="The Rooms Logo" className="h-40 w-auto object-contain" />
+              <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-[#E17055] border-2 border-[#2D3436] flex items-center justify-center z-10">
+                <span className="text-xs font-bold text-white">SA</span>
               </div>
             </div>
-            <h1 className="text-4xl font-bold text-[#FAFAF8] tracking-tight mb-2">
-              The Rooms
-            </h1>
-            <div className="w-12 h-1 bg-[#E17055] mx-auto mb-4" />
-            <p className="text-[#DFE6E9] text-xl font-light italic">
+            <p className="text-[#DFE6E9] text-xl font-light italic mt-6">
               Your Space. Your Stay.
             </p>
           </div>
@@ -99,11 +95,8 @@ function LoginInner() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-12 bg-white">
-        <div className="lg:hidden mb-8 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#E17055] flex items-center justify-center">
-            <Shield className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-[#2D3436]">The Rooms</span>
+        <div className="lg:hidden mb-8 flex justify-center">
+          <img src="/logo.svg" alt="The Rooms Logo" className="h-16 w-auto object-contain" />
         </div>
 
         <div className="w-full max-w-md">

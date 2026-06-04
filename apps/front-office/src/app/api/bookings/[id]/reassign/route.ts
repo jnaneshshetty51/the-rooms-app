@@ -66,6 +66,22 @@ export async function POST(
           totalAmount: pricing.totalAmount
         }
       });
+
+      await tx.auditLog.create({
+        data: {
+          userId: (session.user as { id?: string }).id,
+          bookingId: id,
+          action: "UPDATE",
+          entity: "booking",
+          entityId: id,
+          metadata: { 
+            event: "ROOM_REASSIGN",
+            oldRoomId: booking.roomId, 
+            newRoomId,
+            priceAdjustment: Number(pricing.totalAmount) - Number(booking.totalAmount)
+          },
+        },
+      });
     });
 
     return NextResponse.json({ success: true, pricing });

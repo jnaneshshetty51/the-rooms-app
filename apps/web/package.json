@@ -32,11 +32,12 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
-    "eslint": "^8.0.0",
-    "tailwindcss": "^3.4.17",
-    "postcss": "^8.4.49",
+    "agentation": "^3.0.2",
     "autoprefixer": "^10.4.21",
+    "eslint": "^8.0.0",
     "eslint-config-next": "^15.1.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5.6.0"
   }
 }

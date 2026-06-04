@@ -35,7 +35,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "How do I cancel my booking?",
-        a: "You can cancel directly from your booking confirmation email or by logging into your guest account. For assistance, call +91 98765 43210 or email hello@therooms.in.",
+        a: "You can cancel directly from your booking confirmation email or by logging into your guest account. For assistance, call +91 73490 47799 or email hello@therooms.in.",
       },
       {
         q: "When will I receive my refund?",
@@ -160,10 +160,10 @@ export function FAQClient() {
             Our team is available 24/7. Call us or send a WhatsApp.
           </p>
           <div className="flex gap-3 justify-center">
-            <a href="tel:+919876543210" className="px-5 py-2 bg-secondary text-white text-sm font-semibold rounded-lg hover:bg-secondary/90 transition-colors">
-              Call +91 98765 43210
+            <a href="tel:+917349047799" className="px-5 py-2 bg-secondary text-white text-sm font-semibold rounded-lg hover:bg-secondary/90 transition-colors">
+              Call +91 73490 47799
             </a>
-            <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer"
+            <a href="https://wa.me/917204619899" target="_blank" rel="noopener noreferrer"
               className="px-5 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-lg hover:bg-[#25D366]/90 transition-colors">
               WhatsApp Us
             </a>

@@ -28,14 +28,8 @@ export default function GuestLayout({
   const pathname = usePathname();
 
   const Logo = (
-    <div className="flex items-center gap-3 px-1">
-      <div className="w-8 h-8 rounded-lg bg-[#E17055] flex items-center justify-center shrink-0">
-        <span className="text-white font-bold text-sm">R</span>
-      </div>
-      <div>
-        <span className="font-bold text-sm text-[#2D3436]">The Rooms</span>
-        <p className="text-[10px] text-[#636E72] leading-tight">Guest Portal</p>
-      </div>
+    <div className="flex items-center justify-center p-2 w-full">
+      <img src="/logo.svg" alt="The Rooms Logo" className="h-16 w-auto object-contain" />
     </div>
   );
 
@@ -84,14 +78,8 @@ export default function GuestLayout({
         {/* Mobile Header */}
         <header className="bg-white border-b px-4 py-3 shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#E17055] flex items-center justify-center">
-                <span className="text-white font-bold text-sm">R</span>
-              </div>
-              <div>
-                <span className="font-bold text-sm text-[#2D3436]">The Rooms</span>
-                <p className="text-[10px] text-[#636E72] leading-tight">Guest Portal</p>
-              </div>
+            <div className="flex items-center justify-center">
+              <img src="/logo.svg" alt="The Rooms Logo" className="h-10 w-auto object-contain" />
             </div>
             <div className="flex items-center gap-2">
               <NotificationsBell />

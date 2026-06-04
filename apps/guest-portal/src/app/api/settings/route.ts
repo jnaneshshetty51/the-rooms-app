@@ -11,8 +11,8 @@ export async function GET() {
       return NextResponse.json({
         settings: {
           hotelName: "The Rooms",
-          address: "The Rooms, MG Road, Bangalore, Karnataka 560001",
-          phone: "+91 80 1234 5678",
+          address: "The Rooms, 103/2, Uniworld, Neeladri Road, Behind Karnataka Bank, Electronic City Phase 1, Bangalore, Karnataka 560100",
+          phone: "+91 73490 47799",
           email: "stay@therooms.in",
         }
       });

@@ -197,10 +197,11 @@ export default function HomePage() {
                 <label className="text-xs font-semibold text-muted uppercase tracking-wider">Guests</label>
                 <select
                   name="guests"
+                  defaultValue="2"
                   className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none bg-white"
                 >
                   <option value="1">1 Guest</option>
-                  <option value="2" selected>2 Guests</option>
+                  <option value="2">2 Guests</option>
                 </select>
               </div>
             </div>

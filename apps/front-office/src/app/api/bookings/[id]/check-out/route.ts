@@ -29,49 +29,55 @@ export async function POST(
 
     let paymentIdForInvoice: string | undefined;
 
-    // Handle payments and refunds
-    if (finalPayment && finalPayment !== 0) {
-      const isRefund = finalPayment < 0;
-      const amount = new Prisma.Decimal(Math.abs(finalPayment));
-      
-      const newPayment = await prisma.payment.create({
+    // Wrap entire state mutation in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Handle payments and refunds
+      if (finalPayment && finalPayment !== 0) {
+        const isRefund = finalPayment < 0;
+        const amount = new Prisma.Decimal(Math.abs(finalPayment));
+        
+        const newPayment = await tx.payment.create({
+          data: {
+            bookingId: id,
+            amount,
+            method: paymentMethod ?? "CASH",
+            transactionId,
+            status: isRefund ? "REFUNDED" : "PAID",
+            refundAmount: isRefund ? amount : null,
+            refundStatus: isRefund ? "COMPLETED" : null,
+            refundReason: isRefund ? "Overpayment at Check-out" : null,
+          },
+        });
+        paymentIdForInvoice = newPayment.id;
+
+        await tx.booking.update({
+          where: { id },
+          data: { paymentStatus: isRefund ? "REFUNDED" : "PAID" },
+        });
+      }
+
+      // Update booking and sync room to VACANT inside transaction
+      await updateBookingStatus(id, "CHECKED_OUT", tx);
+
+      // Automatically mark the room as dirty for housekeeping
+      await tx.room.update({
+        where: { id: booking.roomId },
+        data: { cleaningStatus: "DIRTY" }
+      });
+
+      await tx.auditLog.create({
         data: {
+          userId: (session.user as { id?: string }).id,
           bookingId: id,
-          amount,
-          method: paymentMethod ?? "CASH",
-          transactionId,
-          status: isRefund ? "REFUNDED" : "PAID",
-          refundAmount: isRefund ? amount : null,
-          refundStatus: isRefund ? "COMPLETED" : null,
-          refundReason: isRefund ? "Overpayment at Check-out" : null,
+          action: "CHECK_OUT",
+          entity: "booking",
+          entityId: id,
+          metadata: { checkOutTime: new Date(), finalPayment, paymentMethod, notes },
         },
       });
-      paymentIdForInvoice = newPayment.id;
-
-      await prisma.booking.update({
-        where: { id },
-        data: { paymentStatus: isRefund ? "REFUNDED" : "PAID" },
-      });
-    }
-
-    const updatedBooking = await updateBookingStatus(id, "CHECKED_OUT");
-
-    // Automatically mark the room as dirty for housekeeping
-    await prisma.room.update({
-      where: { id: booking.roomId },
-      data: { cleaningStatus: "DIRTY" }
     });
 
-    await prisma.auditLog.create({
-      data: {
-        userId: (session.user as { id?: string }).id,
-        bookingId: id,
-        action: "CHECK_OUT",
-        entity: "booking",
-        entityId: id,
-        metadata: { checkOutTime: new Date(), finalPayment, paymentMethod, notes },
-      },
-    });
+    const updatedBooking = await getBookingById(id);
 
     // Invoice Generation and Emailing
     if (shouldSendInvoice) {

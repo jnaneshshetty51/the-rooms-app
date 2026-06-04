@@ -120,7 +120,7 @@ export default async function RoomDetailPage({
               </h1>
               <div className="flex items-center gap-1 text-sm text-muted">
                 <MapPin className="w-4 h-4" />
-                The Rooms Hotel, MG Road, Bangalore
+                The Rooms Hotel, 103/2, Uniworld, Neeladri Road, Electronic City Phase 1, Bangalore, Karnataka 560100
               </div>
             </div>
 

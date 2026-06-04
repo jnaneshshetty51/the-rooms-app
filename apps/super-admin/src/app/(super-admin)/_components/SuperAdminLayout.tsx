@@ -85,14 +85,8 @@ export function SuperAdminSidebar({ userName = "Super Admin", userEmail }: Super
   return (
     <div className="flex h-full flex-col bg-[#2D3436]">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#E17055]">
-          <Shield className="h-5 w-5 text-white" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-heading text-sm font-bold text-white truncate">The Rooms</p>
-          <p className="text-[10px] text-white/50 truncate">Super Admin Portal</p>
-        </div>
+      <div className="flex h-20 items-center justify-center border-b border-white/10 px-4">
+        <img src="/logo.svg" alt="The Rooms Logo" className="h-14 w-auto object-contain" />
       </div>
 
       {/* Nav */}
@@ -199,11 +193,8 @@ export function SuperAdminLayout({ children, userName, userEmail }: SuperAdminLa
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#E17055]">
-              <Shield className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-heading text-sm font-bold text-primary">The Rooms</span>
+          <div className="flex items-center justify-center flex-1">
+            <img src="/logo.svg" alt="The Rooms Logo" className="h-10 w-auto object-contain" />
           </div>
         </div>
 

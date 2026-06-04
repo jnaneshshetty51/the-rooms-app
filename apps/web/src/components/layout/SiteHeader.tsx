@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Menu, X, Calendar } from "lucide-react";
 import { cn } from "@the-rooms/ui";
 
@@ -18,18 +19,23 @@ export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const pathname = usePathname();
+  const isHomePage = pathname === "/" || pathname === "/home";
+
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
+  const isDarkText = scrolled || !isHomePage;
+
   return (
     <>
       <header
         className={cn(
           "fixed top-0 inset-x-0 z-50 transition-all duration-300",
-          scrolled
+          isDarkText
             ? "bg-white/95 backdrop-blur-md shadow-sm"
             : "bg-transparent"
         )}
@@ -38,15 +44,7 @@ export function SiteHeader() {
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo */}
             <Link href="/home" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
-                <span className="text-white font-bold text-sm">TR</span>
-              </div>
-              <span className={cn(
-                "font-heading font-bold text-xl tracking-tight transition-colors",
-                scrolled ? "text-primary" : "text-white"
-              )}>
-                THE ROOMS
-              </span>
+              <img src="/the-rooms-logo.svg" alt="The Rooms Logo" className="h-10 sm:h-14 w-auto object-contain" />
             </Link>
 
             {/* Desktop Nav */}
@@ -57,7 +55,7 @@ export function SiteHeader() {
                   href={link.href}
                   className={cn(
                     "text-sm font-medium transition-colors hover:text-secondary",
-                    scrolled ? "text-primary/80" : "text-white/80 hover:text-white"
+                    isDarkText ? "text-primary/80 hover:text-primary" : "text-white/80 hover:text-white"
                   )}
                 >
                   {link.label}
@@ -71,7 +69,7 @@ export function SiteHeader() {
                 href="/book"
                 className={cn(
                   "hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all",
-                  scrolled
+                  isDarkText
                     ? "bg-secondary text-white hover:bg-secondary/90 shadow-md"
                     : "bg-white text-primary hover:bg-white/90 shadow-md"
                 )}
@@ -85,7 +83,7 @@ export function SiteHeader() {
                 onClick={() => setMobileOpen(true)}
                 className={cn(
                   "lg:hidden p-2 rounded-lg transition-colors",
-                  scrolled ? "text-primary hover:bg-accent" : "text-white hover:bg-white/10"
+                  isDarkText ? "text-primary hover:bg-accent" : "text-white hover:bg-white/10"
                 )}
                 aria-label="Open menu"
               >
@@ -102,7 +100,7 @@ export function SiteHeader() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
           <div className="absolute right-0 top-0 h-full w-72 bg-white shadow-xl flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
-              <span className="font-heading font-bold text-lg text-primary">THE ROOMS</span>
+              <img src="/the-rooms-logo.svg" alt="The Rooms Logo" className="h-10 w-auto object-contain" />
               <button
                 onClick={() => setMobileOpen(false)}
                 className="p-2 rounded-lg hover:bg-accent transition-colors"

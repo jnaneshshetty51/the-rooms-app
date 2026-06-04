@@ -22,11 +22,8 @@ export function SiteFooter() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
           {/* Brand */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
-                <span className="text-white font-bold text-sm">TR</span>
-              </div>
-              <span className="font-heading font-bold text-lg">THE ROOMS</span>
+            <div className="flex items-center gap-2 mb-2">
+              <img src="/logo-white.svg" alt="The Rooms Logo" className="h-14 w-auto object-contain" />
             </div>
             <p className="text-sm text-white/60 leading-relaxed">
               Your space. Your stay. Premium hotel accommodations for daily and monthly stays.
@@ -94,13 +91,13 @@ export function SiteFooter() {
               <li className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 mt-0.5 text-secondary shrink-0" />
                 <span className="text-sm text-white/70">
-                  The Rooms Hotel, MG Road, Bangalore, Karnataka 560001
+                  The Rooms Hotel, 103/2, Uniworld, Neeladri Road, Behind Karnataka Bank, Electronic City Phase 1, Bangalore, Karnataka 560100
                 </span>
               </li>
               <li className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-secondary shrink-0" />
-                <a href="tel:+919876543210" className="text-sm text-white/70 hover:text-white transition-colors">
-                  +91 98765 43210
+                <a href="tel:+917349047799" className="text-sm text-white/70 hover:text-white transition-colors">
+                  +91 73490 47799
                 </a>
               </li>
               <li className="flex items-center gap-2">
@@ -111,7 +108,7 @@ export function SiteFooter() {
               </li>
               <li className="flex items-center gap-2">
                 <MessageCircle className="w-4 h-4 text-secondary shrink-0" />
-                <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer"
+                <a href="https://wa.me/917204619899" target="_blank" rel="noopener noreferrer"
                   className="text-sm text-white/70 hover:text-white transition-colors">
                   WhatsApp Us
                 </a>

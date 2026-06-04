@@ -5,6 +5,7 @@ import { TheRoomsProvider } from "@the-rooms/ui";
 import { Toaster } from "react-hot-toast";
 import { PWAProvider } from "@/components/pwa/PWAProvider";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { Agentation } from "agentation";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -17,6 +18,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://therooms.in"),
   title: {
     default: "The Rooms — Your Space. Your Stay.",
     template: "%s | The Rooms",
@@ -98,6 +100,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               }}
             />
             <PWAProvider />
+            {process.env.NODE_ENV === "development" && <Agentation />}
           </ReactQueryProvider>
         </TheRoomsProvider>
       </body>

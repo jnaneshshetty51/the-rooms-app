@@ -30,9 +30,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside className={cn("fixed inset-y-0 left-0 z-50 w-72 bg-[#2D3436] transform transition-transform lg:translate-x-0 lg:static lg:z-auto", sidebarOpen ? "translate-x-0" : "-translate-x-full")}>
         <div className="flex h-full flex-col">
           <div className="flex h-16 items-center justify-between px-6 border-b border-white/10">
-            <Link href="/dashboard" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#E17055] flex items-center justify-center"><span className="text-white font-bold text-xl">R</span></div>
-              <div><p className="text-white font-bold text-lg">The Rooms</p><p className="text-white/60 text-xs">Front Office</p></div>
+            <Link href="/dashboard" className="flex items-center justify-center p-2">
+              <img src="/logo.svg" alt="The Rooms Logo" className="h-12 w-auto object-contain" />
             </Link>
             <button className="lg:hidden text-white/60 hover:text-white" onClick={() => setSidebarOpen(false)}><X className="h-6 w-6" /></button>
           </div>

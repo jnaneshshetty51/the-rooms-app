@@ -70,13 +70,9 @@ function LoginInner() {
         <div className="relative z-10 text-center">
           {/* Logo */}
           <div className="mb-8">
-            <div className="w-20 h-20 mx-auto rounded-2xl bg-[#E17055] flex items-center justify-center mb-6">
-              <span className="text-white font-bold text-3xl">R</span>
+            <div className="mx-auto flex items-center justify-center mb-6">
+              <img src="/logo.svg" alt="The Rooms Logo" className="h-40 w-auto object-contain" />
             </div>
-            <h1 className="text-4xl font-bold text-[#FAFAF8] tracking-tight mb-2">
-              The Rooms
-            </h1>
-            <div className="w-12 h-1 bg-[#E17055] mx-auto mb-4" />
             <p className="text-[#DFE6E9] text-xl font-light italic">
               Your Space. Your Stay.
             </p>
@@ -104,11 +100,8 @@ function LoginInner() {
       {/* RIGHT — Form panel (60%) */}
       <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-12 bg-white">
         {/* Mobile logo */}
-        <div className="lg:hidden mb-8 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#E17055] flex items-center justify-center">
-            <span className="text-white font-bold text-xl">R</span>
-          </div>
-          <span className="text-2xl font-bold text-[#2D3436]">The Rooms</span>
+        <div className="lg:hidden mb-8 flex justify-center">
+          <img src="/logo.svg" alt="The Rooms Logo" className="h-16 w-auto object-contain" />
         </div>
 
         <div className="w-full max-w-md">

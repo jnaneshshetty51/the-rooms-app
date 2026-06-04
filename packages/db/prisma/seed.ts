@@ -180,6 +180,9 @@ async function seedAdminUsers() {
     { email: "superadmin@therooms.in", name: "Super Admin", role: "SUPER_ADMIN" as const, password: "SuperAdmin@2026" },
     { email: "admin@therooms.in",      name: "Hotel Admin",  role: "ADMIN" as const,       password: "Admin@2026" },
     { email: "fo@therooms.in",         name: "Front Office", role: "FRONT_OFFICE" as const, password: "FrontOffice@2026" },
+    { email: "Adityanachappa@therooms.in", name: "Aditya Nachappa", role: "SUPER_ADMIN" as const, password: "Aditya@512200" },
+    { email: "Artisingh@therooms.in",      name: "Arti Singh",  role: "ADMIN" as const,       password: "2026@Arti" },
+    { email: "gulsankumar@therooms.in",    name: "Gulsan Kumar", role: "FRONT_OFFICE" as const, password: "gulsan@2026" },
   ]
 
   for (const admin of admins) {
@@ -260,6 +263,9 @@ async function main() {
   console.log('  superadmin@therooms.in / SuperAdmin@2026');
   console.log('  admin@therooms.in      / Admin@2026');
   console.log('  fo@therooms.in        / FrontOffice@2026');
+  console.log('  Adityanachappa@therooms.in / Aditya@512200');
+  console.log('  Artisingh@therooms.in / 2026@Arti');
+  console.log('  gulsankumar@therooms.in / gulsan@2026');
 }
 
 main()

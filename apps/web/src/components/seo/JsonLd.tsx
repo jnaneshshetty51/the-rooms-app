@@ -9,13 +9,13 @@ const HOTEL_SCHEMA = {
   name: "The Rooms",
   description: "Premium hotel accommodations in India. 36 rooms across Studio and Premium categories. Daily and monthly stays available.",
   url: "https://therooms.in",
-  telephone: "+91-9876543210",
+  telephone: "+91-7349047799",
   address: {
     "@type": "PostalAddress",
-    streetAddress: "MG Road",
+    streetAddress: "103/2, Uniworld, Neeladri Road, Behind Karnataka Bank, Electronic City Phase 1",
     addressLocality: "Bangalore",
     addressRegion: "Karnataka",
-    postalCode: "560001",
+    postalCode: "560100",
     addressCountry: "IN",
   },
   geo: {
@@ -56,7 +56,7 @@ const ORGANIZATION_SCHEMA = {
   ],
   contactPoint: {
     "@type": "ContactPoint",
-    telephone: "+91-9876543210",
+    telephone: "+91-7349047799",
     contactType: "customer service",
     availableLanguage: ["English", "Hindi"],
   },

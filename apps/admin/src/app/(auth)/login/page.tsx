@@ -50,8 +50,8 @@ function AdminLoginPage() {
   return (
     <Card className="w-full max-w-md shadow-xl border-0 bg-background/95 backdrop-blur">
       <CardHeader className="space-y-1 text-center pb-2">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-          <Building2 className="h-6 w-6 text-primary-foreground" />
+        <div className="mx-auto mb-3 flex h-16 items-center justify-center">
+          <img src="/logo.svg" alt="The Rooms Logo" className="h-full w-auto object-contain" />
         </div>
         <CardTitle className="font-heading text-2xl">Admin Portal</CardTitle>
         <CardDescription>The Rooms Hotel Administration</CardDescription>

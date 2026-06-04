@@ -216,11 +216,11 @@ export default function AmenitiesPage() {
             Our team is available 24/7. Reach out anytime.
           </p>
           <a
-            href="tel:+919876543210"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-secondary text-white font-semibold rounded-lg hover:bg-secondary/90 transition-colors"
+            href="tel:+917349047799"
+            className="flex items-center gap-2 px-6 py-3 bg-secondary text-white font-semibold rounded-lg hover:bg-secondary/90 transition-colors shadow-md"
           >
-            <Phone className="w-4 h-4" />
-            +91 98765 43210
+            <Phone className="w-5 h-5" />
+            +91 73490 47799
           </a>
         </div>
       </div>

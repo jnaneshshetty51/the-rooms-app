@@ -47,14 +47,8 @@ export function AdminSidebarClient({ userName = "Admin" }: { userName?: string }
   const initials = userName.charAt(0).toUpperCase();
 
   const logo = (
-    <div className="flex items-center gap-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-        <Building2 className="h-4 w-4 text-primary-foreground" />
-      </div>
-      <div className="flex flex-col">
-        <span className="font-heading text-base font-bold text-primary leading-none">The Rooms</span>
-        <span className="text-[10px] text-muted-foreground leading-none mt-0.5">Admin Portal</span>
-      </div>
+    <div className="flex items-center justify-center py-2">
+      <img src="/logo.svg" alt="The Rooms Logo" className="h-16 w-auto object-contain" />
     </div>
   );
 

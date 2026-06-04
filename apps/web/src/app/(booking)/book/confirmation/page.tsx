@@ -117,7 +117,7 @@ function BookingConfirmationContent() {
               <div>
                 <p className="text-xs text-muted">Address</p>
                 <p className="font-semibold text-primary text-sm">
-                  The Rooms Hotel, 42 MG Road, Bangalore 560001
+                  The Rooms Hotel, 103/2, Uniworld, Neeladri Road, Behind Karnataka Bank, Electronic City Phase 1, Bangalore, Karnataka 560100
                 </p>
               </div>
             </div>
@@ -128,7 +128,7 @@ function BookingConfirmationContent() {
               </div>
               <div>
                 <p className="text-xs text-muted">Contact</p>
-                <p className="font-semibold text-primary text-sm">+91 98765 43210</p>
+                <p className="font-semibold text-primary text-sm">+91 73490 47799</p>
               </div>
             </div>
           </div>

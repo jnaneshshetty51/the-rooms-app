@@ -4,7 +4,7 @@ import { cn } from "@the-rooms/ui";
 
 export const metadata: Metadata = {
   title: "Contact & Location",
-  description: "Find The Rooms hotel on MG Road, Bangalore. Contact us via phone, WhatsApp, or email. View map and directions.",
+  description: "Find The Rooms hotel at 103/2, Uniworld, Neeladri Road, Electronic City Phase 1, Bangalore. Contact us via phone, WhatsApp, or email.",
 };
 
 export default function ContactPage() {
@@ -35,8 +35,9 @@ export default function ContactPage() {
                     <h3 className="font-semibold text-primary text-sm mb-0.5">Address</h3>
                     <p className="text-muted text-sm">
                       The Rooms Hotel<br />
-                      42, MG Road, Near Brigade Road<br />
-                      Bangalore, Karnataka 560001
+                      103/2, Uniworld, Neeladri Road<br />
+                      Behind Karnataka Bank, Electronic City Phase 1<br />
+                      Bangalore, Karnataka 560100
                     </p>
                   </div>
                 </div>
@@ -47,8 +48,8 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-primary text-sm mb-0.5">Phone</h3>
-                    <a href="tel:+919876543210" className="text-secondary text-sm hover:underline">
-                      +91 98765 43210
+                    <a href="tel:+917349047799" className="text-secondary text-sm hover:underline">
+                      +91 73490 47799
                     </a>
                     <p className="text-xs text-muted mt-0.5">Available 24/7</p>
                   </div>
@@ -74,7 +75,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-semibold text-primary text-sm mb-0.5">WhatsApp</h3>
                     <a
-                      href="https://wa.me/919876543210"
+                      href="https://wa.me/917204619899"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-secondary text-sm hover:underline"
@@ -113,13 +114,13 @@ export default function ContactPage() {
               </p>
               <div className="flex gap-3">
                 <a
-                  href="tel:+919876543210"
+                  href="tel:+917349047799"
                   className="flex-1 py-2.5 bg-white text-secondary font-semibold text-sm rounded-lg text-center hover:bg-white/90 transition-colors"
                 >
                   Call Now
                 </a>
                 <a
-                  href="https://wa.me/919876543210"
+                  href="https://wa.me/917204619899"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 py-2.5 bg-[#25D366] text-white font-semibold text-sm rounded-lg text-center hover:bg-[#25D366]/90 transition-colors"
@@ -150,8 +151,8 @@ export default function ContactPage() {
             <div className="bg-accent/30 rounded-2xl p-5">
               <h3 className="font-heading font-semibold text-primary mb-2">Getting Here</h3>
               <ul className="space-y-2 text-sm text-muted">
-                <li><span className="font-medium text-primary">🚆 Nearest Metro:</span> MG Road Station (500m)</li>
-                <li><span className="font-medium text-primary">✈️ Airport:</span> Kempegowda International Airport (35 km)</li>
+                <li><span className="font-medium text-primary">🚆 Nearest Metro:</span> Electronic City Metro Station (1.5km)</li>
+                <li><span className="font-medium text-primary">✈️ Airport:</span> Kempegowda International Airport (50 km)</li>
                 <li><span className="font-medium text-primary">🚗 Parking:</span> Free on-site parking available</li>
               </ul>
             </div>
