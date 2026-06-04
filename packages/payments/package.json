@@ -2,11 +2,11 @@
   "name": "@the-rooms/payments",
   "version": "0.1.0",
   "exports": {
-    ".": "./indusind.ts",
-    "./indusind": "./indusind.ts"
+    ".": "./razorpay.ts",
+    "./razorpay": "./razorpay.ts"
   },
-  "main": "./indusind.ts",
-  "types": "./indusind.ts",
+  "main": "./razorpay.ts",
+  "types": "./razorpay.ts",
   "scripts": {
     "typecheck": "tsc --noEmit"
   },

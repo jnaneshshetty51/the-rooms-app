@@ -80,21 +80,21 @@ async function checkResend(): Promise<ServiceHealth> {
   };
 }
 
-async function checkINDUSIND(): Promise<ServiceHealth> {
-  const clientId = process.env.INDUSIND_CLIENT_ID;
-  if (!clientId) {
+async function checkRazorpay(): Promise<ServiceHealth> {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  if (!keyId) {
     return {
-      name: "INDUSIND Bank",
+      name: "Razorpay",
       status: "down",
-      detail: "INDUSIND credentials not configured",
+      detail: "Razorpay credentials not configured",
       lastChecked: new Date().toISOString(),
     };
   }
   return {
-    name: "INDUSIND Bank",
+    name: "Razorpay",
     status: "ok",
     responseTime: 340,
-    detail: `Mode: ${process.env.INDUSIND_ENV ?? "production"}`,
+    detail: "Credentials configured",
     lastChecked: new Date().toISOString(),
   };
 }
@@ -201,17 +201,17 @@ export async function GET() {
     }
 
     // Run health checks in parallel
-    const [postgres, redis, minio, resend, indusind, nginx, docker] = await Promise.all([
+    const [postgres, redis, minio, resend, razorpay, nginx, docker] = await Promise.all([
       checkPostgres(),
       checkRedis(),
       checkMinIO(),
       checkResend(),
-      checkINDUSIND(),
+      checkRazorpay(),
       checkNginx(),
       checkDocker(),
     ]);
 
-    const services = [postgres, redis, minio, resend, indusind, nginx, docker];
+    const services = [postgres, redis, minio, resend, razorpay, nginx, docker];
     const healthyCount = services.filter((s) => s.status === "ok").length;
     const slowCount = services.filter((s) => s.status === "slow").length;
     const downCount = services.filter((s) => s.status === "down").length;

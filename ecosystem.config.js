@@ -46,9 +46,9 @@ module.exports = {
     app('rooms-web', 'apps/web', 3005, 'https://therooms.in', {
       NEXTAUTH_COOKIE_NAME:       'therooms.web.session',
       NEXTAUTH_SESSION_MAX_AGE:   String(D),          // 24 h
-      INDUSIND_MERCHANT_ID:           process.env.INDUSIND_MERCHANT_ID,
-      INDUSIND_API_KEY:               process.env.INDUSIND_API_KEY,
-      INDUSIND_WEBHOOK_SECRET:        process.env.INDUSIND_WEBHOOK_SECRET,
+      RAZORPAY_KEY_ID:                process.env.RAZORPAY_KEY_ID,
+      RAZORPAY_KEY_SECRET:            process.env.RAZORPAY_KEY_SECRET,
+      RAZORPAY_WEBHOOK_SECRET:        process.env.RAZORPAY_WEBHOOK_SECRET,
     }),
     // ── Guest portal — stays logged in for 30 days ──
     app('rooms-guest', 'apps/guest-portal', 3001, 'https://my.therooms.in', {

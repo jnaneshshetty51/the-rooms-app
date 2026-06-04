@@ -44,7 +44,7 @@ const SERVICE_ICONS: Record<string, React.ElementType> = {
   "Redis": Server,
   "MinIO": HardDrive,
   "Resend": Mail,
-  "INDUSIND Bank": CreditCard,
+  "Razorpay": CreditCard,
   "Nginx": Globe,
   "Docker": Server,
 };

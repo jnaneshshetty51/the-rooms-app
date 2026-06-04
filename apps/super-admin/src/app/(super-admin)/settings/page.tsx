@@ -35,7 +35,7 @@ import { useToast } from "@the-rooms/ui";
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const [showIndusInd, setShowIndusInd] = useState(false);
+  const [showRazorpay, setShowRazorpay] = useState(false);
   const [showResend, setShowResend] = useState(false);
   const [showMinio, setShowMinio] = useState(false);
 
@@ -85,11 +85,11 @@ export default function SettingsPage() {
   }, []);
 
   const [configs, setConfigs] = useState({
-    indusindClientId: "INDUSIND_CLIENT_XXXX",
-    indusindClientSecret: "INDUSIND_SECRET_XXXX",
-    indusindMerchantId: "MERCHANT_12345",
-    indusindWebhookUrl: "https://api.therooms.in/api/payments/indusind/webhook",
-    indusindMode: "production",
+    razorpayKeyId: "rzp_live_XXXX",
+    razorpayKeySecret: "RAZORPAY_SECRET_XXXX",
+    razorpayWebhookSecret: "WEBHOOK_SECRET_XXXX",
+    razorpayWebhookUrl: "https://therooms.in/api/payments/razorpay/webhook",
+    razorpayMode: "production",
     resendApiKey: "re_XXXX_XXXX",
     resendFromEmail: "hello@therooms.in",
     resendDomainVerified: true,
@@ -135,7 +135,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="hotel" className="space-y-6">
         <TabsList>
           <TabsTrigger value="hotel">Hotel Info</TabsTrigger>
-          <TabsTrigger value="payments">Payment (INDUSIND)</TabsTrigger>
+          <TabsTrigger value="payments">Payment (Razorpay)</TabsTrigger>
           <TabsTrigger value="email">Email (Resend)</TabsTrigger>
           <TabsTrigger value="storage">Storage (MinIO)</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
@@ -265,70 +265,70 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-[#E17055]" />
-                INDUSIND Payment Gateway
+                Razorpay Payment Gateway
               </CardTitle>
               <CardDescription>
-                Configure INDUSIND Bank credentials for payment processing.
+                Configure Razorpay credentials for payment processing.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>INDUSIND Client ID</Label>
+                  <Label>Key ID</Label>
                   <div className="relative mt-1">
                     <Input
-                      type={showIndusInd ? "text" : "password"}
-                      value={configs.indusindClientId}
-                      onChange={(e) => setConfigs((c) => ({ ...c, indusindClientId: e.target.value }))}
+                      type={showRazorpay ? "text" : "password"}
+                      value={configs.razorpayKeyId}
+                      onChange={(e) => setConfigs((c) => ({ ...c, razorpayKeyId: e.target.value }))}
                     />
                     <button
-                      onClick={() => setShowIndusInd(!showIndusInd)}
+                      onClick={() => setShowRazorpay(!showRazorpay)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      {showIndusInd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showRazorpay ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
                 <div>
-                  <Label>INDUSIND Client Secret</Label>
+                  <Label>Key Secret</Label>
                   <div className="relative mt-1">
                     <Input
-                      type={showIndusInd ? "text" : "password"}
-                      value={configs.indusindClientSecret}
-                      onChange={(e) => setConfigs((c) => ({ ...c, indusindClientSecret: e.target.value }))}
+                      type={showRazorpay ? "text" : "password"}
+                      value={configs.razorpayKeySecret}
+                      onChange={(e) => setConfigs((c) => ({ ...c, razorpayKeySecret: e.target.value }))}
                     />
                     <button
-                      onClick={() => setShowIndusInd(!showIndusInd)}
+                      onClick={() => setShowRazorpay(!showRazorpay)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      {showIndusInd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showRazorpay ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
                 <div>
-                  <Label>Merchant ID</Label>
+                  <Label>Webhook Secret</Label>
                   <Input
-                    value={configs.indusindMerchantId}
-                    onChange={(e) => setConfigs((c) => ({ ...c, indusindMerchantId: e.target.value }))}
+                    value={configs.razorpayWebhookSecret}
+                    onChange={(e) => setConfigs((c) => ({ ...c, razorpayWebhookSecret: e.target.value }))}
                     className="mt-1"
                   />
                 </div>
                 <div>
                   <Label>Mode</Label>
                   <select
-                    value={configs.indusindMode}
-                    onChange={(e) => setConfigs((c) => ({ ...c, indusindMode: e.target.value }))}
+                    value={configs.razorpayMode}
+                    onChange={(e) => setConfigs((c) => ({ ...c, razorpayMode: e.target.value }))}
                     className="mt-1 w-full border border-input bg-white rounded-lg px-3 py-2 text-sm"
                   >
-                    <option value="sandbox">Sandbox (Test)</option>
+                    <option value="test">Test</option>
                     <option value="production">Production (Live)</option>
                   </select>
                 </div>
                 <div className="md:col-span-2">
                   <Label>Webhook URL (read-only)</Label>
-                  <Input value={configs.indusindWebhookUrl} readOnly className="mt-1 bg-accent/50" />
+                  <Input value={configs.razorpayWebhookUrl} readOnly className="mt-1 bg-accent/50" />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Configure this URL in your INDUSIND dashboard to receive payment notifications.
+                    Configure this URL in your Razorpay dashboard to receive payment notifications.
                   </p>
                 </div>
               </div>
