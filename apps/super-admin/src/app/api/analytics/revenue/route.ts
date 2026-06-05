@@ -13,7 +13,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
-    const roomType = searchParams.get("roomType"); // STUDIO | PREMIUM | all
 
     const whereClause: Record<string, unknown> = {
       paymentStatus: "PAID",
@@ -29,97 +28,127 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const bookings = await db.booking.findMany({
-      where: whereClause,
-      include: { room: { select: { type: true } } },
-    });
-
-    // Revenue by period
+    // ─── Revenue by period ─────────────────────────────────────────────────────
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekStart = new Date(todayStart.getTime() - todayStart.getDay() * 86400000);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const yearStart = new Date(now.getFullYear(), 0, 1);
 
-    function sumRevenue(bookings: typeof allBookings, start: Date) {
-      return bookings
-        .filter((b) => b.createdAt >= start)
-        .reduce((sum, b) => sum + Number(b.totalAmount), 0);
+    // Fetch bookings and expenses for the year (to calculate all periods)
+    const [yearlyBookings, yearlyExpenses] = await Promise.all([
+      db.booking.findMany({
+        where: { ...whereClause, createdAt: { gte: yearStart } },
+        include: { room: { select: { type: true } } },
+      }),
+      db.expense.findMany({
+        where: { date: { gte: yearStart } },
+      }),
+    ]);
+
+    // Helper: calculate nights between two dates
+    function getNights(checkIn: Date, checkOut: Date): number {
+      return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
     }
 
-    const allBookings = bookings;
+    // Helper: calculate expenses for a period
+    function sumExpenses(expenses: typeof yearlyExpenses, start: Date): number {
+      return expenses
+        .filter((e) => e.date >= start)
+        .reduce((sum, e) => sum + Number(e.amount), 0);
+    }
+
+    // Helper: calculate ADR for a period
+    function calculateAdr(periodBookings: typeof yearlyBookings): number {
+      let totalNights = 0;
+      for (const b of periodBookings) {
+        totalNights += getNights(b.checkIn, b.checkOut);
+      }
+      const totalRevenue = periodBookings.reduce((sum, b) => sum + Number(b.totalAmount), 0);
+      return totalNights > 0 ? totalRevenue / totalNights : 0;
+    }
+
+    // Helper: get bookings for a period
+    function getPeriodBookings(bookings: typeof yearlyBookings, start: Date) {
+      return bookings.filter((b) => b.createdAt >= start);
+    }
+
+    // Calculate revenue by period with live data
+    const todayBookings = getPeriodBookings(yearlyBookings, todayStart);
+    const weekBookings = getPeriodBookings(yearlyBookings, weekStart);
+    const monthBookings = getPeriodBookings(yearlyBookings, monthStart);
 
     const revenueByPeriod = [
       {
         label: "Today",
-        grossRevenue: sumRevenue(allBookings, todayStart),
-        expenses: 4200,
-        netRevenue: sumRevenue(allBookings, todayStart) - 4200,
-        bookings: allBookings.filter((b) => b.createdAt >= todayStart).length,
-        adr: 1922,
+        grossRevenue: todayBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
+        expenses: sumExpenses(yearlyExpenses, todayStart),
+        netRevenue: todayBookings.reduce((s, b) => s + Number(b.totalAmount), 0) - sumExpenses(yearlyExpenses, todayStart),
+        bookings: todayBookings.length,
+        adr: Math.round(calculateAdr(todayBookings)),
       },
       {
         label: "This Week",
-        grossRevenue: sumRevenue(allBookings, weekStart),
-        expenses: 31500,
-        netRevenue: sumRevenue(allBookings, weekStart) - 31500,
-        bookings: allBookings.filter((b) => b.createdAt >= weekStart).length,
-        adr: 1847,
+        grossRevenue: weekBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
+        expenses: sumExpenses(yearlyExpenses, weekStart),
+        netRevenue: weekBookings.reduce((s, b) => s + Number(b.totalAmount), 0) - sumExpenses(yearlyExpenses, weekStart),
+        bookings: weekBookings.length,
+        adr: Math.round(calculateAdr(weekBookings)),
       },
       {
         label: "This Month",
-        grossRevenue: sumRevenue(allBookings, monthStart),
-        expenses: 142300,
-        netRevenue: sumRevenue(allBookings, monthStart) - 142300,
-        bookings: allBookings.filter((b) => b.createdAt >= monthStart).length,
-        adr: 1847,
+        grossRevenue: monthBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
+        expenses: sumExpenses(yearlyExpenses, monthStart),
+        netRevenue: monthBookings.reduce((s, b) => s + Number(b.totalAmount), 0) - sumExpenses(yearlyExpenses, monthStart),
+        bookings: monthBookings.length,
+        adr: Math.round(calculateAdr(monthBookings)),
       },
       {
         label: "This Year",
-        grossRevenue: sumRevenue(allBookings, yearStart),
-        expenses: 1823400,
-        netRevenue: sumRevenue(allBookings, yearStart) - 1823400,
-        bookings: allBookings.filter((b) => b.createdAt >= yearStart).length,
-        adr: 1789,
+        grossRevenue: yearlyBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
+        expenses: sumExpenses(yearlyExpenses, yearStart),
+        netRevenue: yearlyBookings.reduce((s, b) => s + Number(b.totalAmount), 0) - sumExpenses(yearlyExpenses, yearStart),
+        bookings: yearlyBookings.length,
+        adr: Math.round(calculateAdr(yearlyBookings)),
       },
     ];
 
-    // Revenue by room type
-    const byRoomType = await db.booking.groupBy({
-      by: ["paymentStatus"],
-      _sum: { totalAmount: true },
-      _count: { id: true },
-    });
+    // ─── Revenue by room type (This Month) ─────────────────────────────────────
+    const studioBookings = monthBookings.filter((b) => b.room.type === "STUDIO");
+    const premiumBookings = monthBookings.filter((b) => b.room.type === "PREMIUM");
 
-    const studioBookings = bookings.filter((b) => b.room.type === "STUDIO");
-    const premiumBookings = bookings.filter((b) => b.room.type === "PREMIUM");
+    // Count daily vs monthly for each room type
+    const studioDaily = studioBookings.filter((b) => b.bookingType === "DAILY").length;
+    const studioMonthly = studioBookings.filter((b) => b.bookingType === "MONTHLY").length;
+    const premiumDaily = premiumBookings.filter((b) => b.bookingType === "DAILY").length;
+    const premiumMonthly = premiumBookings.filter((b) => b.bookingType === "MONTHLY").length;
 
     const roomBreakdown = [
       {
         type: "Studio",
-        daily: 18,
-        monthly: 12,
+        daily: studioDaily,
+        monthly: studioMonthly,
         revenue: studioBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
         percentage:
-          allBookings.length > 0
-            ? Math.round((studioBookings.length / allBookings.length) * 100)
+          monthBookings.length > 0
+            ? Math.round((studioBookings.length / monthBookings.length) * 100)
             : 0,
       },
       {
         type: "Premium",
-        daily: 14,
-        monthly: 6,
+        daily: premiumDaily,
+        monthly: premiumMonthly,
         revenue: premiumBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
         percentage:
-          allBookings.length > 0
-            ? Math.round((premiumBookings.length / allBookings.length) * 100)
+          monthBookings.length > 0
+            ? Math.round((premiumBookings.length / monthBookings.length) * 100)
             : 0,
       },
     ];
 
-    // Revenue by booking type
-    const dailyBookings = bookings.filter((b) => b.bookingType === "DAILY");
-    const monthlyBookings = bookings.filter((b) => b.bookingType === "MONTHLY");
+    // ─── Revenue by booking type (This Month) ─────────────────────────────────
+    const dailyBookings = monthBookings.filter((b) => b.bookingType === "DAILY");
+    const monthlyBookingsType = monthBookings.filter((b) => b.bookingType === "MONTHLY");
 
     const bookingTypeBreakdown = [
       {
@@ -127,17 +156,17 @@ export async function GET(request: NextRequest) {
         bookings: dailyBookings.length,
         revenue: dailyBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
         percentage:
-          allBookings.length > 0
-            ? Math.round((dailyBookings.length / allBookings.length) * 100)
+          monthBookings.length > 0
+            ? Math.round((dailyBookings.length / monthBookings.length) * 100)
             : 0,
       },
       {
         type: "Monthly",
-        bookings: monthlyBookings.length,
-        revenue: monthlyBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
+        bookings: monthlyBookingsType.length,
+        revenue: monthlyBookingsType.reduce((s, b) => s + Number(b.totalAmount), 0),
         percentage:
-          allBookings.length > 0
-            ? Math.round((monthlyBookings.length / allBookings.length) * 100)
+          monthBookings.length > 0
+            ? Math.round((monthlyBookingsType.length / monthBookings.length) * 100)
             : 0,
       },
     ];

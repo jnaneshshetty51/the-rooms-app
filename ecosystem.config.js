@@ -62,8 +62,9 @@ module.exports = {
     }),
     // ── Guest portal — stays logged in for 30 days ──
     app('rooms-guest', 'apps/guest-portal', 3001, 'https://my.therooms.in', {
-      NEXTAUTH_COOKIE_NAME:       'therooms.guest.session',
-      NEXTAUTH_SESSION_MAX_AGE:   String(30 * D),     // 30 days
+      NEXTAUTH_COOKIE_NAME:           'therooms.guest.session',
+      NEXTAUTH_SESSION_MAX_AGE:       String(30 * D),     // 30 days
+      NEXT_PUBLIC_MAPBOX_TOKEN:       process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
     }),
     // ── Front-office — shift-length session (8 h) ──
     app('rooms-front-office', 'apps/front-office', 3002, 'https://fo.therooms.in', {
@@ -79,6 +80,8 @@ module.exports = {
     app('rooms-super-admin', 'apps/super-admin', 3004, 'https://superadmin.therooms.in', {
       NEXTAUTH_COOKIE_NAME:       'therooms.superadmin.session',
       NEXTAUTH_SESSION_MAX_AGE:   String(8 * H),      // 8 h
+      RAZORPAY_KEY_ID:            process.env.RAZORPAY_KEY_ID,
+      RAZORPAY_WEBHOOK_SECRET:    process.env.RAZORPAY_WEBHOOK_SECRET,
     }),
   ],
 };

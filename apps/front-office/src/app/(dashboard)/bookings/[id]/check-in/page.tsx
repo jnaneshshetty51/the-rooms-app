@@ -24,12 +24,12 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => {
     async function fetchBooking() {
-      try { 
-        const res = await fetch(`/api/bookings/${id}`); 
-        if (!res.ok) throw new Error("Not found"); 
-        const data = await res.json(); 
-        if (data.status !== "CONFIRMED") setError("Cannot check in: " + data.status); 
-        setBooking(data); 
+      try {
+        const res = await fetch(`/api/bookings/${id}`);
+        if (!res.ok) throw new Error("Not found");
+        const data = await res.json();
+        if (data.status !== "CONFIRMED") setError("Cannot check in: " + data.status);
+        setBooking(data);
       }
       catch (err) { setError(err instanceof Error ? err.message : "Unknown"); }
       finally { setLoading(false); }
@@ -40,14 +40,14 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
   const handleCheckIn = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    try { 
-      const res = await fetch(`/api/bookings/${id}/check-in`, { 
+    try {
+      const res = await fetch(`/api/bookings/${id}/check-in`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signatureUrl })
-      }); 
-      if (!res.ok) throw new Error("Failed"); 
-      setStep(4); 
+      });
+      if (!res.ok) throw new Error("Failed");
+      setStep(4);
     }
     catch { alert("Check-in failed"); }
     finally { setIsSubmitting(false); }
@@ -66,9 +66,9 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
         <Link href={`/bookings/${id}`} className="rounded-lg border border-gray-300 p-2 hover:bg-gray-50"><ArrowLeft className="h-5 w-5" /></Link>
         <div><h2 className="text-2xl font-bold text-gray-900">Check-In</h2><p className="text-gray-500">Booking #{booking?.bookingNumber} • Room {booking?.room.roomNumber}</p></div>
       </div>
-      
+
       {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700 print:hidden">{error}</div>}
-      
+
       <div className="flex items-center justify-between overflow-x-auto pb-2 print:hidden">
         {STEPS.map((s, i) => (
           <div key={s.id} className="flex items-center">
@@ -116,7 +116,7 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
                 {frontImage ? (
                   <><img src={frontImage} alt="Front" className="mx-auto max-h-40 rounded" /><button onClick={() => setFrontImage(null)} className="mt-2 text-sm text-red-600">Remove</button></>
                 ) : (
-                  <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture</p><button onClick={() => setFrontImage("/placeholder-doc.jpg")} className="mt-4 px-3 py-1 bg-gray-100 text-xs rounded-md">Mock Capture</button></>
+                  <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture or upload</p></>
                 )}
               </div>
             </div>
@@ -126,7 +126,7 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
                 {backImage ? (
                   <><img src={backImage} alt="Back" className="mx-auto max-h-40 rounded" /><button onClick={() => setBackImage(null)} className="mt-2 text-sm text-red-600">Remove</button></>
                 ) : (
-                  <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture</p><button onClick={() => setBackImage("/placeholder-doc.jpg")} className="mt-4 px-3 py-1 bg-gray-100 text-xs rounded-md">Mock Capture</button></>
+                  <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture or upload</p></>
                 )}
               </div>
             </div>
@@ -142,12 +142,12 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
         <div className="rounded-xl border border-gray-200 bg-white p-6 space-y-6 print:hidden">
           <h3 className="text-lg font-semibold text-gray-900">Digital Signature</h3>
           <p className="text-sm text-gray-500">Please have the guest sign below to confirm the check-in register.</p>
-          
-          <SignaturePad 
-            onSave={(url) => setSignatureUrl(url)} 
-            onClear={() => setSignatureUrl(null)} 
+
+          <SignaturePad
+            onSave={(url) => setSignatureUrl(url)}
+            onClear={() => setSignatureUrl(null)}
           />
-          
+
           {signatureUrl && (
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
               <CheckCircle className="w-5 h-5 text-green-600" />
@@ -174,7 +174,7 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
               <h3 className="text-2xl font-bold">Check-In Complete!</h3>
               <p className="text-gray-500 mt-2">{booking.guest.name} checked into Room {booking.room.roomNumber}</p>
             </div>
-            
+
             <div className="flex gap-3">
               <button onClick={printReceipt} className="flex-1 flex items-center justify-center gap-2 border border-gray-300 py-3 text-gray-700 hover:bg-gray-50 font-medium rounded-lg">
                 <Printer className="w-5 h-5" /> Print Receipt
@@ -193,7 +193,7 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
               <p className="mt-2 text-xs">Date: {new Date().toLocaleDateString()}</p>
               <p className="text-xs">Time: {new Date().toLocaleTimeString()}</p>
             </div>
-            
+
             <div className="space-y-2 mb-6">
               <div className="flex justify-between"><span>Booking ID:</span><span className="font-bold">{booking.bookingNumber}</span></div>
               <div className="flex justify-between"><span>Room:</span><span className="font-bold text-lg">{booking.room.roomNumber}</span></div>

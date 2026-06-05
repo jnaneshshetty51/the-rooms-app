@@ -20,7 +20,7 @@ const STATIC_ROOMS = [
     basePriceSingle: 999,
     basePriceDouble: 1799,
     features: ["Queen Bed", "Work Desk", "WiFi", "AC", "Hot Water"],
-    image: `https://picsum.photos/seed/studio${i}/600/400`,
+    image: `/room-placeholder.svg`,
     status: "VACANT" as const,
   })),
   ...Array.from({ length: 18 }, (_, i) => ({
@@ -30,7 +30,7 @@ const STATIC_ROOMS = [
     basePriceSingle: 1999,
     basePriceDouble: 2999,
     features: ["King Bed", "Mini Bar", "City View", "Room Service", "Work Desk"],
-    image: `https://picsum.photos/seed/premium${i}/600/400`,
+    image: `/room-placeholder.svg`,
     status: "VACANT" as const,
   })),
 ];
@@ -55,7 +55,7 @@ async function getRooms() {
       basePriceSingle: r.basePriceSingle.toNumber(),
       basePriceDouble: r.basePriceDouble.toNumber(),
       features: r.amenities.map((a) => a.amenity.name),
-      image: r.photos[0]?.url ?? `https://picsum.photos/seed/${r.roomNumber}/600/400`,
+      image: r.photos[0]?.url ?? `/room-placeholder.svg`,
       status: r.status as "VACANT" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED",
     }));
   } catch {

@@ -7,10 +7,11 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.therooms.in" },
       { protocol: "https", hostname: "placehold.co" },
       { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "api.mapbox.com" },
     ],
   },
   // Required for Next.js 15+ when using Prisma in API routes
-  serverExternalPackages: ["@prisma/client", "@prisma/extension-*"],
+  serverExternalPackages: ["@prisma/client", "@prisma/extension-*", "minio"],
 };
 
 export default nextConfig;

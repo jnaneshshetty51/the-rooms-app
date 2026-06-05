@@ -36,40 +36,32 @@ const HERO_SLIDES = [
 
 const AMENITY_ICONS: Record<string, React.ReactNode> = {
   WiFi: <Wifi className="w-5 h-5" />,
-  AC: <Wind className="w-5 h-5" />,
+  AirConditioning: <Wind className="w-5 h-5" />,
   Parking: <Car className="w-5 h-5" />,
   Security: <Shield className="w-5 h-5" />,
 };
 
-const FEATURED_AMENITIES = [
-  { icon: "WiFi", label: "High-Speed WiFi", desc: "100 Mbps dedicated line" },
-  { icon: "AC", label: "Air Conditioning", desc: "Split AC in every room" },
-  { icon: "Parking", label: "Free Parking", desc: "Secure on-site parking" },
-  { icon: "Security", label: "24/7 Security", desc: "CCTV monitored premises" },
-];
+interface RoomType {
+  type: string;
+  title: string;
+  description: string;
+  features: string[];
+  basePriceDouble: number;
+}
 
-const ROOM_PREVIEWS = [
-  {
-    type: "STUDIO",
-    title: "Studio Room",
-    price: formatCurrency(999),
-    desc: "Perfect for solo travellers and digital nomads. All essentials included.",
-    features: ["Queen Bed", "Work Desk", "WiFi", "AC"],
-    image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=600&q=80",
-  },
-  {
-    type: "PREMIUM",
-    title: "Premium Room",
-    price: formatCurrency(1999),
-    desc: "Spacious rooms with premium amenities. Ideal for couples and business travellers.",
-    features: ["King Bed", "Mini Bar", "City View", "Room Service"],
-    image: "https://images.unsplash.com/photo-1590490360182-c33d57733427?w=600&q=80",
-  },
-];
+interface PublicStats {
+  totalRooms: number;
+  yearsOfService: number;
+  guestRating: number;
+  supportAvailable: string;
+}
 
 export default function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [stats, setStats] = useState<PublicStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const nextSlide = useCallback(() => {
     setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
@@ -84,6 +76,34 @@ export default function HomePage() {
     const interval = setInterval(nextSlide, 5000);
     return () => clearInterval(interval);
   }, [isAutoPlaying, nextSlide]);
+
+  // Fetch live data from APIs
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [roomTypesRes, statsRes] = await Promise.all([
+          fetch("/api/room-types"),
+          fetch("/api/public-stats"),
+        ]);
+
+        if (roomTypesRes.ok) {
+          const roomTypesData = await roomTypesRes.json();
+          setRoomTypes(roomTypesData.data || []);
+        }
+
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setStats(statsData.data || null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch home page data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
 
   return (
     <div>
@@ -228,7 +248,12 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {FEATURED_AMENITIES.map((amenity) => (
+            {[
+              { icon: "WiFi", label: "High-Speed WiFi", desc: "100 Mbps dedicated line" },
+              { icon: "AirConditioning", label: "Air Conditioning", desc: "Split AC in every room" },
+              { icon: "Parking", label: "Free Parking", desc: "Secure on-site parking" },
+              { icon: "Security", label: "24/7 Security", desc: "CCTV monitored premises" },
+            ].map((amenity) => (
               <div
                 key={amenity.label}
                 className="bg-white rounded-xl p-5 text-center card-hover"
@@ -264,59 +289,79 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
-            {ROOM_PREVIEWS.map((room) => (
-              <div key={room.type} className="bg-white rounded-2xl overflow-hidden shadow-md card-hover">
-                <div className="relative h-52 sm:h-64 overflow-hidden">
-                  <Image
-                    src={room.image}
-                    alt={room.title}
-                    fill
-                    className="object-cover"
-                  />
-                  <div className="absolute top-3 left-3">
-                    <span className={cn(
-                      "px-3 py-1 rounded-full text-xs font-bold",
-                      room.type === "STUDIO"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-white"
-                    )}>
-                      {room.type}
-                    </span>
+            {isLoading ? (
+              // Loading skeleton
+              [1, 2].map((i) => (
+                <div key={i} className="bg-white rounded-2xl overflow-hidden shadow-md">
+                  <div className="h-52 sm:h-64 bg-gray-200 animate-pulse" />
+                  <div className="p-5 sm:p-6 space-y-4">
+                    <div className="h-6 bg-gray-200 rounded animate-pulse w-1/2" />
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2" />
                   </div>
                 </div>
-                <div className="p-5 sm:p-6">
-                  <div className="flex items-baseline justify-between mb-2">
-                    <h3 className="font-heading text-xl font-bold text-primary">{room.title}</h3>
-                    <div>
-                      <span className="text-2xl font-bold text-secondary">{room.price}</span>
-                      <span className="text-sm text-muted"> /night</span>
+              ))
+            ) : roomTypes.length > 0 ? (
+              roomTypes.map((room) => (
+                <div key={room.type} className="bg-white rounded-2xl overflow-hidden shadow-md card-hover">
+                  <div className="relative h-52 sm:h-64 overflow-hidden">
+                    <Image
+                      src={room.type === "STUDIO"
+                        ? "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=600&q=80"
+                        : "https://images.unsplash.com/photo-1590490360182-c33d57733427?w=600&q=80"
+                      }
+                      alt={room.title}
+                      fill
+                      className="object-cover"
+                    />
+                    <div className="absolute top-3 left-3">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-xs font-bold",
+                        room.type === "STUDIO"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-white"
+                      )}>
+                        {room.type}
+                      </span>
                     </div>
                   </div>
-                  <p className="text-sm text-muted mb-4">{room.desc}</p>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {room.features.map((f) => (
-                      <span key={f} className="px-2 py-0.5 bg-accent rounded text-xs font-medium text-muted">
-                        {f}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-3">
-                    <Link
-                      href="/rooms"
-                      className="flex-1 py-2.5 border border-primary text-primary text-sm font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground transition-colors text-center"
-                    >
-                      View Details
-                    </Link>
-                    <Link
-                      href="/book"
-                      className="flex-1 py-2.5 bg-secondary text-white text-sm font-semibold rounded-lg hover:bg-secondary/90 transition-colors text-center"
-                    >
-                      Book Now
-                    </Link>
+                  <div className="p-5 sm:p-6">
+                    <div className="flex items-baseline justify-between mb-2">
+                      <h3 className="font-heading text-xl font-bold text-primary">{room.title}</h3>
+                      <div>
+                        <span className="text-2xl font-bold text-secondary">{formatCurrency(room.basePriceDouble)}</span>
+                        <span className="text-sm text-muted"> /night</span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted mb-4">{room.description}</p>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {room.features.map((f) => (
+                        <span key={f} className="px-2 py-0.5 bg-accent rounded text-xs font-medium text-muted">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-3">
+                      <Link
+                        href="/rooms"
+                        className="flex-1 py-2.5 border border-primary text-primary text-sm font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground transition-colors text-center"
+                      >
+                        View Details
+                      </Link>
+                      <Link
+                        href="/book"
+                        className="flex-1 py-2.5 bg-secondary text-white text-sm font-semibold rounded-lg hover:bg-secondary/90 transition-colors text-center"
+                      >
+                        Book Now
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              // Fallback if no room types available
+              <p className="text-center col-span-2 text-muted">Room availability coming soon.</p>
+            )}
           </div>
         </div>
       </section>
@@ -325,19 +370,42 @@ export default function HomePage() {
       <section className="py-16 bg-primary text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
-            {[
-              { value: "36", label: "Rooms" },
-              { value: "18+", label: "Years of Service" },
-              { value: "4.8", label: "Guest Rating" },
-              { value: "24/7", label: "Support" },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <div className="font-heading text-4xl sm:text-5xl font-bold text-secondary mb-1">
-                  {stat.value}
+            {isLoading ? (
+              // Loading skeleton
+              [1, 2, 3, 4].map((i) => (
+                <div key={i}>
+                  <div className="h-10 w-16 mx-auto bg-white/20 rounded animate-pulse mb-2" />
+                  <div className="h-4 w-20 mx-auto bg-white/20 rounded animate-pulse" />
                 </div>
-                <div className="text-sm text-white/60">{stat.label}</div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <>
+                <div>
+                  <div className="font-heading text-4xl sm:text-5xl font-bold text-secondary mb-1">
+                    {stats?.totalRooms ?? "—"}
+                  </div>
+                  <div className="text-sm text-white/60">Rooms</div>
+                </div>
+                <div>
+                  <div className="font-heading text-4xl sm:text-5xl font-bold text-secondary mb-1">
+                    {stats?.yearsOfService ? `${stats.yearsOfService}+` : "—"}
+                  </div>
+                  <div className="text-sm text-white/60">Years of Service</div>
+                </div>
+                <div>
+                  <div className="font-heading text-4xl sm:text-5xl font-bold text-secondary mb-1">
+                    {stats?.guestRating ?? "—"}
+                  </div>
+                  <div className="text-sm text-white/60">Guest Rating</div>
+                </div>
+                <div>
+                  <div className="font-heading text-4xl sm:text-5xl font-bold text-secondary mb-1">
+                    {stats?.supportAvailable ?? "24/7"}
+                  </div>
+                  <div className="text-sm text-white/60">Support</div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </section>

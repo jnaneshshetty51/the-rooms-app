@@ -7,15 +7,9 @@ import {
   CalendarDays,
   Clock,
   MapPin,
-  Wifi,
-  Wind,
-  Tv,
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Utensils,
-  Bath,
-  ChevronRight,
 } from "lucide-react";
 import {
   Card,
@@ -63,7 +57,10 @@ type Booking = {
 };
 
 const HOTEL_ADDRESS = "The Rooms, 103/2, Uniworld, Neeladri Road, Behind Karnataka Bank, Electronic City Phase 1, Bangalore, Karnataka 560100";
-const MAP_IMAGE_URL = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/77.5946,12.9716,14,0/600x300?access_token=placeholder`;
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+const MAP_IMAGE_URL = MAPBOX_TOKEN
+  ? `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/77.5946,12.9716,14,0/600x300?access_token=${MAPBOX_TOKEN}`
+  : null;
 
 function StayDetailsPageContent() {
   const searchParams = useSearchParams();
@@ -71,7 +68,7 @@ function StayDetailsPageContent() {
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
-  const [allBookings, setAllBookings] = useState<Booking[]>([]);
+  const [, setAllBookings] = useState<Booking[]>([]);
   const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
@@ -135,8 +132,6 @@ function StayDetailsPageContent() {
       (1000 * 60 * 60 * 24)
   );
 
-  const isUpcoming = new Date(booking.checkIn) > new Date();
-  const isCurrent = booking.status === "CHECKED_IN";
 
   return (
     <div className="space-y-6">
@@ -375,12 +370,20 @@ function StayDetailsPageContent() {
             </CardHeader>
             <CardContent>
               <div className="h-40 bg-[#F0F0F0] rounded-lg mb-3 overflow-hidden relative">
-                <Image
-                  src={`https://placehold.co/600x300/2D3436/white?text=The+Rooms+Bangalore`}
-                  alt="Hotel location"
-                  fill
-                  className="object-cover"
-                />
+                {MAP_IMAGE_URL ? (
+                  <Image
+                    src={MAP_IMAGE_URL}
+                    alt="Hotel location map"
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-sm text-[#636E72]">
+                    <MapPin className="w-5 h-5 mr-2 text-[#E17055]" />
+                    Electronic City, Bangalore
+                  </div>
+                )}
               </div>
               <p className="text-sm text-[#636E72]">{settings?.address || HOTEL_ADDRESS}</p>
               <Button

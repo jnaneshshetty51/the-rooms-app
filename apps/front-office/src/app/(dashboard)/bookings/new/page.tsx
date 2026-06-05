@@ -32,18 +32,18 @@ function NewBookingPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentLinkSent, setPaymentLinkSent] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
-  
-  const [form, setForm] = useState<BookingForm>({ 
-    guestName: "", guestPhone: "", guestEmail: "", 
-    roomId: preselectedRoom ?? "", checkIn: new Date().toISOString().split("T")[0], checkOut: new Date(Date.now() + 86400000).toISOString().split("T")[0], 
-    guestsCount: 1, bookingType: "DAILY", 
+
+  const [form, setForm] = useState<BookingForm>({
+    guestName: "", guestPhone: "", guestEmail: "",
+    roomId: preselectedRoom ?? "", checkIn: new Date().toISOString().split("T")[0], checkOut: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+    guestsCount: 1, bookingType: "DAILY",
     paymentMethod: "CASH", paymentAmount: 0,
     docType: "AADHAAR"
   });
 
   const searchGuests = useCallback(async (query: string) => {
     if (query.length < 2) { setGuestResults([]); return; }
-    try { const res = await fetch(`/api/guests/search?q=${encodeURIComponent(query)}`); if (res.ok) { const data = await res.json(); setGuestResults(data.guests ?? []); } } catch {}
+    try { const res = await fetch(`/api/guests/search?q=${encodeURIComponent(query)}`); if (res.ok) { const data = await res.json(); setGuestResults(data.guests ?? []); } } catch { }
   }, []);
 
   useEffect(() => { const timer = setTimeout(() => { if (guestSearch) searchGuests(guestSearch); }, 300); return () => clearTimeout(timer); }, [guestSearch, searchGuests]);
@@ -51,28 +51,28 @@ function NewBookingPageContent() {
   useEffect(() => {
     async function fetchRooms() {
       setLoadingRooms(true);
-      try { 
-        const res = await fetch("/api/rooms/board"); 
-        if (res.ok) { 
-          const data = await res.json(); 
-          setRooms(data.rooms.filter((r: Room) => r.status === "VACANT").map((r: Room & { basePriceSingle?: number; basePriceDouble?: number }) => ({ ...r, basePriceSingle: PRICING[r.type as keyof typeof PRICING]?.single ?? 999, basePriceDouble: PRICING[r.type as keyof typeof PRICING]?.double ?? 1799 }))); 
-        } 
+      try {
+        const res = await fetch("/api/rooms/board");
+        if (res.ok) {
+          const data = await res.json();
+          setRooms(data.rooms.filter((r: Room) => r.status === "VACANT").map((r: Room & { basePriceSingle?: number; basePriceDouble?: number }) => ({ ...r, basePriceSingle: PRICING[r.type as keyof typeof PRICING]?.single ?? 999, basePriceDouble: PRICING[r.type as keyof typeof PRICING]?.double ?? 1799 })));
+        }
       } finally { setLoadingRooms(false); }
     }
     fetchRooms();
   }, []);
 
-  const handleSelectGuest = (guest: Guest) => { 
-    setForm((f) => ({ ...f, guestId: guest.id, guestName: guest.name, guestPhone: guest.phone, guestEmail: guest.email ?? "" })); 
-    setGuestSearch(""); setGuestResults([]); 
+  const handleSelectGuest = (guest: Guest) => {
+    setForm((f) => ({ ...f, guestId: guest.id, guestName: guest.name, guestPhone: guest.phone, guestEmail: guest.email ?? "" }));
+    setGuestSearch(""); setGuestResults([]);
   };
 
-  const pricing = (() => { 
-    const room = rooms.find((r) => r.id === form.roomId); 
-    if (!room) return { basePrice: 0, nights: 0, total: 0 }; 
-    const nights = Math.ceil((new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()) / 86400000); 
-    const pricePerNight = form.guestsCount === 1 ? Number(room.basePriceSingle) : Number(room.basePriceDouble); 
-    return { basePrice: pricePerNight, nights: nights > 0 ? nights : 1, total: pricePerNight * (nights > 0 ? nights : 1) }; 
+  const pricing = (() => {
+    const room = rooms.find((r) => r.id === form.roomId);
+    if (!room) return { basePrice: 0, nights: 0, total: 0 };
+    const nights = Math.ceil((new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()) / 86400000);
+    const pricePerNight = form.guestsCount === 1 ? Number(room.basePriceSingle) : Number(room.basePriceDouble);
+    return { basePrice: pricePerNight, nights: nights > 0 ? nights : 1, total: pricePerNight * (nights > 0 ? nights : 1) };
   })();
 
   const generatePaymentLink = () => {
@@ -92,13 +92,13 @@ function NewBookingPageContent() {
       let guestId = form.guestId;
       if (!guestId && form.guestName) {
         const guestRes = await fetch("/api/guests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: form.guestName, phone: form.guestPhone, email: form.guestEmail || undefined }) });
-        if (!guestRes.ok) throw new Error("Failed to create guest"); 
+        if (!guestRes.ok) throw new Error("Failed to create guest");
         const guestData = await guestRes.json(); guestId = guestData.id;
       }
 
       // Create Booking
       const bookingRes = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guestId, roomId: form.roomId, checkIn: form.checkIn, checkOut: form.checkOut, guestsCount: form.guestsCount, bookingType: form.bookingType, bookingSource: "WALK_IN", baseAmount: pricing.basePrice, totalAmount: pricing.total }) });
-      if (!bookingRes.ok) throw new Error("Failed to create booking"); 
+      if (!bookingRes.ok) throw new Error("Failed to create booking");
       const bookingData = await bookingRes.json();
       setBookingId(bookingData.id);
 
@@ -150,9 +150,9 @@ function NewBookingPageContent() {
               </div>
             </div>
             {guestResults.length > 0 && <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-60 overflow-y-auto">{guestResults.map((guest) => <button key={guest.id} onClick={() => handleSelectGuest(guest)} className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 text-left"><div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><User className="h-5 w-5 text-gray-500" /></div><div className="flex-1"><p className="font-medium text-gray-900">{guest.name}</p><p className="text-sm text-gray-500">{guest.phone}</p></div></button>)}</div>}
-            
+
             <div className="relative"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div><div className="relative flex justify-center"><span className="bg-white px-4 text-sm text-gray-500">or enter details</span></div></div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Guest Name *</label><input type="text" value={form.guestName} onChange={(e) => setForm((f) => ({ ...f, guestName: e.target.value }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label><input type="tel" value={form.guestPhone} onChange={(e) => setForm((f) => ({ ...f, guestPhone: e.target.value }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
@@ -171,9 +171,9 @@ function NewBookingPageContent() {
 
             {loadingRooms ? <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-[#E17055]" /></div> : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {rooms.map((room) => { 
-                  const price = form.guestsCount === 1 ? Number(room.basePriceSingle) : Number(room.basePriceDouble); 
-                  const isSelected = form.roomId === room.id; 
+                {rooms.map((room) => {
+                  const price = form.guestsCount === 1 ? Number(room.basePriceSingle) : Number(room.basePriceDouble);
+                  const isSelected = form.roomId === room.id;
                   return (
                     <button key={room.id} onClick={() => setForm((f) => ({ ...f, roomId: room.id }))} className={cn("rounded-xl border-2 p-4 text-left transition-all", isSelected ? "border-[#E17055] bg-[#E17055]/5 ring-2 ring-[#E17055]" : "border-gray-200 hover:border-gray-300")}>
                       <div className="flex items-center justify-between mb-2">
@@ -183,7 +183,7 @@ function NewBookingPageContent() {
                       <p className="text-lg font-bold text-[#E17055]">{formatCurrency(price)}</p>
                       <p className="text-xs text-gray-500">per night</p>
                     </button>
-                  ); 
+                  );
                 })}
               </div>
             )}
@@ -202,7 +202,7 @@ function NewBookingPageContent() {
             <label className="block text-sm font-medium mb-2">Document Type</label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {["AADHAAR", "PASSPORT", "VOTER_ID", "DRIVING_LICENSE"].map((type) => (
-                <button key={type} onClick={() => setForm(f => ({...f, docType: type}))} className={cn("rounded-lg border-2 py-3 text-sm font-medium", form.docType === type ? "border-[#E17055] bg-[#E17055]/5 text-[#E17055]" : "border-gray-200 text-gray-600")}>
+                <button key={type} onClick={() => setForm(f => ({ ...f, docType: type }))} className={cn("rounded-lg border-2 py-3 text-sm font-medium", form.docType === type ? "border-[#E17055] bg-[#E17055]/5 text-[#E17055]" : "border-gray-200 text-gray-600")}>
                   {type.replace("_", " ")}
                 </button>
               ))}
@@ -213,9 +213,9 @@ function NewBookingPageContent() {
               <label className="block text-sm font-medium mb-2">Front ID *</label>
               <div className={cn("relative rounded-lg border-2 border-dashed p-6 text-center", form.frontId ? "border-green-400 bg-green-50" : "border-gray-300")}>
                 {form.frontId ? (
-                  <><img src={form.frontId} alt="Front" className="mx-auto max-h-40 rounded" /><button onClick={() => setForm(f => ({...f, frontId: undefined}))} className="mt-2 text-sm text-red-600">Remove</button></>
+                  <><img src={form.frontId} alt="Front" className="mx-auto max-h-40 rounded" /><button onClick={() => setForm(f => ({ ...f, frontId: undefined }))} className="mt-2 text-sm text-red-600">Remove</button></>
                 ) : (
-                  <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture</p><button onClick={() => setForm(f => ({...f, frontId: "/placeholder-doc.jpg"}))} className="mt-4 px-3 py-1 bg-gray-100 text-xs rounded-md">Mock Capture</button></>
+                  <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture or upload</p></>
                 )}
               </div>
             </div>
@@ -223,9 +223,9 @@ function NewBookingPageContent() {
               <label className="block text-sm font-medium mb-2">Back ID *</label>
               <div className={cn("relative rounded-lg border-2 border-dashed p-6 text-center", form.backId ? "border-green-400 bg-green-50" : "border-gray-300")}>
                 {form.backId ? (
-                  <><img src={form.backId} alt="Back" className="mx-auto max-h-40 rounded" /><button onClick={() => setForm(f => ({...f, backId: undefined}))} className="mt-2 text-sm text-red-600">Remove</button></>
+                  <><img src={form.backId} alt="Back" className="mx-auto max-h-40 rounded" /><button onClick={() => setForm(f => ({ ...f, backId: undefined }))} className="mt-2 text-sm text-red-600">Remove</button></>
                 ) : (
-                  <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture</p><button onClick={() => setForm(f => ({...f, backId: "/placeholder-doc.jpg"}))} className="mt-4 px-3 py-1 bg-gray-100 text-xs rounded-md">Mock Capture</button></>
+                  <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture or upload</p></>
                 )}
               </div>
             </div>
@@ -244,7 +244,7 @@ function NewBookingPageContent() {
             <div className="flex justify-between text-sm"><span className="text-gray-600">{pricing.nights} night{pricing.nights > 1 ? "s" : ""} × {formatCurrency(pricing.basePrice)}</span><span className="text-gray-900">{formatCurrency(pricing.total)}</span></div>
             <div className="flex justify-between font-semibold text-lg border-t border-gray-200 pt-2"><span>Total</span><span className="text-[#E17055]">{formatCurrency(pricing.total)}</span></div>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -259,8 +259,8 @@ function NewBookingPageContent() {
           {(form.paymentMethod === "UPI" || form.paymentMethod === "CARD") && (
             <div className="flex flex-col items-center justify-center p-6 border border-blue-200 bg-blue-50 rounded-lg space-y-4">
               <p className="text-blue-800 text-sm font-medium">Send a payment link via WhatsApp</p>
-              <button 
-                onClick={generatePaymentLink} 
+              <button
+                onClick={generatePaymentLink}
                 disabled={isSubmitting || paymentLinkSent}
                 className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
@@ -299,7 +299,7 @@ function NewBookingPageContent() {
               <h3 className="text-2xl font-bold">Booking Complete!</h3>
               <p className="text-gray-500 mt-2">{form.guestName} booked Room {rooms.find((r) => r.id === form.roomId)?.roomNumber}</p>
             </div>
-            
+
             <div className="flex gap-3">
               <button onClick={printReceipt} className="flex-1 flex items-center justify-center gap-2 border border-gray-300 py-3 text-gray-700 hover:bg-gray-50 font-medium rounded-lg">
                 <Printer className="w-5 h-5" /> Print Receipt
@@ -317,7 +317,7 @@ function NewBookingPageContent() {
               <p>Walk-In Booking Receipt</p>
               <p className="mt-2 text-xs">Date: {new Date().toLocaleDateString()}</p>
             </div>
-            
+
             <div className="space-y-2 mb-6 text-sm">
               <div className="flex justify-between"><span>Room:</span><span className="font-bold text-lg">{rooms.find((r) => r.id === form.roomId)?.roomNumber}</span></div>
               <div className="flex justify-between"><span>Guest:</span><span className="font-bold">{form.guestName}</span></div>

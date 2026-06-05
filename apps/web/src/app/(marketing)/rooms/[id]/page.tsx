@@ -61,9 +61,7 @@ export default async function RoomDetailPage({
           dbRoom.photos.length > 0
             ? dbRoom.photos.map((p) => p.url)
             : [
-                `https://picsum.photos/seed/${roomNumber}a/800/600`,
-                `https://picsum.photos/seed/${roomNumber}b/800/600`,
-                `https://picsum.photos/seed/${roomNumber}c/800/600`,
+                `/room-placeholder.svg`,
               ],
       }
     : {

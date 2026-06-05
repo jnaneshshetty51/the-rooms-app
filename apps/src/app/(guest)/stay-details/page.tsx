@@ -61,7 +61,7 @@ type Booking = {
   };
 };
 
-const HOTEL_ADDRESS = "The Rooms, MG Road, Bangalore, Karnataka 560001";
+const HOTEL_ADDRESS = "The Rooms Hotel, 103/2, Uniworld, Neeladri Road, Behind Karnataka Bank, Electronic City Phase 1, Bangalore, Karnataka 560100";
 const MAP_IMAGE_URL = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/77.5946,12.9716,14,0/600x300?access_token=placeholder`;
 
 export default function StayDetailsPage() {
@@ -123,7 +123,7 @@ export default function StayDetailsPage() {
 
   const nights = Math.ceil(
     (new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) /
-      (1000 * 60 * 60 * 24)
+    (1000 * 60 * 60 * 24)
   );
 
   const isUpcoming = new Date(booking.checkIn) > new Date();
@@ -374,11 +374,11 @@ export default function StayDetailsPage() {
             <CardContent className="space-y-2 text-sm">
               <p className="text-[#636E72]">
                 <span className="font-medium text-[#2D3436]">Phone:</span>{" "}
-                +91 80 1234 5678
+                +91 73490 47799
               </p>
               <p className="text-[#636E72]">
                 <span className="font-medium text-[#2D3436]">WhatsApp:</span>{" "}
-                +91 98765 43210
+                +91 72046 19899
               </p>
               <p className="text-[#636E72]">
                 <span className="font-medium text-[#2D3436]">Email:</span>{" "}

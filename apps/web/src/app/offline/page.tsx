@@ -75,7 +75,7 @@ export default function OfflinePage() {
 
         {/* Footer */}
         <p className="text-xs text-muted mt-6">
-          Need help? Call us at +91-XXXXXXXXXX
+          Need help? Call us at +91 73490 47799
         </p>
       </div>
     </div>

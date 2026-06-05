@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       monthlyPriceSingle: room.monthlyPriceSingle?.toNumber(),
       monthlyPriceDouble: room.monthlyPriceDouble?.toNumber(),
       features: room.amenities.slice(0, 5).map(a => a.amenity.name),
-      photos: room.photos.length > 0 ? room.photos.map(p => p.url) : ['https://picsum.photos/seed/placeholder/400/300'],
+      photos: room.photos.length > 0 ? room.photos.map(p => p.url) : ['/room-placeholder.svg'],
     }));
 
     return ok(formattedRooms);

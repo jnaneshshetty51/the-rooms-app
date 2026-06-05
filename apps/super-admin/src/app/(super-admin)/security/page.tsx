@@ -27,21 +27,36 @@ interface ComplianceFramework {
 
 import { LoadingSpinner } from '@the-rooms/ui';
 
+interface Credential {
+  name: string;
+  masked: string;
+  configured: boolean;
+  status: string;
+}
+
 export default function SecurityPage() {
   const [activeCategory, setActiveCategory] = useState<SecurityCheck['category'] | 'ALL'>('ALL');
   const [showApiKeys, setShowApiKeys] = useState(false);
   const [securityChecks, setSecurityChecks] = useState<SecurityCheck[]>([]);
   const [complianceFrameworks, setComplianceFrameworks] = useState<ComplianceFramework[]>([]);
+  const [credentials, setCredentials] = useState<Credential[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch("/api/security");
-        if (res.ok) {
-          const json = await res.json();
+        const [secRes, credRes] = await Promise.all([
+          fetch("/api/security"),
+          fetch("/api/security/credentials"),
+        ]);
+        if (secRes.ok) {
+          const json = await secRes.json();
           setSecurityChecks(json.data.checks || []);
           setComplianceFrameworks(json.data.compliance || []);
+        }
+        if (credRes.ok) {
+          const json = await credRes.json();
+          setCredentials(json.credentials || []);
         }
       } catch (err) {
         console.error(err);
@@ -227,27 +242,22 @@ export default function SecurityPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {[
-              { name: 'Razorpay API', key: 'rzp_live_****', status: 'ACTIVE' },
-              { name: 'Resend Email API', key: 're_****', status: 'ACTIVE' },
-              { name: 'MinIO Access', key: 'minio_****', status: 'ACTIVE' },
-            ].map((api, i) => (
+            {credentials.map((cred, i) => (
               <div key={i} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
                 <div className="flex items-center gap-3">
                   <Key className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="font-medium text-gray-900">{api.name}</p>
+                    <p className="font-medium text-gray-900">{cred.name}</p>
                     <p className="text-sm text-gray-500 font-mono">
-                      {showApiKeys ? api.key : '••••••••••••••••'}
+                      {showApiKeys ? cred.masked : '••••••••••••••••'}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
-                    {api.status}
-                  </span>
-                  <button className="text-sm text-[#E17055] hover:text-[#D35B3F]">Rotate</button>
-                </div>
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  cred.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  {cred.status}
+                </span>
               </div>
             ))}
           </div>

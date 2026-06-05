@@ -100,12 +100,23 @@ function DocumentsPageContent() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // For now, create a local object URL — in production, upload to MinIO
-    const url = URL.createObjectURL(file);
-    setFormData((prev) => ({
-      ...prev,
-      [side === "front" ? "frontUrl" : "backUrl"]: url,
-    }));
+    setUploading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/documents/upload", { method: "POST", body: fd });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      setFormData((prev) => ({
+        ...prev,
+        [side === "front" ? "frontUrl" : "backUrl"]: url,
+      }));
+    } catch {
+      setError("File upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -120,8 +131,6 @@ function DocumentsPageContent() {
     setSuccess(null);
 
     try {
-      // In production: upload file to MinIO, get signed URL, then submit
-      // For now, we use the local object URL as a placeholder
       const res = await fetch("/api/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
