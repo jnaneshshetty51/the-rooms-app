@@ -25,23 +25,25 @@ export async function uploadRoomPhoto(
 ): Promise<string> {
   const client = getMinioClient();
   const bucket = process.env.MINIO_BUCKET || 'therooms-storage';
-  const key = `room-photos/${roomId}/${Date.now()}-${encodeURIComponent(fileName)}`;
+  // Sanitize filename: replace spaces and special chars so the key is URL-safe
+  const safeName = fileName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+  const key = `room-photos/${roomId}/${Date.now()}-${safeName}`;
 
   const exists = await client.bucketExists(bucket);
   if (!exists) {
     await client.makeBucket(bucket, 'us-east-1');
-    // Make bucket public-read so images load without signed URL expiry issues
-    const policy = JSON.stringify({
-      Version: '2012-10-17',
-      Statement: [{
-        Effect: 'Allow',
-        Principal: { AWS: ['*'] },
-        Action: ['s3:GetObject'],
-        Resource: [`arn:aws:s3:::${bucket}/*`],
-      }],
-    });
-    await client.setBucketPolicy(bucket, policy);
   }
+  // Ensure bucket is always public-read (idempotent)
+  const policy = JSON.stringify({
+    Version: '2012-10-17',
+    Statement: [{
+      Effect: 'Allow',
+      Principal: { AWS: ['*'] },
+      Action: ['s3:GetObject'],
+      Resource: [`arn:aws:s3:::${bucket}/*`],
+    }],
+  });
+  await client.setBucketPolicy(bucket, policy);
 
   await client.putObject(bucket, key, fileBuffer);
 
