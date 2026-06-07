@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@the-rooms/ui";
 import { Search, Loader2, User, Check, Camera, Printer, Link as LinkIcon, CheckCircle } from "lucide-react";
@@ -32,6 +32,8 @@ function NewBookingPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentLinkSent, setPaymentLinkSent] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const frontInputRef = useRef<HTMLInputElement>(null);
+  const backInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<BookingForm>({
     guestName: "", guestPhone: "", guestEmail: "",
@@ -45,6 +47,13 @@ function NewBookingPageContent() {
     if (query.length < 2) { setGuestResults([]); return; }
     try { const res = await fetch(`/api/guests/search?q=${encodeURIComponent(query)}`); if (res.ok) { const data = await res.json(); setGuestResults(data.guests ?? []); } } catch { }
   }, []);
+
+  const handleFileChange = (side: "front" | "back", e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setForm((f) => ({ ...f, [side === "front" ? "frontId" : "backId"]: url }));
+  };
 
   useEffect(() => { const timer = setTimeout(() => { if (guestSearch) searchGuests(guestSearch); }, 300); return () => clearTimeout(timer); }, [guestSearch, searchGuests]);
 
@@ -211,9 +220,13 @@ function NewBookingPageContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Front ID *</label>
-              <div className={cn("relative rounded-lg border-2 border-dashed p-6 text-center", form.frontId ? "border-green-400 bg-green-50" : "border-gray-300")}>
+              <input ref={frontInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange("front", e)} />
+              <div
+                onClick={() => frontInputRef.current?.click()}
+                className={cn("relative rounded-lg border-2 border-dashed p-6 text-center cursor-pointer hover:border-[#E17055] transition-colors", form.frontId ? "border-green-400 bg-green-50" : "border-gray-300")}
+              >
                 {form.frontId ? (
-                  <><img src={form.frontId} alt="Front" className="mx-auto max-h-40 rounded" /><button onClick={() => setForm(f => ({ ...f, frontId: undefined }))} className="mt-2 text-sm text-red-600">Remove</button></>
+                  <><img src={form.frontId} alt="Front" className="mx-auto max-h-40 rounded" /><button onClick={(e) => { e.stopPropagation(); setForm(f => ({ ...f, frontId: undefined })); }} className="mt-2 text-sm text-red-600">Remove</button></>
                 ) : (
                   <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture or upload</p></>
                 )}
@@ -221,9 +234,13 @@ function NewBookingPageContent() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Back ID *</label>
-              <div className={cn("relative rounded-lg border-2 border-dashed p-6 text-center", form.backId ? "border-green-400 bg-green-50" : "border-gray-300")}>
+              <input ref={backInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange("back", e)} />
+              <div
+                onClick={() => backInputRef.current?.click()}
+                className={cn("relative rounded-lg border-2 border-dashed p-6 text-center cursor-pointer hover:border-[#E17055] transition-colors", form.backId ? "border-green-400 bg-green-50" : "border-gray-300")}
+              >
                 {form.backId ? (
-                  <><img src={form.backId} alt="Back" className="mx-auto max-h-40 rounded" /><button onClick={() => setForm(f => ({ ...f, backId: undefined }))} className="mt-2 text-sm text-red-600">Remove</button></>
+                  <><img src={form.backId} alt="Back" className="mx-auto max-h-40 rounded" /><button onClick={(e) => { e.stopPropagation(); setForm(f => ({ ...f, backId: undefined })); }} className="mt-2 text-sm text-red-600">Remove</button></>
                 ) : (
                   <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture or upload</p></>
                 )}

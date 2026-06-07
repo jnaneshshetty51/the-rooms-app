@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useRef } from "react";
 import Link from "next/link";
 import { cn, SignaturePad } from "@the-rooms/ui";
 import { Loader2, ArrowLeft, User, Calendar, CheckCircle, AlertCircle, Camera, PenTool, Printer } from "lucide-react";
@@ -21,6 +21,16 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
   const [backImage, setBackImage] = useState<string | null>(null);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const frontInputRef = useRef<HTMLInputElement>(null);
+  const backInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (side: "front" | "back", e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    if (side === "front") setFrontImage(url);
+    else setBackImage(url);
+  };
 
   useEffect(() => {
     async function fetchBooking() {
@@ -112,9 +122,13 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Front *</label>
-              <div className={cn("relative rounded-lg border-2 border-dashed p-6 text-center", frontImage ? "border-green-400 bg-green-50" : "border-gray-300")}>
+              <input ref={frontInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange("front", e)} />
+              <div
+                onClick={() => frontInputRef.current?.click()}
+                className={cn("relative rounded-lg border-2 border-dashed p-6 text-center cursor-pointer hover:border-[#E17055] transition-colors", frontImage ? "border-green-400 bg-green-50" : "border-gray-300")}
+              >
                 {frontImage ? (
-                  <><img src={frontImage} alt="Front" className="mx-auto max-h-40 rounded" /><button onClick={() => setFrontImage(null)} className="mt-2 text-sm text-red-600">Remove</button></>
+                  <><img src={frontImage} alt="Front" className="mx-auto max-h-40 rounded" /><button onClick={(e) => { e.stopPropagation(); setFrontImage(null); }} className="mt-2 text-sm text-red-600">Remove</button></>
                 ) : (
                   <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture or upload</p></>
                 )}
@@ -122,9 +136,13 @@ export default function CheckInPage({ params }: { params: Promise<{ id: string }
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Back *</label>
-              <div className={cn("relative rounded-lg border-2 border-dashed p-6 text-center", backImage ? "border-green-400 bg-green-50" : "border-gray-300")}>
+              <input ref={backInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange("back", e)} />
+              <div
+                onClick={() => backInputRef.current?.click()}
+                className={cn("relative rounded-lg border-2 border-dashed p-6 text-center cursor-pointer hover:border-[#E17055] transition-colors", backImage ? "border-green-400 bg-green-50" : "border-gray-300")}
+              >
                 {backImage ? (
-                  <><img src={backImage} alt="Back" className="mx-auto max-h-40 rounded" /><button onClick={() => setBackImage(null)} className="mt-2 text-sm text-red-600">Remove</button></>
+                  <><img src={backImage} alt="Back" className="mx-auto max-h-40 rounded" /><button onClick={(e) => { e.stopPropagation(); setBackImage(null); }} className="mt-2 text-sm text-red-600">Remove</button></>
                 ) : (
                   <><Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" /><p className="text-sm text-gray-600">Tap to capture or upload</p></>
                 )}
