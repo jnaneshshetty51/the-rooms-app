@@ -10,10 +10,16 @@ import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { Prisma } from '@prisma/client';
 
 import { db, calculateBookingPrice } from '@the-rooms/db';
+// Accept both "YYYY-MM-DD" (from <input type=date>) and full ISO datetimes
+const dateString = z.string().refine(
+  (v) => !isNaN(Date.parse(v)),
+  { message: 'Valid date required' }
+);
+
 const CreateBookingSchema = z.object({
   roomId: z.string().min(1, 'Room ID is required'),
-  checkIn: z.string().datetime({ message: 'Valid check-in date required' }),
-  checkOut: z.string().datetime({ message: 'Valid check-out date required' }),
+  checkIn: dateString,
+  checkOut: dateString,
   guestsCount: z.number().int().min(1).max(4).default(1),
   guestName: z.string().min(1, 'Guest name is required'),
   guestPhone: z.string().min(10, 'Valid phone number required'),
@@ -120,6 +126,15 @@ export async function POST(request: NextRequest) {
     // Validate dates
     const checkInDate = new Date(data.checkIn);
     const checkOutDate = new Date(data.checkOut);
+
+    // Reject past dates — compare date-only (ignore time) so today is always valid
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const checkInDay = new Date(checkInDate);
+    checkInDay.setHours(0, 0, 0, 0);
+    if (checkInDay < todayStart) {
+      return badRequest('Check-in date cannot be in the past');
+    }
 
     if (checkOutDate <= checkInDate) {
       return badRequest('Check-out must be after check-in');

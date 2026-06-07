@@ -1,6 +1,4 @@
-// packages/email/templates/PaymentSuccess.tsx
-// Payment success confirmation email
-
+import React from 'react';
 import {
   Body,
   Button,
