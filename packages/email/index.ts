@@ -17,7 +17,7 @@ import {
 // Actual email sends will still fail gracefully if the real key is missing at runtime.
 const resend = new Resend(process.env.RESEND_API_KEY ?? 're_not_configured');
 
-const FROM_EMAIL = process.env.EMAIL_FROM ?? 'hello@therooms.in';
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? process.env.EMAIL_FROM ?? 'stay@therooms.in';
 const FROM_NAME = 'The Rooms';
 
 export const emailConfig = {

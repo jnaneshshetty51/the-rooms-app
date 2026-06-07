@@ -26,7 +26,6 @@ function app(name, appDir, port, nextauthUrl, extraEnv = {}) {
       // trust X-Forwarded-Host from nginx. Fixes UntrustedHost 500 errors.
       AUTH_TRUST_HOST: '1',
       RESEND_API_KEY: process.env.RESEND_API_KEY,
-      RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
       // MinIO — hostname-only endPoint, port separate (minio SDK requirement)
       // MINIO_ROOT_USER / MINIO_ROOT_PASSWORD are the VPS env var names
       MINIO_ENDPOINT: process.env.MINIO_ENDPOINT || 'localhost',
@@ -55,31 +54,36 @@ module.exports = {
     // ── Public website — no session auth needed, short-lived tokens only ──
     app('rooms-web', 'apps/web', 3005, 'https://therooms.in', {
       NEXTAUTH_COOKIE_NAME:       'therooms.web.session',
-      NEXTAUTH_SESSION_MAX_AGE:   String(D),          // 24 h
-      RAZORPAY_KEY_ID:                process.env.RAZORPAY_KEY_ID,
-      RAZORPAY_KEY_SECRET:            process.env.RAZORPAY_KEY_SECRET,
-      RAZORPAY_WEBHOOK_SECRET:        process.env.RAZORPAY_WEBHOOK_SECRET,
+      NEXTAUTH_SESSION_MAX_AGE:   String(D),
+      RESEND_FROM_EMAIL:          'stay@therooms.in',
+      RAZORPAY_KEY_ID:            process.env.RAZORPAY_KEY_ID,
+      RAZORPAY_KEY_SECRET:        process.env.RAZORPAY_KEY_SECRET,
+      RAZORPAY_WEBHOOK_SECRET:    process.env.RAZORPAY_WEBHOOK_SECRET,
     }),
     // ── Guest portal — stays logged in for 30 days ──
     app('rooms-guest', 'apps/guest-portal', 3001, 'https://my.therooms.in', {
-      NEXTAUTH_COOKIE_NAME:           'therooms.guest.session',
-      NEXTAUTH_SESSION_MAX_AGE:       String(30 * D),     // 30 days
-      NEXT_PUBLIC_MAPBOX_TOKEN:       process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
+      NEXTAUTH_COOKIE_NAME:       'therooms.guest.session',
+      NEXTAUTH_SESSION_MAX_AGE:   String(30 * D),
+      RESEND_FROM_EMAIL:          'stay@therooms.in',
+      NEXT_PUBLIC_MAPBOX_TOKEN:   process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
     }),
     // ── Front-office — shift-length session (8 h) ──
     app('rooms-front-office', 'apps/front-office', 3002, 'https://fo.therooms.in', {
       NEXTAUTH_COOKIE_NAME:       'therooms.fo.session',
-      NEXTAUTH_SESSION_MAX_AGE:   String(8 * H),      // 8 h
+      NEXTAUTH_SESSION_MAX_AGE:   String(8 * H),
+      RESEND_FROM_EMAIL:          'foe@therooms.in',
     }),
     // ── Admin — working-day session (12 h) ──
     app('rooms-admin', 'apps/admin', 3003, 'https://admin.therooms.in', {
       NEXTAUTH_COOKIE_NAME:       'therooms.admin.session',
-      NEXTAUTH_SESSION_MAX_AGE:   String(12 * H),     // 12 h
+      NEXTAUTH_SESSION_MAX_AGE:   String(12 * H),
+      RESEND_FROM_EMAIL:          'rom@therooms.in',
     }),
     // ── Super-admin — shortest session (8 h) for privileged access ──
     app('rooms-super-admin', 'apps/super-admin', 3004, 'https://superadmin.therooms.in', {
       NEXTAUTH_COOKIE_NAME:       'therooms.superadmin.session',
-      NEXTAUTH_SESSION_MAX_AGE:   String(8 * H),      // 8 h
+      NEXTAUTH_SESSION_MAX_AGE:   String(8 * H),
+      RESEND_FROM_EMAIL:          'ceo@therooms.in',
       RAZORPAY_KEY_ID:            process.env.RAZORPAY_KEY_ID,
       RAZORPAY_WEBHOOK_SECRET:    process.env.RAZORPAY_WEBHOOK_SECRET,
     }),
