@@ -9,7 +9,7 @@ import { formatDate, formatCurrency } from "@the-rooms/ui";
 
 interface Guest { id: string; name: string; phone: string; email?: string; bookings: Array<{ id: string; checkIn: string; checkOut: string; status: string; room: { roomNumber: string; type: string } }> }
 interface Room { id: string; roomNumber: string; type: "STUDIO" | "PREMIUM"; floor: number; status: string; basePriceSingle: number; basePriceDouble: number }
-interface BookingForm { guestId?: string; guestName: string; guestPhone: string; guestEmail: string; roomId: string; checkIn: string; checkOut: string; guestsCount: number; bookingType: "DAILY" | "MONTHLY"; paymentMethod: string; paymentAmount: number; frontId?: string; backId?: string; docType?: string }
+interface BookingForm { guestId?: string; guestName: string; guestPhone: string; guestEmail: string; roomId: string; checkIn: string; checkOut: string; guestsCount: number; bookingType: "DAILY" | "MONTHLY"; paymentMethod: string; paymentAmount: number; frontId?: string; backId?: string; docType?: string; complimentaryReason?: string }
 
 const STEPS = [
   { id: 1, name: "Details", icon: User },
@@ -89,8 +89,8 @@ function NewBookingPageContent() {
     try {
       // If booking already exists (from payment link generation), skip creation
       if (bookingId) {
-        // Create Payment if collected (for any payment method)
-        if (form.paymentAmount > 0) {
+        // Create Payment if collected (for any payment method except COMPLIMENTARY)
+        if (form.paymentAmount > 0 && form.paymentMethod !== "COMPLIMENTARY") {
           await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingId, amount: form.paymentAmount, method: form.paymentMethod }) });
         }
         setStep(4);
@@ -104,14 +104,33 @@ function NewBookingPageContent() {
         const guestData = await guestRes.json(); guestId = guestData.id;
       }
 
+      // Determine booking source and payment status
+      const isComplimentary = form.paymentMethod === "COMPLIMENTARY";
+      const bookingSource = isComplimentary ? "COMPLIMENTARY" : "WALK_IN";
+
       // Create Booking
-      const bookingRes = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guestId, roomId: form.roomId, checkIn: form.checkIn, checkOut: form.checkOut, guestsCount: form.guestsCount, bookingType: form.bookingType, bookingSource: "WALK_IN", baseAmount: pricing.basePrice, totalAmount: pricing.total }) });
+      const bookingRes = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guestId,
+          roomId: form.roomId,
+          checkIn: form.checkIn,
+          checkOut: form.checkOut,
+          guestsCount: form.guestsCount,
+          bookingType: form.bookingType,
+          bookingSource,
+          baseAmount: pricing.basePrice,
+          totalAmount: pricing.total,
+          complimentaryReason: isComplimentary ? form.complimentaryReason : undefined
+        })
+      });
       if (!bookingRes.ok) throw new Error("Failed to create booking");
       const bookingData = await bookingRes.json();
       setBookingId(bookingData.id);
 
-      // Create Payment if collected
-      if (form.paymentAmount > 0) {
+      // Create Payment if collected (skip for COMPLIMENTARY)
+      if (form.paymentAmount > 0 && !isComplimentary) {
         await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingId: bookingData.id, amount: form.paymentAmount, method: form.paymentMethod }) });
       }
 
@@ -263,10 +282,10 @@ function NewBookingPageContent() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {["CASH", "UPI", "CARD"].map((method) => (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {["CASH", "UPI", "CARD", "COMPLIMENTARY"].map((method) => (
                 <button key={method} onClick={() => setForm((f) => ({ ...f, paymentMethod: method }))} className={cn("rounded-lg border-2 py-3 text-sm font-medium transition-all", form.paymentMethod === method ? "border-[#E17055] bg-[#E17055]/5 text-[#E17055]" : "border-gray-200 text-gray-600 hover:border-gray-300")}>
-                  {method}
+                  {method === "COMPLIMENTARY" ? "Complimentary" : method}
                 </button>
               ))}
             </div>
@@ -306,9 +325,35 @@ function NewBookingPageContent() {
             </div>
           )}
 
+          {form.paymentMethod === "COMPLIMENTARY" && (
+            <div className="p-4 border border-purple-200 bg-purple-50 rounded-lg space-y-4">
+              <div className="flex items-center gap-2 text-purple-800">
+                <CheckCircle className="w-5 h-5" />
+                <span className="text-sm font-medium">Complimentary Stay - No Payment Required</span>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Complimentary *</label>
+                <select
+                  required
+                  value={form.complimentaryReason || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, complimentaryReason: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 text-lg"
+                >
+                  <option value="">Select reason...</option>
+                  <option value="STAFF">Staff</option>
+                  <option value="RELATIVE">Relative</option>
+                  <option value="BUSINESS_PARTNER">Business Partner</option>
+                  <option value="VIP_GUEST">VIP Guest</option>
+                  <option value="COMPENSATION">Compensation</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-3 pt-4">
             <button onClick={() => setStep(2)} className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Back</button>
-            <button onClick={handleSubmit} disabled={isSubmitting} className="flex-1 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50 flex items-center justify-center gap-2">
+            <button onClick={handleSubmit} disabled={isSubmitting || (form.paymentMethod === "COMPLIMENTARY" && !form.complimentaryReason)} className="flex-1 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50 flex items-center justify-center gap-2">
               {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null} Complete Booking
             </button>
           </div>

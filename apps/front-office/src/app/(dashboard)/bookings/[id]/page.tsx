@@ -13,7 +13,7 @@ interface AuditLog {
   createdAt: string;
 }
 
-interface Booking { id: string; bookingNumber: string; status: string; paymentStatus: string; bookingSource: string; bookingType: string; checkIn: string; checkOut: string; createdAt: string; guestsCount: number; specialRequests?: string; totalAmount: string; baseAmount: string; discountAmount: string; checkInTime?: string; checkOutTime?: string; guest: { id: string; name: string; phone: string; email?: string; companyName?: string }; room: { id: string; roomNumber: string; type: string; floor: number }; payments: Array<{ id: string; amount: string; method: string; status: string }>; documents: Array<{ id: string; documentType: string; verified: boolean }>; auditLogs?: AuditLog[] }
+interface Booking { id: string; bookingNumber: string; status: string; paymentStatus: string; bookingSource: string; bookingType: string; checkIn: string; checkOut: string; createdAt: string; guestsCount: number; specialRequests?: string; totalAmount: string; baseAmount: string; discountAmount: string; checkInTime?: string; checkOutTime?: string; complimentaryReason?: string; guest: { id: string; name: string; phone: string; email?: string; companyName?: string }; room: { id: string; roomNumber: string; type: string; floor: number }; payments: Array<{ id: string; amount: string; method: string; status: string }>; documents: Array<{ id: string; documentType: string; verified: boolean }>; auditLogs?: AuditLog[] }
 
 export default function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -28,7 +28,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   }, [id]);
 
   async function fetchBooking() {
-    try { const res = await fetch(`/api/bookings/${id}`); if (!res.ok) throw new Error("Booking not found"); setBooking(await res.json()); }
+    try {
+      const res = await fetch(`/api/bookings/${id}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || data.details || "Booking not found");
+      }
+      const data = await res.json();
+      setBooking(data);
+    }
     catch (err) { setError(err instanceof Error ? err.message : "Unknown error"); }
     finally { setLoading(false); }
   }
@@ -116,9 +124,22 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           <div className="rounded-xl border border-gray-200 bg-white p-6"><div className="flex items-center justify-between mb-4"><h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><FileText className="h-5 w-5" />Documents</h3><Link href={`/documents?booking=${booking.id}`} className="text-sm text-[#E17055] hover:underline">Manage</Link></div>{booking.documents.length === 0 ? <div className="text-center py-8"><FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No documents uploaded</p></div> : <div className="space-y-3">{booking.documents.map((doc) => <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"><div className="flex items-center gap-3"><FileText className="h-5 w-5 text-gray-400" /><span className="font-medium text-gray-900">{doc.documentType}</span></div>{doc.verified ? <span className="flex items-center gap-1 text-sm text-green-600"><CheckCircle className="h-4 w-4" />Verified</span> : <span className="flex items-center gap-1 text-sm text-orange-600">Pending</span>}</div>)}</div>}</div>
         </div>
         <div className="space-y-6">
-          <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><CreditCard className="h-5 w-5" />Payment Summary</h3><div className="space-y-3"><div className="flex justify-between text-sm"><span className="text-gray-600">Room Charges</span><span className="text-gray-900">{formatCurrency(Number(booking.baseAmount))}</span></div>{Number(booking.discountAmount) > 0 && <div className="flex justify-between text-sm text-green-600"><span>Discount</span><span>-{formatCurrency(Number(booking.discountAmount))}</span></div>}
-            <div className="flex justify-between text-sm"><span className="text-gray-600">Extras / Charges</span><span className="text-gray-900">{formatCurrency(Number(booking.totalAmount) - Number(booking.baseAmount))}</span></div>
-            <div className="flex justify-between font-semibold border-t border-gray-200 pt-3"><span>Total</span><span className="text-[#E17055]">{formatCurrency(Number(booking.totalAmount))}</span></div><div className="flex justify-between text-sm"><span className="text-gray-600">Paid</span><span className="text-green-600">{formatCurrency(totalPaid)}</span></div><div className="flex justify-between font-semibold text-sm"><span>Balance Due</span><span className={balanceDue > 0 ? "text-orange-600" : "text-green-600"}>{formatCurrency(balanceDue)}</span></div></div>{balanceDue > 0 && <Link href={`/payments?booking=${booking.id}`} className="mt-4 block w-full rounded-lg border border-[#E17055] py-2 text-center text-sm font-medium text-[#E17055] hover:bg-[#E17055]/5">Record Payment</Link>}</div>
+          <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><CreditCard className="h-5 w-5" />Payment Summary</h3>
+            {booking.bookingSource === "COMPLIMENTARY" ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <span className="text-purple-700 font-medium">Complimentary Stay</span>
+                </div>
+                <div className="flex justify-between text-sm"><span className="text-gray-600">Room Charges</span><span className="text-gray-900 line-through">{formatCurrency(Number(booking.totalAmount))}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-600">Reason</span><span className="text-purple-700 font-medium">{booking.complimentaryReason?.replace("_", " ")}</span></div>
+                <div className="flex justify-between font-semibold border-t border-gray-200 pt-3"><span>Total</span><span className="text-purple-700">FREE</span></div>
+              </div>
+            ) : (
+              <div className="space-y-3"><div className="flex justify-between text-sm"><span className="text-gray-600">Room Charges</span><span className="text-gray-900">{formatCurrency(Number(booking.baseAmount))}</span></div>{Number(booking.discountAmount) > 0 && <div className="flex justify-between text-sm text-green-600"><span>Discount</span><span>-{formatCurrency(Number(booking.discountAmount))}</span></div>}
+                <div className="flex justify-between text-sm"><span className="text-gray-600">Extras / Charges</span><span className="text-gray-900">{formatCurrency(Number(booking.totalAmount) - Number(booking.baseAmount))}</span></div>
+                <div className="flex justify-between font-semibold border-t border-gray-200 pt-3"><span>Total</span><span className="text-[#E17055]">{formatCurrency(Number(booking.totalAmount))}</span></div><div className="flex justify-between text-sm"><span className="text-gray-600">Paid</span><span className="text-green-600">{formatCurrency(totalPaid)}</span></div><div className="flex justify-between font-semibold text-sm"><span>Balance Due</span><span className={balanceDue > 0 ? "text-orange-600" : "text-green-600"}>{formatCurrency(balanceDue)}</span></div></div>
+            )}
+            {booking.bookingSource !== "COMPLIMENTARY" && balanceDue > 0 && <Link href={`/payments?booking=${booking.id}`} className="mt-4 block w-full rounded-lg border border-[#E17055] py-2 text-center text-sm font-medium text-[#E17055] hover:bg-[#E17055]/5">Record Payment</Link>}</div>
           <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="space-y-3">

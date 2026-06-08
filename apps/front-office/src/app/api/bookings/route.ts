@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
       discountAmount = 0,
       extrasAmount = 0,
       totalAmount,
+      complimentaryReason,
     } = body;
 
     if (!guestId || !roomId || !checkIn || !checkOut || !totalAmount) {
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Create the booking
+      const isComplimentary = bookingSource === "COMPLIMENTARY";
       const newBooking = await tx.booking.create({
         data: {
           bookingNumber,
@@ -104,6 +106,8 @@ export async function POST(request: NextRequest) {
           discountAmount: new Prisma.Decimal(discountAmount),
           extrasAmount: new Prisma.Decimal(extrasAmount),
           totalAmount: new Prisma.Decimal(totalAmount),
+          paymentStatus: isComplimentary ? "PAID" : "PENDING", // Complimentary bookings are considered paid
+          complimentaryReason: isComplimentary ? complimentaryReason : null,
           createdById: (session.user as { id?: string }).id,
         },
       });

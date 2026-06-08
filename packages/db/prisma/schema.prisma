@@ -201,6 +201,7 @@ model Booking {
   discountCode   String?
   discountType   String?
   signatureUrl   String?
+  complimentaryReason String?
 
   checkInTime   DateTime?
   checkOutTime  DateTime?
@@ -235,6 +236,7 @@ enum BookingSource {
   WALK_IN
   PHONE
   OTA
+  COMPLIMENTARY
 }
 
 enum BookingStatus {

@@ -8,18 +8,68 @@ import RoomGallery from "./RoomGallery";
 
 export const revalidate = 60;
 
-async function getRoom(roomNumber: string) {
+// Room type definitions
+const ROOM_TYPE_INFO = {
+  STUDIO: {
+    description: "A thoughtfully designed Studio room with premium amenities. Features a comfortable queen-size bed, dedicated work desk with high-speed WiFi, split AC, and a modern bathroom with hot water.",
+    features: ["WiFi 100 Mbps", "Split AC", "Hot Water 24/7", "Work Desk", "Queen Bed", "Electronic Safe", "Smart TV"],
+  },
+  PREMIUM: {
+    description: "A spacious Premium room with city views and luxury amenities. Features a king-size bed, mini bar, room service, split AC, and a large modern bathroom.",
+    features: ["King Bed", "Mini Bar", "City View", "Room Service", "Split AC", "Smart TV", "Work Desk"],
+  },
+};
+
+async function getRoomTypeData(type: "STUDIO" | "PREMIUM") {
   try {
-    const room = await db.room.findFirst({
-      where: { roomNumber },
+    const rooms = await db.room.findMany({
+      where: { type },
       include: {
         photos: { orderBy: { sortOrder: "asc" } },
         amenities: { include: { amenity: true } },
       },
     });
-    return room;
+
+    if (rooms.length === 0) {
+      // Return static data if no rooms in DB
+      return {
+        basePriceSingle: type === "STUDIO" ? 999 : 1999,
+        basePriceDouble: type === "STUDIO" ? 1799 : 2999,
+        description: ROOM_TYPE_INFO[type].description,
+        features: ROOM_TYPE_INFO[type].features,
+        photos: [`/room-placeholder.svg`],
+        vacantCount: type === "STUDIO" ? 18 : 18,
+        totalCount: type === "STUDIO" ? 18 : 18,
+      };
+    }
+
+    // Get sample room for pricing and amenities
+    const sampleRoom = rooms[0];
+    const vacantCount = rooms.filter((r) => r.status === "VACANT").length;
+
+    // Collect all unique photos from all rooms of this type
+    const allPhotos = rooms.flatMap((r) => r.photos.map((p) => p.url));
+    const uniquePhotos = [...new Set(allPhotos)];
+
+    return {
+      basePriceSingle: sampleRoom.basePriceSingle.toNumber(),
+      basePriceDouble: sampleRoom.basePriceDouble.toNumber(),
+      description: ROOM_TYPE_INFO[type].description,
+      features: sampleRoom.amenities.map((a) => a.amenity.name),
+      photos: uniquePhotos.length > 0 ? uniquePhotos : [`/room-placeholder.svg`],
+      vacantCount,
+      totalCount: rooms.length,
+    };
   } catch {
-    return null;
+    return {
+      basePriceSingle: type === "STUDIO" ? 999 : 1999,
+      basePriceDouble: type === "STUDIO" ? 1799 : 2999,
+      description: ROOM_TYPE_INFO[type].description,
+      features: ROOM_TYPE_INFO[type].features,
+      photos: [`/room-placeholder.svg`],
+      vacantCount: 18,
+      totalCount: 18,
+    };
   }
 }
 
@@ -27,11 +77,11 @@ export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Metadata> {
   const { id } = await params;
-  const roomNumber = decodeURIComponent(id);
-  const isStudio = roomNumber.startsWith("S");
+  const roomType = decodeURIComponent(id);
+  const isStudio = roomType === "STUDIO";
   return {
-    title: `${isStudio ? "Studio" : "Premium"} Room ${roomNumber} | The Rooms`,
-    description: `Book ${isStudio ? "Studio" : "Premium"} Room ${roomNumber} at The Rooms. ${isStudio ? "From ₹999/night" : "From ₹1,999/night"}.`,
+    title: `${isStudio ? "Studio" : "Premium"} Room | The Rooms`,
+    description: `Book our ${isStudio ? "Studio" : "Premium"} rooms at The Rooms. ${isStudio ? "From ₹999/night" : "From ₹1,999/night"}.`,
   };
 }
 
@@ -41,138 +91,103 @@ export default async function RoomDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const roomNumber = decodeURIComponent(id);
-  const dbRoom = await getRoom(roomNumber);
+  const roomTypeId = decodeURIComponent(id);
 
-  // Build a unified room object (real DB data or static fallback)
-  const isStudio = roomNumber.startsWith("S");
-  const room = dbRoom
-    ? {
-        roomNumber: dbRoom.roomNumber,
-        type: dbRoom.type as "STUDIO" | "PREMIUM",
-        basePriceSingle: dbRoom.basePriceSingle.toNumber(),
-        basePriceDouble: dbRoom.basePriceDouble.toNumber(),
-        description:
-          dbRoom.type === "STUDIO"
-            ? "A thoughtfully designed Studio room with premium amenities. Features a comfortable queen-size bed, dedicated work desk with high-speed WiFi, split AC, and a modern bathroom with hot water."
-            : "A spacious Premium room with city views and luxury amenities. Features a king-size bed, mini bar, room service, split AC, and a large modern bathroom.",
-        features: dbRoom.amenities.map((a) => a.amenity.name),
-        photos:
-          dbRoom.photos.length > 0
-            ? dbRoom.photos.map((p) => p.url)
-            : [
-                `/room-placeholder.svg`,
-              ],
-      }
-    : {
-        // Static fallback for unseeded DB
-        roomNumber,
-        type: (isStudio ? "STUDIO" : "PREMIUM") as "STUDIO" | "PREMIUM",
-        basePriceSingle: isStudio ? 999 : 1999,
-        basePriceDouble: isStudio ? 1799 : 2999,
-        description: isStudio
-          ? "A thoughtfully designed Studio room with premium amenities. Features a comfortable queen-size bed, dedicated work desk with high-speed WiFi, split AC, and a modern bathroom with hot water."
-          : "A spacious Premium room with city views and luxury amenities. Features a king-size bed, mini bar, room service, and a large modern bathroom.",
-        features: isStudio
-          ? ["WiFi 100 Mbps", "Split AC", "Hot Water 24/7", "Work Desk", "Queen Bed", "Electronic Safe", "Smart TV"]
-          : ["King Bed", "Mini Bar", "City View", "Room Service", "Split AC", "Smart TV", "Work Desk"],
-        photos: [
-          `https://picsum.photos/seed/${roomNumber}a/800/600`,
-          `https://picsum.photos/seed/${roomNumber}b/800/600`,
-          `https://picsum.photos/seed/${roomNumber}c/800/600`,
-        ],
-      };
+  // Handle room type IDs (STUDIO, PREMIUM)
+  if (roomTypeId === "STUDIO" || roomTypeId === "PREMIUM") {
+    const roomData = await getRoomTypeData(roomTypeId as "STUDIO" | "PREMIUM");
+    const isStudio = roomTypeId === "STUDIO";
 
-  // 404 only when it looks like a real DB ID that doesn't exist in DB and isn't a known room number pattern
-  const looksLikeRoomNumber = /^[SP]\d{3}$/.test(roomNumber);
-  if (!dbRoom && !looksLikeRoomNumber) notFound();
+    return (
+      <div className="pt-20">
+        {/* Back */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Link href="/rooms" className="inline-flex items-center gap-1 text-sm text-muted hover:text-primary transition-colors">
+            ← Back to Rooms
+          </Link>
+        </div>
 
-  return (
-    <div className="pt-20">
-      {/* Back */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <Link href="/rooms" className="inline-flex items-center gap-1 text-sm text-muted hover:text-primary transition-colors">
-          ← Back to Rooms
-        </Link>
-      </div>
+        {/* Interactive photo gallery (Client Component) */}
+        <RoomGallery photos={roomData.photos} roomNumber={roomTypeId} />
 
-      {/* Interactive photo gallery (Client Component) */}
-      <RoomGallery photos={room.photos} roomNumber={room.roomNumber} />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main content */}
-          <div className="lg:col-span-2 space-y-8">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className={cn(
-                  "px-3 py-1 rounded-full text-xs font-bold",
-                  room.type === "STUDIO" ? "bg-primary text-primary-foreground" : "bg-secondary text-white"
-                )}>
-                  {room.type}
-                </span>
-                <span className="text-sm text-muted">Room {room.roomNumber}</span>
-              </div>
-              <h1 className="font-heading text-3xl sm:text-4xl font-bold text-primary mb-3">
-                {room.type === "STUDIO" ? "Studio Room" : "Premium Room"}
-              </h1>
-              <div className="flex items-center gap-1 text-sm text-muted">
-                <MapPin className="w-4 h-4" />
-                The Rooms Hotel, 103/2, Uniworld, Neeladri Road, Electronic City Phase 1, Bangalore, Karnataka 560100
-              </div>
-            </div>
-
-            <div>
-              <h2 className="font-heading text-lg font-bold text-primary mb-2">About This Room</h2>
-              <p className="text-muted leading-relaxed">{room.description}</p>
-            </div>
-
-            {room.features.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Main content */}
+            <div className="lg:col-span-2 space-y-8">
               <div>
-                <h2 className="font-heading text-lg font-bold text-primary mb-3">Room Features</h2>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {room.features.map((feature) => (
-                    <div key={feature} className="flex items-center gap-3 p-3 bg-white rounded-xl border">
-                      <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
-                      <span className="text-sm font-medium text-primary">{feature}</span>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-3 mb-2">
+                  <span className={cn(
+                    "px-3 py-1 rounded-full text-xs font-bold",
+                    isStudio ? "bg-primary text-primary-foreground" : "bg-secondary text-white"
+                  )}>
+                    {roomTypeId}
+                  </span>
+                  <span className="text-sm text-muted">{roomData.totalCount} rooms available</span>
+                </div>
+                <h1 className="font-heading text-3xl sm:text-4xl font-bold text-primary mb-3">
+                  {isStudio ? "Studio Room" : "Premium Room"}
+                </h1>
+                <div className="flex items-center gap-1 text-sm text-muted">
+                  <MapPin className="w-4 h-4" />
+                  The Rooms Hotel, 103/2, Uniworld, Neeladri Road, Electronic City Phase 1, Bangalore, Karnataka 560100
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Booking sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl border shadow-sm p-6 sticky top-24">
-              <h3 className="font-heading text-lg font-bold text-primary mb-4">Pricing</h3>
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted">Single Occupancy</span>
-                  <span className="font-semibold">₹{room.basePriceSingle.toLocaleString("en-IN")}/night</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted">Double Occupancy</span>
-                  <span className="font-semibold">₹{room.basePriceDouble.toLocaleString("en-IN")}/night</span>
-                </div>
-                <div className="text-xs text-muted border-t pt-2">All prices include 18% GST</div>
+              <div>
+                <h2 className="font-heading text-lg font-bold text-primary mb-2">About This Room</h2>
+                <p className="text-muted leading-relaxed">{roomData.description}</p>
               </div>
 
-              <Link
-                href={`/book?type=${room.type}`}
-                className="flex items-center justify-center gap-2 w-full py-3 bg-secondary text-white font-bold rounded-xl hover:bg-secondary/90 transition-colors"
-              >
-                <Calendar className="w-4 h-4" />
-                Book This Room
-              </Link>
+              {roomData.features.length > 0 && (
+                <div>
+                  <h2 className="font-heading text-lg font-bold text-primary mb-3">Room Features</h2>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {roomData.features.map((feature) => (
+                      <div key={feature} className="flex items-center gap-3 p-3 bg-white rounded-xl border">
+                        <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
+                        <span className="text-sm font-medium text-primary">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
-              <p className="mt-4 text-center text-xs text-muted">
-                Free cancellation up to 48h before check-in
-              </p>
+            {/* Booking sidebar */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-2xl border shadow-sm p-6 sticky top-24">
+                <h3 className="font-heading text-lg font-bold text-primary mb-4">Pricing</h3>
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted">Single Occupancy</span>
+                    <span className="font-semibold">₹{roomData.basePriceSingle.toLocaleString("en-IN")}/night</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted">Double Occupancy</span>
+                    <span className="font-semibold">₹{roomData.basePriceDouble.toLocaleString("en-IN")}/night</span>
+                  </div>
+                  <div className="text-xs text-muted border-t pt-2">All prices include 18% GST</div>
+                </div>
+
+                <Link
+                  href={`/book?type=${roomTypeId}`}
+                  className="flex items-center justify-center gap-2 w-full py-3 bg-secondary text-white font-bold rounded-xl hover:bg-secondary/90 transition-colors"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Book This Room
+                </Link>
+
+                <p className="mt-4 text-center text-xs text-muted">
+                  Free cancellation up to 48h before check-in
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // For backwards compatibility, handle old room number URLs
+  notFound();
 }

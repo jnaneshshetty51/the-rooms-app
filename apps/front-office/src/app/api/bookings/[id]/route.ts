@@ -21,6 +21,7 @@ export async function GET(
     return NextResponse.json(booking);
   } catch (error) {
     console.error("Error fetching booking:", error);
-    return NextResponse.json({ error: "Failed to fetch booking" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: "Failed to fetch booking", details: message }, { status: 500 });
   }
 }
