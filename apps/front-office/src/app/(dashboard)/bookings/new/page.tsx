@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@the-rooms/ui";
-import { Search, Loader2, User, Check, Camera, Printer, Link as LinkIcon, CheckCircle } from "lucide-react";
+import { Search, Loader2, User, Check, Camera, Printer, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
 
@@ -30,7 +30,6 @@ function NewBookingPageContent() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [paymentLinkSent, setPaymentLinkSent] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
@@ -84,72 +83,14 @@ function NewBookingPageContent() {
     return { basePrice: pricePerNight, nights: nights > 0 ? nights : 1, total: pricePerNight * (nights > 0 ? nights : 1) };
   })();
 
-  const generatePaymentLink = async () => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      // Create guest if needed
-      let guestId = form.guestId;
-      if (!guestId && form.guestName) {
-        const guestRes = await fetch("/api/guests", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: form.guestName, phone: form.guestPhone, email: form.guestEmail || undefined })
-        });
-        if (!guestRes.ok) throw new Error("Failed to create guest");
-        const guestData = await guestRes.json();
-        guestId = guestData.id;
-      }
-
-      // Create booking first to get bookingId
-      const bookingRes = await fetch("/api/bookings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          guestId,
-          roomId: form.roomId,
-          checkIn: form.checkIn,
-          checkOut: form.checkOut,
-          guestsCount: form.guestsCount,
-          bookingType: form.bookingType,
-          bookingSource: "WALK_IN",
-          baseAmount: pricing.basePrice,
-          totalAmount: pricing.total
-        })
-      });
-      if (!bookingRes.ok) throw new Error("Failed to create booking");
-      const bookingData = await bookingRes.json();
-      setBookingId(bookingData.id);
-
-      // Generate real payment link via Razorpay
-      const linkRes = await fetch(`/api/payments/${bookingData.id}/payment-link`, { method: "POST" });
-      if (!linkRes.ok) throw new Error("Failed to generate payment link");
-      const linkData = await linkRes.json();
-
-      // Copy payment link to clipboard
-      if (linkData.shortUrl) {
-        await navigator.clipboard.writeText(linkData.shortUrl);
-        alert(`Payment link generated and copied to clipboard!\nAmount: ₹${linkData.amount}\n\nShare this link with the guest via WhatsApp or email.`);
-      } else {
-        alert("Payment link generated successfully!");
-      }
-
-      setPaymentLinkSent(true);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Error generating payment link");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleSubmit = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       // If booking already exists (from payment link generation), skip creation
       if (bookingId) {
-        // Create Payment if collected and not already paid via link
-        if (form.paymentAmount > 0 && form.paymentMethod === "CASH") {
+        // Create Payment if collected (for any payment method)
+        if (form.paymentAmount > 0) {
           await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingId, amount: form.paymentAmount, method: form.paymentMethod }) });
         }
         setStep(4);
@@ -332,16 +273,26 @@ function NewBookingPageContent() {
           </div>
 
           {(form.paymentMethod === "UPI" || form.paymentMethod === "CARD") && (
-            <div className="flex flex-col items-center justify-center p-6 border border-blue-200 bg-blue-50 rounded-lg space-y-4">
-              <p className="text-blue-800 text-sm font-medium">Send a payment link via WhatsApp</p>
-              <button
-                onClick={generatePaymentLink}
-                disabled={isSubmitting || paymentLinkSent}
-                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isSubmitting && !paymentLinkSent ? <Loader2 className="w-5 h-5 animate-spin" /> : <LinkIcon className="w-5 h-5" />}
-                {paymentLinkSent ? "Link Sent ✓" : "Generate & Send Payment Link"}
-              </button>
+            <div className="space-y-3">
+              <div className="flex flex-col items-center justify-center p-4 border border-blue-200 bg-blue-50 rounded-lg">
+                <p className="text-blue-800 text-sm font-medium mb-2">Record {form.paymentMethod} Payment</p>
+                <div className="flex items-center gap-2 text-green-700">
+                  <CheckCircle className="w-5 h-5" />
+                  <span className="text-sm">Payment will be recorded at booking completion</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount Collected ({form.paymentMethod})</label>
+                <input
+                  type="number"
+                  value={form.paymentAmount}
+                  onChange={(e) => setForm((f) => ({ ...f, paymentAmount: parseInt(e.target.value) || 0 }))}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 text-lg font-semibold"
+                />
+                {form.paymentAmount > pricing.total && (
+                  <p className="mt-2 text-sm text-green-700 font-medium">Change to return: {formatCurrency(form.paymentAmount - pricing.total)}</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -357,7 +308,7 @@ function NewBookingPageContent() {
 
           <div className="flex gap-3 pt-4">
             <button onClick={() => setStep(2)} className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Back</button>
-            <button onClick={handleSubmit} disabled={isSubmitting || (form.paymentMethod !== "CASH" && !paymentLinkSent)} className="flex-1 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50 flex items-center justify-center gap-2">
+            <button onClick={handleSubmit} disabled={isSubmitting} className="flex-1 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50 flex items-center justify-center gap-2">
               {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : null} Complete Booking
             </button>
           </div>

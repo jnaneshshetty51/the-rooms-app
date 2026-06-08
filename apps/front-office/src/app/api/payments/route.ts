@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     });
 
     const paidAmount = totalPaid._sum.amount ?? new Prisma.Decimal(0);
-    let paymentStatus = "PAID";
+    let paymentStatus: "PAID" | "PARTIAL" | "PENDING" | "OVERPAID" = "PAID";
     if (paidAmount.greaterThan(booking.totalAmount)) {
       paymentStatus = "OVERPAID";
     } else if (paidAmount.lessThan(booking.totalAmount)) {
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.booking.update({
       where: { id: bookingId },
-      data: { paymentStatus: paymentStatus as Parameters<typeof prisma.booking.update>[0]["data"]["paymentStatus"] },
+      data: { paymentStatus },
     });
 
     await prisma.auditLog.create({

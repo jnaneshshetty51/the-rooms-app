@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import prisma from "@the-rooms/db";
-import { Prisma, getBookings, createBooking, generateBookingNumber } from "@the-rooms/db";
-import { getAvailableRooms } from "@the-rooms/db";
+import { Prisma, getBookings, generateBookingNumber } from "@the-rooms/db";
 
 // GET /api/bookings
 export async function GET(request: NextRequest) {
@@ -134,7 +133,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(booking, { status: 201 });
   } catch (error) {
     console.error("Error creating booking:", error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // Handle known Prisma errors
+      if (error.code === 'P2002') {
+        return NextResponse.json({ error: "A booking with this number already exists" }, { status: 400 });
+      }
+    }
     const message = error instanceof Error ? error.message : "Failed to create booking";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Return 400 for validation errors (like room not available), 500 for other errors
+    const isValidationError = message.includes("not available") || message.includes("Room") || message.includes("already exists");
+    return NextResponse.json({ error: message }, { status: isValidationError ? 400 : 500 });
   }
 }
