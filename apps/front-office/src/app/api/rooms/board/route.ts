@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log("[ROOMS_BOARD] Fetching rooms...");
     const rooms = await prisma.room.findMany({
       include: {
         photos: { orderBy: { sortOrder: "asc" }, take: 1 },
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
       },
       orderBy: [{ floor: "asc" }, { roomNumber: "asc" }],
     });
+    console.log("[ROOMS_BOARD] Found", rooms.length, "rooms");
 
     const boardData = rooms.map((room) => {
       const activeBooking = room.bookings[0] ?? null;
@@ -42,6 +44,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    console.log("[ROOMS_BOARD] Returning", boardData.length, "rooms");
     return NextResponse.json({
       rooms: boardData,
       totalRooms: rooms.length,
@@ -51,7 +54,7 @@ export async function GET(request: NextRequest) {
       blocked: rooms.filter((r) => r.status === "BLOCKED").length,
     });
   } catch (error) {
-    console.error("Error fetching room board:", error);
+    console.error("[ROOMS_BOARD] Error:", error);
     return NextResponse.json({ error: "Failed to fetch room board" }, { status: 500 });
   }
 }
