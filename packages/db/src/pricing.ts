@@ -17,14 +17,17 @@ export type PriceBreakdown = {
   nightlyRate: Prisma.Decimal;
   bookingType: 'DAILY' | 'MONTHLY';
   rateLabel: string;
+  extraGuestCharge: Prisma.Decimal;
 };
 
 const GST_RATE = 0.18;
+const EXTRA_GUEST_RATE_DAILY = 500; // ₹500 per extra guest per night for daily bookings
 
 /**
  * Calculate total price for a booking.
  * Uses monthly rates automatically for STUDIO rooms with >= 28 nights.
  * GST applied at 18% (9% CGST + 9% SGST) on accommodation base.
+ * Extra guest charge: +₹500 per extra guest per night for DAILY only (not MONTHLY)
  */
 export async function calculatePrice(
   roomId: string,
@@ -60,6 +63,16 @@ export async function calculatePrice(
   let subtotal = new Decimal(baseAmount.toNumber());
   if (!isMonthly) {
     subtotal = new Decimal(baseAmount.toNumber()).mul(nights);
+  }
+
+  // Extra guest charge: +₹500 per extra guest per night for DAILY only
+  // guestsCount > 2 means there are extra guests beyond the double occupancy (2)
+  let extraGuestCharge = new Decimal(0);
+  if (!isMonthly && guestsCount > 2) {
+    const extraGuests = guestsCount - 2;
+    extraGuestCharge = new Decimal(EXTRA_GUEST_RATE_DAILY).mul(extraGuests).mul(nights);
+    subtotal = subtotal.add(extraGuestCharge);
+    rateLabel += ` (+₹${EXTRA_GUEST_RATE_DAILY}/night × ${extraGuests} extra guest${extraGuests > 1 ? 's' : ''})`;
   }
 
   // Apply discount if code is valid
@@ -107,6 +120,7 @@ export async function calculatePrice(
     nightlyRate,
     bookingType,
     rateLabel,
+    extraGuestCharge,
   };
 }
 
