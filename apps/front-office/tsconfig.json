@@ -23,6 +23,7 @@
       "@the-rooms/ui/*": ["../../packages/ui/src/*"],
       "@the-rooms/db/*": ["../../packages/db/src/*"],
       "@the-rooms/auth/*": ["../../packages/auth/*"],
+      "@the-rooms/payments": ["../../packages/payments/razorpay.ts"],
       "@the-rooms/types/*": ["../../packages/types/src/*"]
     }
   },

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import prisma from "@the-rooms/db";
-import { getRazorpayClient } from "@the-rooms/payments/razorpay";
+import { getRazorpayClient } from "@the-rooms/payments";
 
 export async function POST(
     request: NextRequest,

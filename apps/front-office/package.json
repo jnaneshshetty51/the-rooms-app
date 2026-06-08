@@ -15,6 +15,7 @@
     "@the-rooms/email": "workspace:*",
     "@the-rooms/api": "workspace:*",
     "@the-rooms/types": "workspace:*",
+    "@the-rooms/payments": "workspace:*",
     "@tanstack/react-query": "^5.56.2",
     "@tanstack/react-table": "^8.20.5",
     "next": "^15.1.0",

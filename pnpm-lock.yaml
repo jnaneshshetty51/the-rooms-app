@@ -120,6 +120,9 @@ importers:
       '@the-rooms/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@the-rooms/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@the-rooms/types':
         specifier: workspace:*
         version: link:../../packages/types
