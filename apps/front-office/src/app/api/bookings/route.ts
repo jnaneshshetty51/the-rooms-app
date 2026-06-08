@@ -67,35 +67,74 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const availableRooms = await getAvailableRooms(new Date(checkIn), new Date(checkOut));
-    const isRoomAvailable = availableRooms.some((r) => r.id === roomId);
-    
-    if (!isRoomAvailable) {
-      return NextResponse.json({ error: "Room is not available" }, { status: 400 });
-    }
-
     const bookingNumber = await generateBookingNumber();
 
-    const booking = await createBooking({
-      bookingNumber,
-      guestId,
-      roomId,
-      checkIn: new Date(checkIn),
-      checkOut: new Date(checkOut),
-      guestsCount,
-      bookingType,
-      bookingSource,
-      specialRequests,
-      baseAmount: new Prisma.Decimal(baseAmount),
-      discountAmount: new Prisma.Decimal(discountAmount),
-      extrasAmount: new Prisma.Decimal(extrasAmount),
-      totalAmount: new Prisma.Decimal(totalAmount),
-      createdById: (session.user as { id?: string }).id,
+    // Use transaction to prevent race conditions
+    const booking = await prisma.$transaction(async (tx) => {
+      // Check for overlapping bookings within transaction (locks rows)
+      const overlapping = await tx.booking.findFirst({
+        where: {
+          roomId,
+          status: { in: ["CONFIRMED", "CHECKED_IN"] },
+          OR: [
+            {
+              checkIn: { lt: new Date(checkOut) },
+              checkOut: { gt: new Date(checkIn) },
+            },
+          ],
+        },
+      });
+
+      if (overlapping) {
+        throw new Error("Room is not available for the selected dates");
+      }
+
+      // Create the booking
+      const newBooking = await tx.booking.create({
+        data: {
+          bookingNumber,
+          guestId,
+          roomId,
+          checkIn: new Date(checkIn),
+          checkOut: new Date(checkOut),
+          guestsCount,
+          bookingType,
+          bookingSource,
+          specialRequests,
+          baseAmount: new Prisma.Decimal(baseAmount),
+          discountAmount: new Prisma.Decimal(discountAmount),
+          extrasAmount: new Prisma.Decimal(extrasAmount),
+          totalAmount: new Prisma.Decimal(totalAmount),
+          createdById: (session.user as { id?: string }).id,
+        },
+      });
+
+      // Create audit log for booking creation
+      await tx.auditLog.create({
+        data: {
+          userId: (session.user as { id?: string }).id,
+          bookingId: newBooking.id,
+          action: "BOOKING_CREATED",
+          entity: "booking",
+          entityId: newBooking.id,
+          metadata: {
+            bookingNumber,
+            roomId,
+            checkIn,
+            checkOut,
+            totalAmount,
+            bookingSource,
+          },
+        },
+      });
+
+      return newBooking;
     });
 
     return NextResponse.json(booking, { status: 201 });
   } catch (error) {
     console.error("Error creating booking:", error);
-    return NextResponse.json({ error: "Failed to create booking" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to create booking";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

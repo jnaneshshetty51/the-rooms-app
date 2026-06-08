@@ -78,9 +78,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><User className="h-5 w-5" />Guest Details</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><p className="text-sm text-gray-500">Name</p><p className="font-medium text-gray-900">{booking.guest.name}</p></div><div><p className="text-sm text-gray-500">Phone</p><p className="font-medium text-gray-900">{booking.guest.phone}</p></div>{booking.guest.email && <div><p className="text-sm text-gray-500">Email</p><p className="font-medium text-gray-900">{booking.guest.email}</p></div>}{booking.guest.companyName && <div><p className="text-sm text-gray-500">Company</p><p className="font-medium text-gray-900">{booking.guest.companyName}</p></div>}</div></div>
-          
+
           <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><Calendar className="h-5 w-5" />Stay Details</h3><div className="grid grid-cols-2 md:grid-cols-4 gap-4"><div><p className="text-sm text-gray-500">Check-in</p><p className="font-medium text-gray-900">{formatDate(booking.checkIn, "short")}</p></div><div><p className="text-sm text-gray-500">Check-out</p><p className="font-medium text-gray-900">{formatDate(booking.checkOut, "short")}</p></div><div><p className="text-sm text-gray-500">Room</p><p className="font-medium text-gray-900">{booking.room.roomNumber}</p></div><div><p className="text-sm text-gray-500">Guests</p><p className="font-medium text-gray-900">{booking.guestsCount}</p></div></div>{booking.specialRequests && <div className="mt-4 p-4 bg-gray-50 rounded-lg"><p className="text-sm text-gray-500">Special Requests</p><p className="text-gray-900">{booking.specialRequests}</p></div>}</div>
-          
+
           <div className="rounded-xl border border-gray-200 bg-white p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><Activity className="h-5 w-5" />Activity Log</h3>
@@ -117,8 +117,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         </div>
         <div className="space-y-6">
           <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><CreditCard className="h-5 w-5" />Payment Summary</h3><div className="space-y-3"><div className="flex justify-between text-sm"><span className="text-gray-600">Room Charges</span><span className="text-gray-900">{formatCurrency(Number(booking.baseAmount))}</span></div>{Number(booking.discountAmount) > 0 && <div className="flex justify-between text-sm text-green-600"><span>Discount</span><span>-{formatCurrency(Number(booking.discountAmount))}</span></div>}
-          <div className="flex justify-between text-sm"><span className="text-gray-600">Extras / Charges</span><span className="text-gray-900">{formatCurrency(Number(booking.totalAmount) - Number(booking.baseAmount) + Number(booking.discountAmount))}</span></div>
-          <div className="flex justify-between font-semibold border-t border-gray-200 pt-3"><span>Total</span><span className="text-[#E17055]">{formatCurrency(Number(booking.totalAmount))}</span></div><div className="flex justify-between text-sm"><span className="text-gray-600">Paid</span><span className="text-green-600">{formatCurrency(totalPaid)}</span></div><div className="flex justify-between font-semibold text-sm"><span>Balance Due</span><span className={balanceDue > 0 ? "text-orange-600" : "text-green-600"}>{formatCurrency(balanceDue)}</span></div></div>{balanceDue > 0 && <Link href={`/payments?booking=${booking.id}`} className="mt-4 block w-full rounded-lg border border-[#E17055] py-2 text-center text-sm font-medium text-[#E17055] hover:bg-[#E17055]/5">Record Payment</Link>}</div>
+            <div className="flex justify-between text-sm"><span className="text-gray-600">Extras / Charges</span><span className="text-gray-900">{formatCurrency(Number(booking.totalAmount) - Number(booking.baseAmount))}</span></div>
+            <div className="flex justify-between font-semibold border-t border-gray-200 pt-3"><span>Total</span><span className="text-[#E17055]">{formatCurrency(Number(booking.totalAmount))}</span></div><div className="flex justify-between text-sm"><span className="text-gray-600">Paid</span><span className="text-green-600">{formatCurrency(totalPaid)}</span></div><div className="flex justify-between font-semibold text-sm"><span>Balance Due</span><span className={balanceDue > 0 ? "text-orange-600" : "text-green-600"}>{formatCurrency(balanceDue)}</span></div></div>{balanceDue > 0 && <Link href={`/payments?booking=${booking.id}`} className="mt-4 block w-full rounded-lg border border-[#E17055] py-2 text-center text-sm font-medium text-[#E17055] hover:bg-[#E17055]/5">Record Payment</Link>}</div>
           <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="space-y-3">
@@ -126,21 +126,21 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               {booking.status === "CHECKED_IN" && <Link href={`/bookings/${id}/check-out`} className="block w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700"><Bed className="h-4 w-4" />Check-Out Guest</Link>}
               {(booking.status === "CONFIRMED" || booking.status === "CHECKED_IN") && (
                 <>
-                  <button onClick={() => { setActionType("CHARGE"); setActionModalOpen(true); }} className="w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 flex justify-center items-center gap-2"><Plus className="h-4 w-4"/> Add Charge</button>
-                  <button onClick={() => { setActionType("REQUEST"); setActionModalOpen(true); }} className="w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 flex justify-center items-center gap-2"><Plus className="h-4 w-4"/> Add Request</button>
-                  <button onClick={() => { setActionType("NOTE"); setActionModalOpen(true); }} className="w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 flex justify-center items-center gap-2"><Plus className="h-4 w-4"/> Add Note</button>
+                  <button onClick={() => { setActionType("CHARGE"); setActionModalOpen(true); }} className="w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 flex justify-center items-center gap-2"><Plus className="h-4 w-4" /> Add Charge</button>
+                  <button onClick={() => { setActionType("REQUEST"); setActionModalOpen(true); }} className="w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 flex justify-center items-center gap-2"><Plus className="h-4 w-4" /> Add Request</button>
+                  <button onClick={() => { setActionType("NOTE"); setActionModalOpen(true); }} className="w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 flex justify-center items-center gap-2"><Plus className="h-4 w-4" /> Add Note</button>
                 </>
               )}
               {(booking.status === "CONFIRMED" || booking.status === "CHECKED_IN") && <Link href={`/bookings/${id}/extend`} className="block w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">Modify Stay Dates</Link>}
               {(booking.status === "CONFIRMED" || booking.status === "CHECKED_IN") && <Link href={`/bookings/${id}/reassign`} className="block w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">Reassign Room</Link>}
               <Link href={`/guests/${booking.guest.id}`} className="block w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">View Guest Profile</Link>
-              
+
               {booking.status === "CHECKED_OUT" && (
                 <button onClick={handleDownloadInvoice} className="w-full rounded-lg border border-gray-300 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 flex justify-center items-center gap-2">
                   <Download className="h-4 w-4" /> Download Invoice
                 </button>
               )}
-              
+
               {booking.status === "CONFIRMED" && (
                 <button
                   onClick={async () => {
@@ -165,9 +165,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {actionModalOpen && (
-        <BookingActionModal 
-          bookingId={booking.id} 
-          actionType={actionType} 
+        <BookingActionModal
+          bookingId={booking.id}
+          actionType={actionType}
           onClose={() => setActionModalOpen(false)}
           onSuccess={() => { setActionModalOpen(false); fetchBooking(); }}
         />
@@ -179,7 +179,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 function BookingActionModal({ bookingId, actionType, onClose, onSuccess }: { bookingId: string, actionType: "CHARGE" | "NOTE" | "REQUEST", onClose: () => void, onSuccess: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
@@ -225,7 +225,7 @@ function BookingActionModal({ bookingId, actionType, onClose, onSuccess }: { boo
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-          
+
           {actionType === "CHARGE" && (
             <>
               <div>

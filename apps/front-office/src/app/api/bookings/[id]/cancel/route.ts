@@ -26,13 +26,24 @@ export async function POST(
       return NextResponse.json({ error: "Only confirmed bookings can be cancelled" }, { status: 400 });
     }
 
-    // Cancel the booking
-    await updateBookingStatus(bookingId, "CANCELLED");
+    // Cancel the booking and release the room in a transaction
+    await db.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: { status: "CANCELLED" }
+      });
 
-    // Also update any PENDING payments to FAILED
-    await db.payment.updateMany({
-      where: { bookingId, status: "PENDING" },
-      data: { status: "FAILED" }
+      // Release the room back to VACANT
+      await tx.room.update({
+        where: { id: booking.roomId },
+        data: { status: "VACANT" }
+      });
+
+      // Update any PENDING payments to FAILED
+      await tx.payment.updateMany({
+        where: { bookingId, status: "PENDING" },
+        data: { status: "FAILED" }
+      });
     });
 
     return NextResponse.json({ success: true });

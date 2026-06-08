@@ -76,8 +76,10 @@ export async function POST(request: NextRequest) {
     });
 
     const paidAmount = totalPaid._sum.amount ?? new Prisma.Decimal(0);
-    let paymentStatus: "PAID" | "PARTIAL" | "PENDING" = "PAID";
-    if (paidAmount.lessThan(booking.totalAmount)) {
+    let paymentStatus: "PAID" | "PARTIAL" | "PENDING" | "OVERPAID" = "PAID";
+    if (paidAmount.greaterThan(booking.totalAmount)) {
+      paymentStatus = "OVERPAID";
+    } else if (paidAmount.lessThan(booking.totalAmount)) {
       paymentStatus = paidAmount.greaterThan(0) ? "PARTIAL" : "PENDING";
     }
 

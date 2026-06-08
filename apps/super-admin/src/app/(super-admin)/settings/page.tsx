@@ -85,18 +85,18 @@ export default function SettingsPage() {
   }, []);
 
   const [configs, setConfigs] = useState({
-    razorpayKeyId: "rzp_live_XXXX",
-    razorpayKeySecret: "RAZORPAY_SECRET_XXXX",
-    razorpayWebhookSecret: "WEBHOOK_SECRET_XXXX",
-    razorpayWebhookUrl: "https://therooms.in/api/payments/razorpay/webhook",
+    razorpayKeyId: "",
+    razorpayKeySecret: "",
+    razorpayWebhookSecret: "",
+    razorpayWebhookUrl: "",
     razorpayMode: "production",
-    resendApiKey: "re_XXXX_XXXX",
-    resendFromEmail: "hello@therooms.in",
-    resendDomainVerified: true,
-    minioEndpoint: "minio.therooms.in:9000",
-    minioAccessKey: "MINIO_ACCESS_KEY",
-    minioSecretKey: "MINIO_SECRET_KEY",
-    minioBucket: "therooms-storage",
+    resendApiKey: "",
+    resendFromEmail: "",
+    resendDomainVerified: false,
+    minioEndpoint: "",
+    minioAccessKey: "",
+    minioSecretKey: "",
+    minioBucket: "",
   });
 
   async function handleSave() {

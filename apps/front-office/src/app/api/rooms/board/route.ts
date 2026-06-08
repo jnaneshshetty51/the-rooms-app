@@ -33,6 +33,8 @@ export async function GET(request: NextRequest) {
         status: room.status,
         cleaningStatus: room.cleaningStatus,
         description: room.description,
+        basePriceSingle: room.basePriceSingle,
+        basePriceDouble: room.basePriceDouble,
         amenities: room.amenities.map((ra) => ra.amenity.name),
         currentBooking: activeBooking
           ? { id: activeBooking.id, guestName: activeBooking.guest?.name ?? "Unknown", checkIn: activeBooking.checkIn, checkOut: activeBooking.checkOut }

@@ -64,7 +64,7 @@ function NewBookingPageContent() {
         const res = await fetch("/api/rooms/board");
         if (res.ok) {
           const data = await res.json();
-          setRooms(data.rooms.filter((r: Room) => r.status === "VACANT").map((r: Room & { basePriceSingle?: number; basePriceDouble?: number }) => ({ ...r, basePriceSingle: PRICING[r.type as keyof typeof PRICING]?.single ?? 999, basePriceDouble: PRICING[r.type as keyof typeof PRICING]?.double ?? 1799 })));
+          setRooms(data.rooms.filter((r: Room) => r.status === "VACANT"));
         }
       } finally { setLoadingRooms(false); }
     }
@@ -84,20 +84,78 @@ function NewBookingPageContent() {
     return { basePrice: pricePerNight, nights: nights > 0 ? nights : 1, total: pricePerNight * (nights > 0 ? nights : 1) };
   })();
 
-  const generatePaymentLink = () => {
-    // Mock generate payment link
+  const generatePaymentLink = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      // Create guest if needed
+      let guestId = form.guestId;
+      if (!guestId && form.guestName) {
+        const guestRes = await fetch("/api/guests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: form.guestName, phone: form.guestPhone, email: form.guestEmail || undefined })
+        });
+        if (!guestRes.ok) throw new Error("Failed to create guest");
+        const guestData = await guestRes.json();
+        guestId = guestData.id;
+      }
+
+      // Create booking first to get bookingId
+      const bookingRes = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guestId,
+          roomId: form.roomId,
+          checkIn: form.checkIn,
+          checkOut: form.checkOut,
+          guestsCount: form.guestsCount,
+          bookingType: form.bookingType,
+          bookingSource: "WALK_IN",
+          baseAmount: pricing.basePrice,
+          totalAmount: pricing.total
+        })
+      });
+      if (!bookingRes.ok) throw new Error("Failed to create booking");
+      const bookingData = await bookingRes.json();
+      setBookingId(bookingData.id);
+
+      // Generate real payment link via Razorpay
+      const linkRes = await fetch(`/api/payments/${bookingData.id}/payment-link`, { method: "POST" });
+      if (!linkRes.ok) throw new Error("Failed to generate payment link");
+      const linkData = await linkRes.json();
+
+      // Copy payment link to clipboard
+      if (linkData.shortUrl) {
+        await navigator.clipboard.writeText(linkData.shortUrl);
+        alert(`Payment link generated and copied to clipboard!\nAmount: ₹${linkData.amount}\n\nShare this link with the guest via WhatsApp or email.`);
+      } else {
+        alert("Payment link generated successfully!");
+      }
+
       setPaymentLinkSent(true);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error generating payment link");
+    } finally {
       setIsSubmitting(false);
-      alert("Payment link sent via WhatsApp successfully!");
-    }, 1500);
+    }
   };
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
+      // If booking already exists (from payment link generation), skip creation
+      if (bookingId) {
+        // Create Payment if collected and not already paid via link
+        if (form.paymentAmount > 0 && form.paymentMethod === "CASH") {
+          await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingId, amount: form.paymentAmount, method: form.paymentMethod }) });
+        }
+        setStep(4);
+        return;
+      }
+
       let guestId = form.guestId;
       if (!guestId && form.guestName) {
         const guestRes = await fetch("/api/guests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: form.guestName, phone: form.guestPhone, email: form.guestEmail || undefined }) });

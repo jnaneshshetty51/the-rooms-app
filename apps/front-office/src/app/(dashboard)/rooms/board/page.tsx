@@ -61,10 +61,10 @@ export default function RoomBoardPage() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Room Availability Board</h2>
           <div className="flex items-center gap-4 mt-1">
-            <p className="text-gray-500">36 rooms across 4 floors</p>
+            <p className="text-gray-500">{data?.totalRooms ?? 0} rooms across 4 floors</p>
             <span className="hidden sm:inline text-gray-300">|</span>
             <p className="text-sm font-medium text-blue-600">
-              In-House: {data?.occupied ?? 0}/36 ({occupancyPercent}%)
+              In-House: {data?.occupied ?? 0}/{data?.totalRooms ?? 0} ({occupancyPercent}%)
             </p>
           </div>
         </div>

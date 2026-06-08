@@ -58,14 +58,6 @@ interface BackupEntry {
   duration: string;
 }
 
-const BACKUPS: BackupEntry[] = [
-  { id: "1", date: "2026-05-29 02:00", size: "2.4 GB", status: "success", type: "Full", duration: "18m" },
-  { id: "2", date: "2026-05-28 02:00", size: "2.4 GB", status: "success", type: "Full", duration: "17m" },
-  { id: "3", date: "2026-05-27 02:00", size: "2.3 GB", status: "success", type: "Full", duration: "16m" },
-  { id: "4", date: "2026-05-26 02:00", size: "2.4 GB", status: "failed", type: "Full", duration: "-" },
-  { id: "5", date: "2026-05-25 02:00", size: "2.4 GB", status: "success", type: "Full", duration: "18m" },
-  { id: "6", date: "2026-05-24 02:00", size: "2.4 GB", status: "success", type: "Full", duration: "17m" },
-];
 
 function ServiceCard({ svc }: { svc: ServiceStatus }) {
   const [expanded, setExpanded] = useState(false);
@@ -163,6 +155,7 @@ export default function SystemHealthPage() {
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const [refreshing, setRefreshing] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [backups, setBackups] = useState<BackupEntry[]>([]);
 
   async function fetchHealth() {
     setRefreshing(true);
@@ -178,6 +171,12 @@ export default function SystemHealthPage() {
           setServices(mapped);
           setLastRefresh(new Date(json.data.summary.lastChecked || Date.now()));
         }
+      }
+      // Fetch backups from API
+      const backupRes = await fetch("/api/backups");
+      if (backupRes.ok) {
+        const backupJson = await backupRes.json();
+        setBackups(backupJson.data || []);
       }
     } catch (err) {
       console.error(err);
@@ -269,7 +268,7 @@ export default function SystemHealthPage() {
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge variant="success" className="text-xs">
-                {BACKUPS.filter((b) => b.status === "success").length}/{BACKUPS.length} successful
+                {backups.filter((b) => b.status === "success").length}/{backups.length} successful
               </Badge>
               <Button size="sm" variant="outline" className="gap-1 text-xs h-7">
                 <RefreshCw className="h-3 w-3" />
@@ -280,7 +279,7 @@ export default function SystemHealthPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {BACKUPS.map((backup) => (
+            {backups.map((backup) => (
               <div
                 key={backup.id}
                 className="flex items-center justify-between py-2 border-b border-border last:border-0"

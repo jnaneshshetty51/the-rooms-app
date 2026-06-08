@@ -24,6 +24,10 @@ export async function POST(
       return NextResponse.json({ error: "Already checked out" }, { status: 400 });
     }
 
+    if (booking.status !== "CHECKED_IN") {
+      return NextResponse.json({ error: "Guest must be checked in before checking out" }, { status: 400 });
+    }
+
     const body = await request.json();
     const { finalPayment, paymentMethod, transactionId, notes, sendInvoice: shouldSendInvoice } = body;
 
@@ -35,7 +39,7 @@ export async function POST(
       if (finalPayment && finalPayment !== 0) {
         const isRefund = finalPayment < 0;
         const amount = new Prisma.Decimal(Math.abs(finalPayment));
-        
+
         const newPayment = await tx.payment.create({
           data: {
             bookingId: id,
@@ -92,7 +96,7 @@ export async function POST(
 
       if (paymentIdForInvoice) {
         const invoiceData = await generateInvoice(paymentIdForInvoice, id);
-        
+
         if (booking.guest.email) {
           try {
             await sendInvoice(booking.guest.email, {

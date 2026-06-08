@@ -206,7 +206,7 @@ export default function FinancialPage() {
               placeholder="To"
             />
             <Badge variant="outline" className="text-xs">
-              May 1 – May 29, 2026
+              {dateFrom && dateTo ? `${dateFrom} – ${dateTo}` : "All Time"}
             </Badge>
           </div>
         </CardContent>

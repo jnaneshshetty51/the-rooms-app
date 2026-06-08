@@ -251,6 +251,7 @@ enum PaymentStatus {
   REFUNDED
   FAILED
   PARTIAL
+  OVERPAID
 }
 
 // ── Guest Documents ─────────────────────────────────────────────────────

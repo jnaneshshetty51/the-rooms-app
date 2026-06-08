@@ -57,7 +57,7 @@ export default function BackupsPage() {
     .filter((b) => b.status === "success")
     .reduce((s, b) => s + parseFloat(b.size), 0);
   const lastSuccess = backups.find((b) => b.status === "success");
-  const nextBackup = "2026-05-30 02:00";
+  const nextBackup = backups.length > 0 ? new Date(Math.max(...backups.filter(b => b.status === "success").map(b => new Date(b.date).getTime()), 0) + 86400000).toISOString() : new Date(Date.now() + 86400000).toISOString();
 
   async function fetchBackups() {
     try {
