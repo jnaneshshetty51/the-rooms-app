@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
       { protocol: "http", hostname: "localhost", port: "9000", pathname: "/**" },
     ],
   },
-  serverExternalPackages: ["@prisma/client"],
+  serverExternalPackages: ["@prisma/client", "@react-pdf/renderer"],
 };
 
 export default nextConfig;

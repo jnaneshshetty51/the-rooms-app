@@ -50,16 +50,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const handleDownloadInvoice = async () => {
     try {
       const res = await fetch(`/api/bookings/${id}/invoice`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.pdfUrl) {
-          window.open(data.pdfUrl, "_blank");
-        } else {
-          alert("Invoice PDF is not available yet.");
-        }
-      } else {
-        alert("Failed to load invoice.");
-      }
+      if (!res.ok) { alert("Invoice not found. Please complete check-out first."); return; }
+      window.open(`/api/bookings/${id}/invoice/pdf`, "_blank");
     } catch (err) {
       alert("Error opening invoice.");
     }
