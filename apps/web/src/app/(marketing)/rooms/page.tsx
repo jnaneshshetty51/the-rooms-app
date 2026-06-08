@@ -8,35 +8,49 @@ export const revalidate = 60; // ISR: refresh room data every minute
 
 export const metadata: Metadata = {
   title: "Rooms",
-  description: "Browse all 36 rooms — 18 Studio and 18 Premium. Filter by room type and view photos, amenities, and prices.",
+  description: "Browse our Studio and Premium rooms. Find your perfect space for daily or monthly stays.",
 };
 
-// Fallback static data used when the DB is unavailable (seeding not done yet)
-const STATIC_ROOMS = [
-  ...Array.from({ length: 18 }, (_, i) => ({
-    id: `S${String(i + 101).padStart(3, "0")}`,
-    roomNumber: `S${String(i + 101).padStart(3, "0")}`,
+// Room type definitions with shared images and features
+const ROOM_TYPE_DATA = {
+  STUDIO: {
+    id: "STUDIO",
+    roomNumber: "Studio",
     type: "STUDIO" as const,
     basePriceSingle: 999,
     basePriceDouble: 1799,
     features: ["Queen Bed", "Work Desk", "WiFi", "AC", "Hot Water"],
     image: `/room-placeholder.svg`,
-    status: "VACANT" as const,
-  })),
-  ...Array.from({ length: 18 }, (_, i) => ({
-    id: `P${String(i + 101).padStart(3, "0")}`,
-    roomNumber: `P${String(i + 101).padStart(3, "0")}`,
+    description: "Comfortable and functional, our Studio rooms are perfect for solo travelers or couples looking for a cozy space with all the essentials.",
+  },
+  PREMIUM: {
+    id: "PREMIUM",
+    roomNumber: "Premium",
     type: "PREMIUM" as const,
     basePriceSingle: 1999,
     basePriceDouble: 2999,
     features: ["King Bed", "Mini Bar", "City View", "Room Service", "Work Desk"],
     image: `/room-placeholder.svg`,
-    status: "VACANT" as const,
-  })),
-];
+    description: "Spacious and elegantly designed, our Premium rooms offer superior comfort with premium amenities and beautiful city views.",
+  },
+};
 
-async function getRooms() {
+interface RoomTypeInfo {
+  id: string;
+  roomNumber: string;
+  type: "STUDIO" | "PREMIUM";
+  basePriceSingle: number;
+  basePriceDouble: number;
+  features: string[];
+  image: string;
+  description: string;
+  vacantCount: number;
+  totalCount: number;
+}
+
+async function getRoomTypes(): Promise<RoomTypeInfo[]> {
   try {
+    // Get all rooms grouped by type
     const rooms = await db.room.findMany({
       include: {
         photos: { orderBy: { sortOrder: "asc" }, take: 1 },
@@ -45,27 +59,62 @@ async function getRooms() {
       orderBy: [{ type: "asc" }, { roomNumber: "asc" }],
     });
 
-    if (rooms.length === 0) return STATIC_ROOMS;
+    if (rooms.length === 0) {
+      // Return static data if no rooms in DB
+      return [
+        { ...ROOM_TYPE_DATA.STUDIO, vacantCount: 18, totalCount: 18 },
+        { ...ROOM_TYPE_DATA.PREMIUM, vacantCount: 18, totalCount: 18 },
+      ];
+    }
 
-    return rooms.map((r) => ({
-      // Use roomNumber as the URL slug so /rooms/S101 always resolves correctly
-      id: r.roomNumber,
-      roomNumber: r.roomNumber,
-      type: r.type as "STUDIO" | "PREMIUM",
-      basePriceSingle: r.basePriceSingle.toNumber(),
-      basePriceDouble: r.basePriceDouble.toNumber(),
-      features: r.amenities.map((a) => a.amenity.name),
-      image: r.photos[0]?.url ?? `/room-placeholder.svg`,
-      status: r.status as "VACANT" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED",
-    }));
+    // Group rooms by type and calculate aggregate data
+    const studioRooms = rooms.filter((r) => r.type === "STUDIO");
+    const premiumRooms = rooms.filter((r) => r.type === "PREMIUM");
+
+    // Get a sample room for each type to get shared images and features
+    const studioSample = studioRooms[0];
+    const premiumSample = premiumRooms[0];
+
+    return [
+      {
+        id: "STUDIO",
+        roomNumber: "Studio",
+        type: "STUDIO" as const,
+        basePriceSingle: studioSample.basePriceSingle.toNumber(),
+        basePriceDouble: studioSample.basePriceDouble.toNumber(),
+        features: studioSample.amenities.map((a) => a.amenity.name),
+        image: studioSample.photos[0]?.url ?? `/room-placeholder.svg`,
+        description: ROOM_TYPE_DATA.STUDIO.description,
+        vacantCount: studioRooms.filter((r) => r.status === "VACANT").length,
+        totalCount: studioRooms.length,
+      },
+      {
+        id: "PREMIUM",
+        roomNumber: "Premium",
+        type: "PREMIUM" as const,
+        basePriceSingle: premiumSample.basePriceSingle.toNumber(),
+        basePriceDouble: premiumSample.basePriceDouble.toNumber(),
+        features: premiumSample.amenities.map((a) => a.amenity.name),
+        image: premiumSample.photos[0]?.url ?? `/room-placeholder.svg`,
+        description: ROOM_TYPE_DATA.PREMIUM.description,
+        vacantCount: premiumRooms.filter((r) => r.status === "VACANT").length,
+        totalCount: premiumRooms.length,
+      },
+    ];
   } catch {
-    // DB not reachable (cold start, no seed) — use static fallback
-    return STATIC_ROOMS;
+    // DB not reachable - use static fallback
+    return [
+      { ...ROOM_TYPE_DATA.STUDIO, vacantCount: 18, totalCount: 18 },
+      { ...ROOM_TYPE_DATA.PREMIUM, vacantCount: 18, totalCount: 18 },
+    ];
   }
 }
 
 export default async function RoomsPage() {
-  const ROOMS = await getRooms();
+  const ROOM_TYPES = await getRoomTypes();
+  const totalVacant = ROOM_TYPES.reduce((sum, r) => sum + r.vacantCount, 0);
+  const totalRooms = ROOM_TYPES.reduce((sum, r) => sum + r.totalCount, 0);
+
   return (
     <div className="pt-20">
       {/* Header */}
@@ -73,12 +122,12 @@ export default async function RoomsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="font-heading text-4xl sm:text-5xl font-bold mb-4">Our Rooms</h1>
           <p className="text-white/70 text-lg max-w-2xl">
-            36 thoughtfully designed rooms across Studio and Premium categories. Find your perfect space for daily or monthly stays.
+            Choose from our Studio and Premium room categories. All rooms include complimentary breakfast, WiFi, and daily housekeeping.
           </p>
         </div>
       </div>
 
-      {/* Filter & Grid */}
+      {/* Filter& Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Filter tabs */}
         <div className="flex flex-wrap gap-2 mb-8">
@@ -94,22 +143,22 @@ export default async function RoomsPage() {
                   : "bg-accent text-primary hover:bg-accent/80"
               )}
             >
-              {filter === "ALL" ? "All Rooms" : filter === "STUDIO" ? "Studio (18)" : "Premium (18)"}
+              {filter === "ALL" ? "All Rooms" : filter === "STUDIO" ? `Studio (${ROOM_TYPES.find(r => r.type === "STUDIO")?.totalCount ?? 18})` : `Premium (${ROOM_TYPES.find(r => r.type === "PREMIUM")?.totalCount ?? 18})`}
             </Link>
           ))}
         </div>
 
-        {/* Room Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {ROOMS.map((room) => (
-            <Link href={`/rooms/${room.id}`} key={room.id} className="block">
+        {/* Room Type Grid */}
+        <div className="grid sm:grid-cols-2 gap-8">
+          {ROOM_TYPES.map((roomType) => (
+            <Link href={`/rooms/${roomType.id}`} key={roomType.id} className="block">
               <RoomCard
-                roomNumber={room.roomNumber}
-                roomType={room.type}
-                price={room.basePriceDouble}
-                status={room.status}
-                thumbnail={room.image}
-                features={room.features}
+                roomNumber={roomType.roomNumber}
+                roomType={roomType.type}
+                price={roomType.basePriceDouble}
+                status={roomType.vacantCount > 0 ? "VACANT" : "OCCUPIED"}
+                thumbnail={roomType.image}
+                features={roomType.features}
                 className="bg-white h-full"
               />
             </Link>
@@ -119,20 +168,16 @@ export default async function RoomsPage() {
         {/* Summary */}
         <div className="mt-12 grid sm:grid-cols-3 gap-4 p-6 bg-accent/20 rounded-2xl">
           <div className="text-center">
-            <div className="font-heading text-3xl font-bold text-primary">{ROOMS.length}</div>
+            <div className="font-heading text-3xl font-bold text-primary">{totalRooms}</div>
             <div className="text-sm text-muted">Total Rooms</div>
           </div>
           <div className="text-center">
-            <div className="font-heading text-3xl font-bold text-vacant">
-              {ROOMS.filter((r) => r.status === "VACANT").length}
-            </div>
+            <div className="font-heading text-3xl font-bold text-vacant">{totalVacant}</div>
             <div className="text-sm text-muted">Currently Available</div>
           </div>
           <div className="text-center">
-            <div className="font-heading text-3xl font-bold text-secondary">
-              {ROOMS.filter((r) => r.type === "PREMIUM").length}
-            </div>
-            <div className="text-sm text-muted">Premium Rooms</div>
+            <div className="font-heading text-3xl font-bold text-secondary">2</div>
+            <div className="text-sm text-muted">Room Categories</div>
           </div>
         </div>
       </div>
