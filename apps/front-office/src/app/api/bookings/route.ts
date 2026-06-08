@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    console.log("[BOOKING_CREATE] Request body:", JSON.stringify(body, null, 2));
     const {
       guestId,
       roomId,
@@ -63,7 +64,10 @@ export async function POST(request: NextRequest) {
       complimentaryReason,
     } = body;
 
+    console.log("[BOOKING_CREATE] Parsed fields - guestId:", guestId, "roomId:", roomId, "bookingSource:", bookingSource);
+
     if (!guestId || !roomId || !checkIn || !checkOut || !totalAmount) {
+      console.log("[BOOKING_CREATE] Missing required fields");
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
