@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@the-rooms/db';
 import { ok, badRequest, serverError } from '@the-rooms/api';
+import { getRedis } from '@/lib/redis';
+
+const CACHE_TTL = 300; // 5 minutes
 
 const AvailabilitySchema = z.object({
   checkIn: z.string().datetime({ message: 'Valid check-in date required' }),
@@ -25,6 +28,18 @@ export async function GET(request: NextRequest) {
 
     if (checkOutDate <= checkInDate) {
       return badRequest('Check-out must be after check-in');
+    }
+
+    // ─── Redis cache lookup ────────────────────────────────────────────────
+    const cacheKey = `availability:${params.checkIn.slice(0, 10)}:${params.checkOut.slice(0, 10)}:${params.guestsCount}:${params.type ?? 'ALL'}`;
+    const redis = getRedis();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) return ok(JSON.parse(cached));
+      } catch {
+        // Redis miss or error — fall through to DB
+      }
     }
 
     // Determine which room types to show
@@ -115,6 +130,15 @@ export async function GET(request: NextRequest) {
         photos: profileMap['PREMIUM']?.images.map(i => i.url) ?? [],
       },
     ].filter(rt => rt.availableCount > 0);
+
+    // ─── Cache the result ──────────────────────────────────────────────────
+    if (redis && roomTypes.length > 0) {
+      try {
+        await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(roomTypes));
+      } catch {
+        // Cache write failure is non-fatal
+      }
+    }
 
     return ok(roomTypes);
   } catch (error) {
