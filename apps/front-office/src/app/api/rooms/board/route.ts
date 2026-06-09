@@ -10,9 +10,8 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("[ROOMS_BOARD] Fetching rooms...");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const prismaAny = prisma as any;
-    const [rooms, typeProfiles] = await Promise.all([
+    const prismaAny = prisma as unknown as Record<string, { findMany: (args: unknown) => Promise<unknown> }>;
+    const [rooms, rawTypeProfiles] = await Promise.all([
       prisma.room.findMany({
         include: {
           amenities: { include: { amenity: true } },
@@ -27,8 +26,9 @@ export async function GET(request: NextRequest) {
       }),
       prismaAny.roomTypeProfile.findMany({
         include: { images: { orderBy: { sortOrder: "asc" }, take: 1 } },
-      }) as Promise<Array<{ type: string; images: { url: string }[] }>>,
+      }),
     ]);
+    const typeProfiles = rawTypeProfiles as Array<{ type: string; images: { url: string }[] }>;
     console.log("[ROOMS_BOARD] Found", rooms.length, "rooms");
 
     const typeImageMap: Record<string, string> = {};
