@@ -77,12 +77,11 @@ export async function GET(request: NextRequest) {
     const availableRooms = allMatchingRooms.filter(room => !bookedRoomIds.has(room.id));
 
     // Load room type profiles for images/description/features
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dbAny = db as any;
     type TypeProfile = { type: string; title: string; description: string | null; features: string[]; images: { url: string }[] };
-    const typeProfiles: TypeProfile[] = await dbAny.roomTypeProfile.findMany({
+    const dbAny = db as unknown as Record<string, { findMany: (args: unknown) => Promise<unknown> }>;
+    const typeProfiles = (await dbAny.roomTypeProfile.findMany({
       include: { images: { orderBy: { sortOrder: 'asc' } } },
-    });
+    })) as TypeProfile[];
     const profileMap = Object.fromEntries(typeProfiles.map(p => [p.type, p]));
 
     // Get pricing from first available room of each type

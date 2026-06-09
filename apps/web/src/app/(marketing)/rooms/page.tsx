@@ -51,20 +51,17 @@ interface RoomTypeInfo {
 async function getRoomTypes(): Promise<RoomTypeInfo[]> {
   try {
     type TypeProfile = { type: string; description: string | null; features: string[]; images: { url: string }[] };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dbAny = db as any;
-    const [rooms, typeProfiles]: [
-      Array<{ type: string; status: string; basePriceSingle: { toNumber(): number }; basePriceDouble: { toNumber(): number } }>,
-      TypeProfile[]
-    ] = await Promise.all([
+    const dbAny = db as unknown as Record<string, { findMany: (args: unknown) => Promise<unknown> }>;
+    const [rooms, rawProfiles] = await Promise.all([
       db.room.findMany({
         select: { type: true, status: true, basePriceSingle: true, basePriceDouble: true },
         orderBy: [{ type: "asc" as const }, { roomNumber: "asc" as const }],
-      }) as Promise<Array<{ type: string; status: string; basePriceSingle: { toNumber(): number }; basePriceDouble: { toNumber(): number } }>>,
+      }),
       dbAny.roomTypeProfile.findMany({
         include: { images: { orderBy: { sortOrder: "asc" } } },
-      }) as Promise<TypeProfile[]>,
+      }),
     ]);
+    const typeProfiles = rawProfiles as TypeProfile[];
 
     const profileMap = Object.fromEntries(typeProfiles.map((p) => [p.type, p]));
 
