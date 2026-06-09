@@ -7,13 +7,13 @@ export function getRedis(): Redis | null {
   if (client) return client;
   client = new Redis(process.env.REDIS_URL, {
     maxRetriesPerRequest: 1,
-    connectTimeout: 1000,
+    connectTimeout: 2000,
     commandTimeout: 500,
-    enableOfflineQueue: false,
-    retryStrategy: () => null, // don't retry — fail fast
+    retryStrategy: () => null, // don't retry on failure
   });
-  client.on('error', () => {
-    // Redis unavailable — fail silently, fall through to DB
+  client.on('error', (err) => {
+    // Redis unavailable — reset so next request gets a fresh client
+    console.error('[Redis] connection error, disabling cache:', err.message);
     client = null;
   });
   return client;
