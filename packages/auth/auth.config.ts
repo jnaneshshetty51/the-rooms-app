@@ -34,9 +34,8 @@ function verifyMagicToken(token: string, email: string): boolean {
 
 // Cookie name is configurable per-app so sessions don't collide across portals.
 // Fallback keeps backward compat with older deployments that don't set the var.
-const cookieName = `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}${
-  process.env.NEXTAUTH_COOKIE_NAME ?? "next-auth.session-token"
-}`
+const cookieName = `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}${process.env.NEXTAUTH_COOKIE_NAME ?? "next-auth.session-token"
+  }`
 
 // trustHost is set via the AUTH_TRUST_HOST env var (recommended for reverse-proxy
 // deployments). No code-level flag is needed — Auth.js v5 reads it automatically.
@@ -56,12 +55,10 @@ export const authConfig: NextAuthConfig = {
           if (!user || user.role !== "GUEST") return null
           if (!user.isActive) return null
 
-          // Production: token required. Dev fallback: allow without token.
-          if (token) {
-            if (!verifyMagicToken(token, email)) return null
-          } else if (process.env.NODE_ENV === "production") {
-            return null
-          }
+          // Token is ALWAYS required - no dev mode bypass
+          if (!token) return null
+
+          if (!verifyMagicToken(token, email)) return null
 
           await db.user.update({
             where: { id: user.id },

@@ -372,7 +372,7 @@ model Payment {
   booking        Booking      @relation(fields: [bookingId], references: [id])
   amount         Decimal      @db.Decimal(10, 2)
   method         PaymentMethod
-  transactionId  String?
+  transactionId  String?       @unique
   gatewayRef     String?
   gatewayResponse Json?
   status         PaymentStatus @default(PENDING)

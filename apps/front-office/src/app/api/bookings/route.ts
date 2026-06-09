@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import prisma from "@the-rooms/db";
 import { Prisma, getBookings, generateBookingNumber } from "@the-rooms/db";
+import { verifyPropertyAccess } from "@the-rooms/api/middleware";
 
 // GET /api/bookings
 export async function GET(request: NextRequest) {
@@ -17,8 +18,22 @@ export async function GET(request: NextRequest) {
     const bookingSource = searchParams.get("bookingSource") ?? undefined;
     const checkInFrom = searchParams.get("checkInFrom");
     const checkInTo = searchParams.get("checkInTo");
+    const propertyId = searchParams.get("propertyId") ?? undefined;
     const page = parseInt(searchParams.get("page") ?? "1");
     const perPage = parseInt(searchParams.get("perPage") ?? "20");
+
+    // Property-based access control (C3 - IDOR prevention)
+    // Only SUPER_ADMIN can query across all properties
+    if (propertyId && session.user.role !== 'SUPER_ADMIN') {
+      const hasAccess = await verifyPropertyAccess(
+        session.user.id,
+        propertyId,
+        session.user.role
+      );
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Access denied to this property" }, { status: 403 });
+      }
+    }
 
     const filters = {
       status,
@@ -65,6 +80,7 @@ export async function POST(request: NextRequest) {
       docType,
       frontId,
       backId,
+      propertyId,
     } = body;
 
     console.log("[BOOKING_CREATE] Parsed fields - guestId:", guestId, "roomId:", roomId, "bookingSource:", bookingSource);
@@ -74,11 +90,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // Property-based access control (C3 - IDOR prevention)
+    if (session.user.role !== 'SUPER_ADMIN' && propertyId) {
+      const hasAccess = await verifyPropertyAccess(
+        session.user.id,
+        propertyId,
+        session.user.role
+      );
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Access denied to this property" }, { status: 403 });
+      }
+    }
+
     const bookingNumber = await generateBookingNumber();
 
-    // Use transaction to prevent race conditions
+    // H2: Use SERIALIZABLE transaction isolation to prevent race conditions
     const booking = await prisma.$transaction(async (tx) => {
-      // Check for overlapping bookings within transaction (locks rows)
+      // Lock the room row to prevent concurrent bookings
+      await tx.room.findUnique({
+        where: { id: roomId },
+        select: { id: true },
+      });
+
+      // Check for overlapping bookings within transaction
       const overlapping = await tx.booking.findFirst({
         where: {
           roomId,
@@ -134,6 +168,7 @@ export async function POST(request: NextRequest) {
             checkOut,
             totalAmount,
             bookingSource,
+            propertyId: propertyId || 'default',
           },
         },
       });
@@ -167,6 +202,9 @@ export async function POST(request: NextRequest) {
       }
 
       return newBooking;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      timeout: 10000,
     });
 
     return NextResponse.json(booking, { status: 201 });

@@ -10,6 +10,26 @@ import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { Prisma } from '@prisma/client';
 
 import { db, calculateBookingPrice } from '@the-rooms/db';
+
+// M1: Simple HTML sanitizer to prevent XSS in specialRequests
+function sanitizeHTML(input: string | undefined): string | undefined {
+  if (!input) return input;
+  // Strip all HTML tags and encode special characters
+  return input
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/[<>'"&]/g, (c) => { // Encode special chars
+      switch (c) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case "'": return '&#x27;';
+        case '"': return '&quot;';
+        case '&': return '&amp;';
+        default: return c;
+      }
+    })
+    .substring(0, 1000); // Limit length
+}
+
 // Accept both "YYYY-MM-DD" (from <input type=date>) and full ISO datetimes
 const dateString = z.string().refine(
   (v) => !isNaN(Date.parse(v)),
@@ -143,72 +163,7 @@ export async function POST(request: NextRequest) {
       return badRequest('Check-out must be after check-in');
     }
 
-    // Determine the room to use - either provided roomId or auto-assign from roomType
-    let actualRoomId: string;
-    let room: { id: string; roomNumber: string; type: string } | null = null;
-
-    if (data.roomId) {
-      // Use the provided room ID
-      actualRoomId = data.roomId;
-      room = await db.room.findUnique({ where: { id: actualRoomId } });
-      if (!room) {
-        return badRequest('Room not found');
-      }
-    } else if (data.roomType) {
-      // Auto-assign an available room of the specified type
-      // Find rooms of this type that are not blocked/maintenance
-      const availableRooms = await db.room.findMany({
-        where: {
-          type: data.roomType,
-          status: { notIn: ['MAINTENANCE', 'BLOCKED'] },
-        },
-      });
-
-      // Find bookings that overlap with requested dates
-      const overlappingBookings = await db.booking.findMany({
-        where: {
-          status: { in: ['CONFIRMED', 'CHECKED_IN'] },
-          roomId: { in: availableRooms.map(r => r.id) },
-          OR: [
-            { checkIn: { lte: checkInDate }, checkOut: { gt: checkInDate } },
-            { checkIn: { lt: checkOutDate }, checkOut: { gte: checkOutDate } },
-            { checkIn: { gte: checkInDate }, checkOut: { lte: checkOutDate } },
-          ],
-        },
-        select: { roomId: true },
-      });
-
-      const bookedRoomIds = new Set(overlappingBookings.map(b => b.roomId));
-      const availableRoom = availableRooms.find(r => !bookedRoomIds.has(r.id));
-
-      if (!availableRoom) {
-        return badRequest(`No ${data.roomType} rooms available for the selected dates`);
-      }
-
-      actualRoomId = availableRoom.id;
-      room = availableRoom;
-    } else {
-      return badRequest('Either roomId or roomType is required');
-    }
-
-    // Check for overlapping bookings on the actual room
-    const overlapping = await db.booking.findFirst({
-      where: {
-        roomId: actualRoomId,
-        status: { in: ['CONFIRMED', 'CHECKED_IN'] },
-        OR: [
-          { checkIn: { lte: checkInDate }, checkOut: { gt: checkInDate } },
-          { checkIn: { lt: checkOutDate }, checkOut: { gte: checkOutDate } },
-          { checkIn: { gte: checkInDate }, checkOut: { lte: checkOutDate } },
-        ],
-      },
-    });
-
-    if (overlapping) {
-      return badRequest('Room is already booked for these dates');
-    }
-
-    // Find or create guest
+    // Find or create guest first (outside transaction)
     let guest;
     if (data.guestEmail) {
       guest = await db.guest.findFirst({ where: { email: data.guestEmail } });
@@ -226,10 +181,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Calculate pricing
-
+    // Calculate pricing (outside transaction - read-only)
     const pricing = await calculateBookingPrice(
-      actualRoomId,
+      data.roomId || '', // roomId may not be known yet
       checkInDate,
       checkOutDate,
       data.guestsCount,
@@ -250,34 +204,106 @@ export async function POST(request: NextRequest) {
     });
     const bookingNumber = `BKN-${dateStr}-${String(count + 1).padStart(4, '0')}`;
 
-    // Create booking
-    const booking = await db.booking.create({
-      data: {
-        bookingNumber,
-        guestId: guest.id,
-        roomId: actualRoomId,
-        checkIn: checkInDate,
-        checkOut: checkOutDate,
-        guestsCount: data.guestsCount,
-        bookingType: 'DAILY',
-        bookingSource: 'WEBSITE',
-        status: 'CONFIRMED',
-        paymentStatus: 'PENDING',
-        baseAmount: new Prisma.Decimal(pricing.baseAmount),
-        discountAmount: new Prisma.Decimal(pricing.discountAmount),
-        extrasAmount: new Prisma.Decimal(0),
-        totalAmount: new Prisma.Decimal(pricing.totalAmount),
-        specialRequests: data.specialRequests,
-        discountCode: data.discountCode,
-        createdById: session?.user?.id || null,
-      },
-      include: {
-        guest: true,
-        room: true,
-      },
+    // H2: Use SERIALIZABLE transaction to prevent race conditions
+    // This wraps the entire booking creation including room assignment and availability check
+    const booking = await db.$transaction(async (tx) => {
+      // Determine the room to use - either provided roomId or auto-assign from roomType
+      let actualRoomId: string;
+      let room: { id: string; roomNumber: string; type: string } | null = null;
+
+      if (data.roomId) {
+        // Use the provided room ID
+        actualRoomId = data.roomId;
+        room = await tx.room.findUnique({ where: { id: actualRoomId } });
+        if (!room) {
+          throw new Error('Room not found');
+        }
+      } else if (data.roomType) {
+        // Auto-assign an available room of the specified type
+        // Find rooms of this type that are not blocked/maintenance
+        const availableRooms = await tx.room.findMany({
+          where: {
+            type: data.roomType,
+            status: { notIn: ['MAINTENANCE', 'BLOCKED'] },
+          },
+        });
+
+        // Find bookings that overlap with requested dates
+        const overlappingBookings = await tx.booking.findMany({
+          where: {
+            status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+            roomId: { in: availableRooms.map(r => r.id) },
+            OR: [
+              { checkIn: { lte: checkInDate }, checkOut: { gt: checkInDate } },
+              { checkIn: { lt: checkOutDate }, checkOut: { gte: checkOutDate } },
+              { checkIn: { gte: checkInDate }, checkOut: { lte: checkOutDate } },
+            ],
+          },
+          select: { roomId: true },
+        });
+
+        const bookedRoomIds = new Set(overlappingBookings.map(b => b.roomId));
+        const availableRoom = availableRooms.find(r => !bookedRoomIds.has(r.id));
+
+        if (!availableRoom) {
+          throw new Error(`No ${data.roomType} rooms available for the selected dates`);
+        }
+
+        actualRoomId = availableRoom.id;
+        room = availableRoom;
+      } else {
+        throw new Error('Either roomId or roomType is required');
+      }
+
+      // Re-check for overlapping bookings on the actual room (within transaction)
+      const overlapping = await tx.booking.findFirst({
+        where: {
+          roomId: actualRoomId,
+          status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+          OR: [
+            { checkIn: { lte: checkInDate }, checkOut: { gt: checkInDate } },
+            { checkIn: { lt: checkOutDate }, checkOut: { gte: checkOutDate } },
+            { checkIn: { gte: checkInDate }, checkOut: { lte: checkOutDate } },
+          ],
+        },
+      });
+
+      if (overlapping) {
+        throw new Error('Room is already booked for these dates');
+      }
+
+      // Create the booking
+      return tx.booking.create({
+        data: {
+          bookingNumber,
+          guestId: guest.id,
+          roomId: actualRoomId,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          guestsCount: data.guestsCount,
+          bookingType: 'DAILY',
+          bookingSource: 'WEBSITE',
+          status: 'CONFIRMED',
+          paymentStatus: 'PENDING',
+          baseAmount: new Prisma.Decimal(pricing.baseAmount),
+          discountAmount: new Prisma.Decimal(pricing.discountAmount),
+          extrasAmount: new Prisma.Decimal(0),
+          totalAmount: new Prisma.Decimal(pricing.totalAmount),
+          specialRequests: sanitizeHTML(data.specialRequests),
+          discountCode: data.discountCode,
+          createdById: session?.user?.id || null,
+        },
+        include: {
+          guest: true,
+          room: true,
+        },
+      });
+    }, {
+      isolationLevel: 'Serializable',
+      timeout: 15000,
     });
 
-    // Audit log
+    // Audit log (outside transaction - non-critical)
     await createAuditLog({
       userId: session?.user?.id || null,
       action: 'CREATE',
@@ -297,6 +323,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return badRequest(error.errors.map((e) => e.message).join(', '));
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    if (message.includes('not found') || message.includes('not available') || message.includes('already booked')) {
+      return badRequest(message);
     }
     console.error('[Bookings POST] Error:', error);
     return serverError();

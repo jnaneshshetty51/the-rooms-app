@@ -12,6 +12,25 @@ import { Prisma } from '@prisma/client';
 
 import { db, calculateBookingPrice } from '@the-rooms/db';
 
+// M1: Simple HTML sanitizer to prevent XSS in specialRequests
+function sanitizeHTML(input: string | undefined): string | undefined {
+  if (!input) return input;
+  // Strip all HTML tags and encode special characters
+  return input
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/[<>'"&]/g, (c) => { // Encode special chars
+      switch (c) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case "'": return '&#x27;';
+        case '"': return '&quot;';
+        case '&': return '&amp;';
+        default: return c;
+      }
+    })
+    .substring(0, 1000); // Limit length
+}
+
 const UpdateBookingSchema = z.object({
   checkIn: z.string().datetime().optional(),
   checkOut: z.string().datetime().optional(),
@@ -106,7 +125,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       updateData.guestsCount = data.guestsCount;
     }
     if (data.specialRequests !== undefined) {
-      updateData.specialRequests = data.specialRequests;
+      updateData.specialRequests = sanitizeHTML(data.specialRequests);
     }
     if (data.status) {
       updateData.status = data.status;
@@ -137,7 +156,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // Recalculate pricing if dates changed
     if (data.checkIn || data.checkOut) {
-      
+
       const newCheckIn = data.checkIn ? new Date(data.checkIn) : existing.checkIn;
       const newCheckOut = data.checkOut ? new Date(data.checkOut) : existing.checkOut;
       const newGuests = data.guestsCount ?? existing.guestsCount;

@@ -6,6 +6,27 @@ import { db } from "@the-rooms/db"
 
 const schema = z.object({ email: z.string().email() })
 
+// H3: Simple in-memory rate limiter (5 requests per minute per IP)
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 1000 }
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now()
+  const record = rateLimitStore.get(ip)
+
+  if (!record || now > record.resetAt) {
+    rateLimitStore.set(ip, { count: 1, resetAt: now + RATE_LIMIT.windowMs })
+    return { allowed: true }
+  }
+
+  if (record.count >= RATE_LIMIT.maxRequests) {
+    return { allowed: false, retryAfter: Math.ceil((record.resetAt - now) / 1000) }
+  }
+
+  record.count++
+  return { allowed: true }
+}
+
 function generateToken(email: string): string {
   const secret = process.env.NEXTAUTH_SECRET
   if (!secret) throw new Error("NEXTAUTH_SECRET not configured")
@@ -18,6 +39,25 @@ function generateToken(email: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // H3: Rate limiting to prevent brute force attacks
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      ?? request.headers.get('x-real-ip')
+      ?? 'unknown'
+
+    const rateLimitResult = checkRateLimit(clientIp)
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimitResult.retryAfter ?? 60),
+          }
+        }
+      )
+    }
+
     const body = await request.json()
     const parsed = schema.safeParse(body)
     if (!parsed.success) {
