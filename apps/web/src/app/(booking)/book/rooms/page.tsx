@@ -7,52 +7,60 @@ import { Check, ArrowRight } from "lucide-react";
 import { cn } from "@the-rooms/ui";
 import { useBookingStore } from "@/stores/bookingStore";
 
-interface Room {
-  id: string;
-  roomNumber: string;
+interface RoomType {
   type: "STUDIO" | "PREMIUM";
+  title: string;
+  description: string;
+  features: string[];
+  availableCount: number;
   basePriceSingle: number;
   basePriceDouble: number;
-  features: string[];
+  monthlyPriceSingle: number;
+  monthlyPriceDouble: number;
   photos: string[];
 }
-
-// Removed MOCK_ROOMS
 
 function BookingRoomsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { checkIn, checkOut, guestsCount, roomType, selectRoom, setStep } = useBookingStore();
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [selectedRoomType, setSelectedRoomType] = useState<RoomType | null>(null);
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
 
   const checkInDate = searchParams.get("checkIn") || checkIn;
   const checkOutDate = searchParams.get("checkOut") || checkOut;
   const guests = Number(searchParams.get("guests") || guestsCount || 2);
   const filterType = searchParams.get("type") || roomType;
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!checkInDate || !checkOutDate) {
+      setRoomTypes([]);
+      setLoading(false);
+      return;
+    }
     async function fetchAvailability() {
       setLoading(true);
       try {
         const params = new URLSearchParams();
-        if (checkInDate) params.set("checkIn", checkInDate);
-        if (checkOutDate) params.set("checkOut", checkOutDate);
+        params.set("checkIn", checkInDate!);
+        params.set("checkOut", checkOutDate!);
         if (guests) params.set("guestsCount", String(guests));
-        if (filterType) params.set("type", filterType);
-        
+        if (filterType && filterType !== "MONTHLY") params.set("type", filterType);
+
         const res = await fetch(`/api/availability?${params.toString()}`);
         const data = await res.json();
-        
+
         if (res.ok && data.data) {
-          setRooms(data.data);
+          setRoomTypes(data.data);
         } else {
           console.error("Failed to fetch rooms:", data.error);
+          setRoomTypes([]);
         }
       } catch (err) {
         console.error("Error fetching availability:", err);
+        setRoomTypes([]);
       } finally {
         setLoading(false);
       }
@@ -60,14 +68,16 @@ function BookingRoomsPageContent() {
     fetchAvailability();
   }, [checkInDate, checkOutDate, guests, filterType]);
 
-  const handleSelect = (room: Room) => {
-    setSelectedRoom(room);
+  const handleSelect = (roomType: RoomType) => {
+    setSelectedRoomType(roomType);
   };
 
   const handleContinue = () => {
-    if (!selectedRoom) return;
-    const price = guests > 1 ? selectedRoom.basePriceDouble : selectedRoom.basePriceSingle;
-    selectRoom(selectedRoom.id, selectedRoom.roomNumber, price);
+    if (!selectedRoomType) return;
+    // Store the room type info - we'll auto-assign a room at booking time
+    // Use type as the "room number" for display purposes
+    const price = guests > 1 ? selectedRoomType.basePriceDouble : selectedRoomType.basePriceSingle;
+    selectRoom(selectedRoomType.type, selectedRoomType.title, price);
     setStep(3);
     router.push("/book/details");
   };
@@ -87,7 +97,7 @@ function BookingRoomsPageContent() {
         {filterType && <span><strong>Type:</strong> {filterType}</span>}
       </div>
 
-      {/* Room list */}
+      {/* Room type list */}
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-12 text-muted">
@@ -97,19 +107,24 @@ function BookingRoomsPageContent() {
             </svg>
             <p className="text-lg">Finding available rooms...</p>
           </div>
-        ) : rooms.length === 0 ? (
+        ) : !checkInDate || !checkOutDate ? (
+          <div className="text-center py-12 text-muted">
+            <p className="text-lg font-medium text-gray-700">Select your dates to see available rooms</p>
+            <p className="text-sm mt-2">Go back to step 1 and choose check-in and check-out dates.</p>
+          </div>
+        ) : roomTypes.length === 0 ? (
           <div className="text-center py-12 text-muted">
             <p className="text-lg">No rooms found for the selected criteria.</p>
             <p className="text-sm mt-2">Try adjusting your dates or room type.</p>
           </div>
         ) : (
-          rooms.map((room) => {
-            const price = guests > 1 ? room.basePriceDouble : room.basePriceSingle;
-            const isSelected = selectedRoom?.id === room.id;
+          roomTypes.map((roomType) => {
+            const price = guests > 1 ? roomType.basePriceDouble : roomType.basePriceSingle;
+            const isSelected = selectedRoomType?.type === roomType.type;
             return (
               <div
-                key={room.id}
-                onClick={() => handleSelect(room)}
+                key={roomType.type}
+                onClick={() => handleSelect(roomType)}
                 className={cn(
                   "bg-white rounded-xl border overflow-hidden cursor-pointer transition-all",
                   isSelected
@@ -118,55 +133,52 @@ function BookingRoomsPageContent() {
                 )}
               >
                 <div className="flex flex-col sm:flex-row">
-                  {/* Photo */}
-                  <div className="sm:w-48 h-32 sm:h-auto relative shrink-0">
+                  {/* Room image */}
+                  <div className="relative h-48 sm:h-auto sm:w-64 flex-shrink-0">
                     <Image
-                      src={room.photos[0]}
-                      alt={`Room ${room.roomNumber}`}
+                      src={roomType.photos[0] || "/room-placeholder.svg"}
+                      alt={roomType.title}
                       fill
                       className="object-cover"
                     />
-                  </div>
-                  {/* Content */}
-                  <div className="flex-1 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-heading font-bold text-lg text-primary">
-                            Room {room.roomNumber}
-                          </span>
-                          <span className={cn(
-                            "px-2 py-0.5 rounded text-xs font-bold",
-                            room.type === "STUDIO" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"
-                          )}>
-                            {room.type}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {room.features.map((f) => (
-                            <span key={f} className="px-2 py-0.5 bg-accent/60 rounded text-[10px] text-muted">
-                              {f}
-                            </span>
-                          ))}
-                        </div>
+                    {isSelected && (
+                      <div className="absolute top-3 right-3 bg-secondary text-white rounded-full p-1">
+                        <Check className="w-4 h-4" />
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-xl font-bold text-secondary">
-                          ₹{price.toLocaleString("en-IN")}
-                        </div>
-                        <div className="text-xs text-muted">per night</div>
-                        <div className="text-xs text-muted mt-0.5">
-                          ₹{(price * nights).toLocaleString("en-IN")} total
-                        </div>
+                    )}
+                  </div>
+
+                  {/* Room info */}
+                  <div className="flex-1 p-5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">{roomType.title}</h3>
+                        <p className="text-sm text-gray-500 mt-1">{roomType.description}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-secondary">₹{price.toLocaleString("en-IN")}</p>
+                        <p className="text-xs text-gray-500">per night</p>
                       </div>
                     </div>
 
-                    {isSelected && (
-                      <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-vacant">
-                        <Check className="w-4 h-4" />
-                        Room selected
-                      </div>
-                    )}
+                    {/* Features */}
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {roomType.features.map((feature) => (
+                        <span key={feature} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                          <Check className="w-3 h-3" /> {feature}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Availability */}
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <span className="text-sm text-gray-500">
+                        {roomType.availableCount} room{roomType.availableCount > 1 ? "s" : ""} available
+                      </span>
+                      <span className="text-sm font-medium text-secondary">
+                        {guests > 1 ? "Double Occupancy" : "Single Occupancy"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -175,25 +187,23 @@ function BookingRoomsPageContent() {
         )}
       </div>
 
-      {/* Continue */}
-      {selectedRoom && (
-        <div className="mt-6 bg-white rounded-xl border p-4 flex items-center justify-between gap-4">
-          <div>
-            <p className="font-semibold text-primary">
-              {selectedRoom.roomNumber} — {selectedRoom.type}
-            </p>
-            <p className="text-sm text-muted">
-              ₹{selectedRoom.basePriceDouble.toLocaleString("en-IN")} × {nights} nights
-              = <strong className="text-secondary">₹{(selectedRoom.basePriceDouble * nights).toLocaleString("en-IN")}</strong>
-            </p>
+      {/* Continue button */}
+      {selectedRoomType && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4">
+          <div className="max-w-2xl mx-auto flex gap-4">
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">{selectedRoomType.title}</p>
+              <p className="text-sm text-gray-500">
+                {nights} night{nights > 1 ? "s" : ""} × ₹{(guests > 1 ? selectedRoomType.basePriceDouble : selectedRoomType.basePriceSingle).toLocaleString("en-IN")}
+              </p>
+            </div>
+            <button
+              onClick={handleContinue}
+              className="flex items-center gap-2 bg-secondary text-white px-6 py-3 rounded-xl font-medium hover:bg-secondary/90 transition-colors"
+            >
+              Continue <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={handleContinue}
-            className="flex items-center gap-2 px-6 py-3 bg-secondary text-white font-semibold rounded-lg hover:bg-secondary/90 transition-colors shrink-0"
-          >
-            Continue
-            <ArrowRight className="w-4 h-4" />
-          </button>
         </div>
       )}
     </div>
@@ -202,7 +212,7 @@ function BookingRoomsPageContent() {
 
 export default function BookingRoomsPage() {
   return (
-    <Suspense fallback={<div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E17055] border-t-transparent" /></div>}>
+    <Suspense fallback={<div className="text-center py-12">Loading...</div>}>
       <BookingRoomsPageContent />
     </Suspense>
   );

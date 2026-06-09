@@ -62,8 +62,8 @@ async function getRoomTypes(): Promise<RoomTypeInfo[]> {
     if (rooms.length === 0) {
       // Return static data if no rooms in DB
       return [
-        { ...ROOM_TYPE_DATA.STUDIO, vacantCount: 18, totalCount: 18 },
-        { ...ROOM_TYPE_DATA.PREMIUM, vacantCount: 18, totalCount: 18 },
+        { ...ROOM_TYPE_DATA.STUDIO, vacantCount: 24, totalCount: 24 },
+        { ...ROOM_TYPE_DATA.PREMIUM, vacantCount: 12, totalCount: 12 },
       ];
     }
 
@@ -104,8 +104,8 @@ async function getRoomTypes(): Promise<RoomTypeInfo[]> {
   } catch {
     // DB not reachable - use static fallback
     return [
-      { ...ROOM_TYPE_DATA.STUDIO, vacantCount: 18, totalCount: 18 },
-      { ...ROOM_TYPE_DATA.PREMIUM, vacantCount: 18, totalCount: 18 },
+      { ...ROOM_TYPE_DATA.STUDIO, vacantCount: 24, totalCount: 24 },
+      { ...ROOM_TYPE_DATA.PREMIUM, vacantCount: 12, totalCount: 12 },
     ];
   }
 }

@@ -120,7 +120,7 @@ export function SiteFooter() {
         {/* Bottom bar */}
         <div className="mt-12 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-white/40">
-            © 2026 The Rooms. All rights reserved. GST: 29XXXXXXXXX1Z5
+            © 2026 The Rooms. All rights reserved.
           </p>
           <p className="text-xs text-white/30">
             Built with care in India
