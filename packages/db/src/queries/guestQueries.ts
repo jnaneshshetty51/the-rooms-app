@@ -397,10 +397,17 @@ export async function searchGuests(query: string) {
   return prisma.guest.findMany({
     where: {
       OR: [
-        { name: { contains: q, mode: "insensitive" } },
+        { name: { contains: q } },
         { phone: { contains: q } },
-        { email: { contains: q, mode: "insensitive" } },
+        { email: { contains: q } },
       ],
+    },
+    include: {
+      bookings: {
+        include: { room: { select: { roomNumber: true, type: true } } },
+        orderBy: { checkIn: "desc" },
+        take: 5,
+      },
     },
     take: 20,
     orderBy: { createdAt: "desc" },

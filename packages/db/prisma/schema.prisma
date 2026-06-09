@@ -7,6 +7,53 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ── Properties (Multi-property support) ─────────────────────────────────
+model Property {
+  id            String    @id @default(cuid())
+  name          String
+  code          String    @unique  // e.g., "THEROOMS-001"
+  address       String?
+  city          String?
+  state         String?
+  country       String    @default("India")
+  phone         String?
+  email         String?
+  timezone      String    @default("Asia/Kolkata")
+  currency      String    @default("INR")
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  rooms         Room[]
+  bookings      Booking[]
+  expenses      Expense[]
+  users         UserPropertyAccess[]
+
+  @@map("properties")
+}
+
+// User-Property Access (many-to-many)
+model UserPropertyAccess {
+  id         String   @id @default(cuid())
+  userId     String
+  propertyId String
+  role       PropertyRole @default(VIEWER)
+  createdAt  DateTime @default(now())
+
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, propertyId])
+  @@map("user_property_access")
+}
+
+enum PropertyRole {
+  VIEWER
+  STAFF
+  MANAGER
+  ADMIN
+}
+
 // ── Core Users & Auth ───────────────────────────────────────────────────
 model User {
   id            String    @id @default(cuid())
@@ -25,6 +72,7 @@ model User {
   createdAnnouncements Announcement[]
   expenses    Expense[]
   housekeepingTasks HousekeepingTask[]
+  propertyAccess UserPropertyAccess[]
 
   @@map("users")
 }
@@ -70,6 +118,7 @@ enum LoyaltyTier {
 // ── Rooms ────────────────────────────────────────────────────────────────────
 model Room {
   id                  String      @id @default(cuid())
+  propertyId          String      @default("default")
   roomNumber         String      @unique
   type              RoomType
   floor             Int
@@ -95,6 +144,7 @@ model Room {
   amenities     RoomAmenity[]
   bookings      Booking[]
   housekeepingTasks HousekeepingTask[]
+  property      Property    @relation(fields: [propertyId], references: [id])
 
   @@map("rooms")
 }
@@ -207,10 +257,12 @@ model RoomAmenity {
 model Booking {
   id              String        @id @default(cuid())
   bookingNumber   String        @unique
+  propertyId      String        @default("default")
   guestId        String
   guest          Guest         @relation(fields: [guestId], references: [id])
   roomId         String
   room           Room          @relation(fields: [roomId], references: [id])
+  property       Property      @relation(fields: [propertyId], references: [id])
 
   checkIn        DateTime
   checkOut       DateTime
@@ -469,6 +521,7 @@ enum ExpenseCategory {
 
 model Expense {
   id          String          @id @default(cuid())
+  propertyId  String          @default("default")
   description String
   amount      Decimal         @db.Decimal(12, 2)
   category    ExpenseCategory
@@ -477,6 +530,7 @@ model Expense {
   receiptUrl  String?
   createdById String?
   createdBy   User?           @relation(fields: [createdById], references: [id])
+  property    Property        @relation(fields: [propertyId], references: [id])
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 

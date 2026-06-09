@@ -62,6 +62,9 @@ export async function POST(request: NextRequest) {
       extrasAmount = 0,
       totalAmount,
       complimentaryReason,
+      docType,
+      frontId,
+      backId,
     } = body;
 
     console.log("[BOOKING_CREATE] Parsed fields - guestId:", guestId, "roomId:", roomId, "bookingSource:", bookingSource);
@@ -134,6 +137,34 @@ export async function POST(request: NextRequest) {
           },
         },
       });
+
+      // Create guest document if provided
+      if (frontId && docType) {
+        await tx.guestDocument.create({
+          data: {
+            guestId,
+            bookingId: newBooking.id,
+            documentType: docType,
+            frontUrl: frontId,
+            backUrl: backId || null,
+            uploadedById: (session.user as { id?: string }).id,
+          },
+        });
+
+        // Audit log for document upload
+        await tx.auditLog.create({
+          data: {
+            userId: (session.user as { id?: string }).id,
+            bookingId: newBooking.id,
+            action: "DOCUMENT_UPLOADED",
+            entity: "guestDocument",
+            entityId: newBooking.id,
+            metadata: {
+              documentType: docType,
+            },
+          },
+        });
+      }
 
       return newBooking;
     });

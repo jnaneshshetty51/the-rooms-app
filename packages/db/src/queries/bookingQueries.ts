@@ -1,5 +1,6 @@
 import prisma from '../index';
 import { Prisma } from '@prisma/client';
+import { hasDateOverlap } from '../config';
 
 export type BookingFilters = {
   status?: string;
@@ -216,9 +217,67 @@ export async function cancelBooking(id: string, reason: string) {
 }
 
 /**
- * Check if a room is available for a date range
+ * Check if a room is available for a date range.
+ * Uses transaction with row-level locking to prevent race conditions.
+ * 
+ * @param roomId - The room to check
+ * @param checkIn - Check-in date
+ * @param checkOut - Check-out date
+ * @param excludeBookingId - Optional booking ID to exclude (for modifications)
+ * @returns true if room is available
  */
-export async function isRoomAvailable(roomId: string, checkIn: Date, checkOut: Date) {
+export async function isRoomAvailable(
+  roomId: string,
+  checkIn: Date,
+  checkOut: Date,
+  excludeBookingId?: string
+): Promise<boolean> {
+  // Use a transaction with serializable isolation to prevent race conditions
+  return prisma.$transaction(async (tx) => {
+    // Lock the room row to prevent concurrent bookings
+    const room = await tx.room.findUnique({
+      where: { id: roomId },
+      select: { id: true },
+    });
+
+    if (!room) {
+      throw new Error(`Room not found: ${roomId}`);
+    }
+
+    // Build the where clause
+    const whereClause: Prisma.BookingWhereInput = {
+      roomId,
+      status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+      checkIn: { lt: checkOut },
+      checkOut: { gt: checkIn },
+    };
+
+    // Exclude the current booking if updating
+    if (excludeBookingId) {
+      whereClause.id = { not: excludeBookingId };
+    }
+
+    // Count conflicting bookings
+    const conflicting = await tx.booking.count({
+      where: whereClause,
+    });
+
+    return conflicting === 0;
+  }, {
+    isolationLevel: 'Serializable',
+    timeout: 10000,
+  });
+}
+
+/**
+ * Alternative: Check availability without transaction (for read-only queries)
+ * Use this when you just need to display availability, not for booking.
+ */
+export async function isRoomAvailableReadOnly(
+  roomId: string,
+  checkIn: Date,
+  checkOut: Date
+): Promise<boolean> {
   const conflicting = await prisma.booking.count({
     where: {
       roomId,

@@ -154,7 +154,10 @@ function NewBookingPageContent() {
           bookingSource,
           baseAmount: pricing.basePrice,
           totalAmount: pricing.total,
-          complimentaryReason: isComplimentary ? form.complimentaryReason : undefined
+          complimentaryReason: isComplimentary ? form.complimentaryReason : undefined,
+          docType: form.docType,
+          frontId: form.frontId,
+          backId: form.backId,
         })
       });
       if (!bookingRes.ok) throw new Error("Failed to create booking");

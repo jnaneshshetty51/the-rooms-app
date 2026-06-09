@@ -16,10 +16,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ guests: [] });
     }
 
+    console.log("Searching guests with query:", query);
     const guests = await searchGuests(query);
+    console.log("Found guests:", guests.length);
     return NextResponse.json({ guests });
   } catch (error) {
     console.error("Error searching guests:", error);
-    return NextResponse.json({ error: "Failed to search guests" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to search guests", details: String(error) }, { status: 500 });
   }
 }

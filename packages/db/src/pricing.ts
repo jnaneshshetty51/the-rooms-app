@@ -4,6 +4,12 @@
 import { prisma as db } from '@the-rooms/db';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import {
+  PRICING_CONFIG,
+  calculateNights,
+  shouldUseMonthlyRate,
+  calculateExtraGuestCharge,
+} from './config';
 
 export type PriceBreakdown = {
   baseAmount: Prisma.Decimal;
@@ -19,9 +25,6 @@ export type PriceBreakdown = {
   rateLabel: string;
   extraGuestCharge: Prisma.Decimal;
 };
-
-const GST_RATE = 0.18;
-const EXTRA_GUEST_RATE_DAILY = 500; // ₹500 per extra guest per night for daily bookings
 
 /**
  * Calculate total price for a booking.
@@ -40,14 +43,11 @@ export async function calculatePrice(
   const room = await db.room.findUnique({ where: { id: roomId } });
   if (!room) throw new Error(`Room not found: ${roomId}`);
 
-  const nights = Math.max(
-    1,
-    Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24))
-  );
+  const nights = calculateNights(checkIn, checkOut);
 
   let baseAmount: Prisma.Decimal;
   let rateLabel: string;
-  const isMonthly = (bookingType === 'MONTHLY' || nights >= 28) && room.type === 'STUDIO';
+  const isMonthly = shouldUseMonthlyRate(bookingType, room.type, nights);
 
   if (isMonthly) {
     baseAmount = guestsCount > 1
@@ -66,13 +66,12 @@ export async function calculatePrice(
   }
 
   // Extra guest charge: +₹500 per extra guest per night for DAILY only
-  // guestsCount > 2 means there are extra guests beyond the double occupancy (2)
-  let extraGuestCharge = new Decimal(0);
-  if (!isMonthly && guestsCount > 2) {
-    const extraGuests = guestsCount - 2;
-    extraGuestCharge = new Decimal(EXTRA_GUEST_RATE_DAILY).mul(extraGuests).mul(nights);
+  const extraGuestChargeValue = calculateExtraGuestCharge(guestsCount, nights, isMonthly);
+  let extraGuestCharge = new Decimal(extraGuestChargeValue);
+  if (extraGuestChargeValue > 0) {
     subtotal = subtotal.add(extraGuestCharge);
-    rateLabel += ` (+₹${EXTRA_GUEST_RATE_DAILY}/night × ${extraGuests} extra guest${extraGuests > 1 ? 's' : ''})`;
+    const extraGuests = guestsCount - PRICING_CONFIG.FREE_GUESTS_COUNT;
+    rateLabel += ` (+₹${PRICING_CONFIG.EXTRA_GUEST_RATE_DAILY}/night × ${extraGuests} extra guest${extraGuests > 1 ? 's' : ''})`;
   }
 
   // Apply discount if code is valid
@@ -99,8 +98,8 @@ export async function calculatePrice(
   const extrasAmount = new Decimal(0);
 
   // GST on accommodation (CGST + SGST split)
-  const cgst = subtotal.mul(GST_RATE / 2);
-  const sgst = subtotal.mul(GST_RATE / 2);
+  const cgst = subtotal.mul(PRICING_CONFIG.GST_RATE / 2);
+  const sgst = subtotal.mul(PRICING_CONFIG.GST_RATE / 2);
   const totalAmount = subtotal.add(cgst).add(sgst);
 
   const nightlyRate =
