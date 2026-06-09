@@ -23,16 +23,29 @@ export async function GET(request: NextRequest) {
     if (type) where.type = type as "STUDIO" | "PREMIUM";
     if (status) where.status = status as "VACANT" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED";
 
-    const rooms = await prisma.room.findMany({
-      where,
-      include: {
-        photos: { orderBy: { sortOrder: "asc" } },
-        amenities: { include: { amenity: true } },
-      },
-      orderBy: [{ floor: "asc" }, { roomNumber: "asc" }],
-    });
+    const prismaAny = prisma as unknown as Record<string, { findMany: (args: unknown) => Promise<unknown> }>;
+    const [rooms, rawProfiles] = await Promise.all([
+      prisma.room.findMany({
+        where,
+        include: { amenities: { include: { amenity: true } } },
+        orderBy: [{ floor: "asc" }, { roomNumber: "asc" }],
+      }),
+      prismaAny.roomTypeProfile.findMany({
+        include: { images: { orderBy: { sortOrder: "asc" }, take: 1 } },
+      }) as Promise<Array<{ type: string; images: { url: string }[] }>>,
+    ]);
 
-    return NextResponse.json({ rooms });
+    const typeThumbMap: Record<string, string> = {};
+    for (const p of rawProfiles) {
+      if (p.images[0]) typeThumbMap[p.type] = p.images[0].url;
+    }
+
+    const roomsWithThumbnail = rooms.map((r) => ({
+      ...r,
+      thumbnail: typeThumbMap[r.type] ?? null,
+    }));
+
+    return NextResponse.json({ rooms: roomsWithThumbnail });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal error";
     if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });

@@ -17,13 +17,6 @@ import { PageHeader, StatusBadge, Button, Dialog, Input, Select, SelectTrigger, 
 import { Card, CardContent, CardHeader, CardTitle } from "@the-rooms/ui";
 import { formatCurrency } from "@the-rooms/ui";
 
-interface RoomPhoto {
-  id: string;
-  url: string;
-  caption: string | null;
-  sortOrder: number;
-}
-
 interface Amenity {
   amenity: { id: string; name: string; icon: string };
 }
@@ -37,7 +30,7 @@ interface Room {
   description: string | null;
   basePriceSingle: string;
   basePriceDouble: string;
-  photos: RoomPhoto[];
+  thumbnail: string | null;
   amenities: Amenity[];
 }
 
@@ -185,11 +178,11 @@ export default function RoomsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((room) => (
             <Card key={room.id} className="overflow-hidden hover:shadow-md transition-shadow">
-              {/* Room photo / placeholder */}
+              {/* Room thumbnail — sourced from room type profile */}
               <div className="relative h-36 bg-muted">
-                {room.photos[0] ? (
+                {room.thumbnail ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={room.photos[0].url} alt={room.roomNumber} className="w-full h-full object-cover" />
+                  <img src={room.thumbnail} alt={room.roomNumber} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <ImageIcon className="h-10 w-10 text-muted-foreground/50" />

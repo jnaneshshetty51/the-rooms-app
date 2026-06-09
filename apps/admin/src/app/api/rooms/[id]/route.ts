@@ -19,13 +19,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const room = await prisma.room.findUnique({
       where: { id },
       include: {
-        photos: { orderBy: { sortOrder: "asc" } },
         amenities: { include: { amenity: true } },
         bookings: {
           where: { status: { in: ["CONFIRMED", "CHECKED_IN"] } },
-          include: {
-            guest: { select: { name: true, phone: true } },
-          },
+          include: { guest: { select: { name: true, phone: true } } },
           orderBy: { checkIn: "asc" },
         },
       },
@@ -66,10 +63,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const room = await prisma.room.update({
       where: { id },
       data: updateData,
-      include: {
-        photos: { orderBy: { sortOrder: "asc" } },
-        amenities: { include: { amenity: true } },
-      },
+      include: { amenities: { include: { amenity: true } } },
     });
 
     return NextResponse.json({ room });

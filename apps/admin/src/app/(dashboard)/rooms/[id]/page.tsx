@@ -8,20 +8,11 @@ import {
   Save,
   Plus,
   Trash2,
-  GripVertical,
   ImageIcon,
-  Upload,
 } from "lucide-react";
 import { Button, StatusBadge, Input, Select, SelectTrigger, SelectContent, SelectValue, Badge } from "@the-rooms/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@the-rooms/ui";
 import { PageHeader } from "@the-rooms/ui";
-
-interface RoomPhoto {
-  id: string;
-  url: string;
-  caption: string | null;
-  sortOrder: number;
-}
 
 interface Amenity {
   amenity: { id: string; name: string; icon: string };
@@ -41,7 +32,6 @@ interface Room {
   monthlyPriceSingle: string | null;
   monthlyPriceDouble: string | null;
   internalNotes: string | null;
-  photos: RoomPhoto[];
   amenities: Amenity[];
 }
 
@@ -51,7 +41,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [form, setForm] = useState({
     roomNumber: "",
@@ -114,42 +103,6 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     } finally {
       setSaving(false);
     }
-  }
-
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingPhoto(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      await fetch(`/api/rooms/${id}/photos`, { method: "POST", body: fd });
-      // Refresh room
-      const res = await fetch(`/api/rooms/${id}`);
-      const data = await res.json();
-      setRoom(data.room);
-    } finally {
-      setUploadingPhoto(false);
-    }
-  }
-
-  async function handleDeletePhoto(photoId: string) {
-    await fetch(`/api/rooms/${id}/photos?photoId=${photoId}`, { method: "DELETE" });
-    const res = await fetch(`/api/rooms/${id}`);
-    const data = await res.json();
-    setRoom(data.room);
-  }
-
-  async function handleUpdateCaption(photoId: string, caption: string) {
-    await fetch(`/api/rooms/${id}/photos`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ photoId, caption }),
-    });
-    const res = await fetch(`/api/rooms/${id}`);
-    const data = await res.json();
-    setRoom(data.room);
   }
 
   if (loading) {
@@ -336,73 +289,28 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
           </Card>
         </div>
 
-        {/* Sidebar — Photos */}
+        {/* Sidebar — Type Images Info */}
         <div className="space-y-6">
-          <Card>
+          <Card className="border-blue-200 bg-blue-50">
             <CardHeader>
               <CardTitle className="font-heading text-lg flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                Photos
+                <ImageIcon className="h-4 w-4 text-blue-600" />
+                Room Photos
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {/* Upload */}
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  id="photo-upload"
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                  onChange={handlePhotoUpload}
-                  disabled={uploadingPhoto}
-                />
-                <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-4 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer">
-                  <Upload className="h-4 w-4" />
-                  {uploadingPhoto ? "Uploading…" : "Upload Photo"}
-                </div>
-              </div>
-
-              {/* Photo grid */}
-              {room.photos.length === 0 ? (
-                <div className="text-center py-6">
-                  <ImageIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">No photos yet</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {room.photos.map((photo, idx) => (
-                    <div key={photo.id} className="relative group rounded-lg overflow-hidden border">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={photo.url}
-                        alt={photo.caption ?? `Photo ${idx + 1}`}
-                        className="w-full h-32 object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <GripVertical className="h-4 w-4 text-white cursor-grab" />
-                        <button
-                          className="text-white/80 hover:text-white text-xs underline"
-                          onClick={() => {
-                            const caption = prompt("Caption:", photo.caption ?? "");
-                            if (caption !== null) handleUpdateCaption(photo.id, caption);
-                          }}
-                        >
-                          Edit Caption
-                        </button>
-                        <button
-                          className="text-red-400 hover:text-red-300 text-xs underline"
-                          onClick={() => handleDeletePhoto(photo.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                      {photo.caption && (
-                        <p className="text-xs text-center py-1 bg-muted">{photo.caption}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <p className="text-sm text-blue-800">
+                Photos are shared across all <strong>{room.type === "STUDIO" ? "Studio" : "Premium"}</strong> rooms. Upload or manage images from the Room Types page — they apply to every room of this type automatically.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full border-blue-300 text-blue-700 hover:bg-blue-100"
+                onClick={() => router.push("/room-types")}
+              >
+                <ImageIcon className="h-3.5 w-3.5 mr-1.5" />
+                Manage {room.type === "STUDIO" ? "Studio" : "Premium"} Photos
+              </Button>
             </CardContent>
           </Card>
 

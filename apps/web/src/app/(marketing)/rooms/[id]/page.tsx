@@ -8,8 +8,8 @@ import RoomGallery from "./RoomGallery";
 
 export const revalidate = 60;
 
-// Room type definitions
-const ROOM_TYPE_INFO = {
+// Fallback content when RoomTypeProfile has no data yet
+const ROOM_TYPE_FALLBACK = {
   STUDIO: {
     description: "A thoughtfully designed Studio room with premium amenities. Features a comfortable queen-size bed, dedicated work desk with high-speed WiFi, split AC, and a modern bathroom with hot water.",
     features: ["WiFi 100 Mbps", "Split AC", "Hot Water 24/7", "Work Desk", "Queen Bed", "Electronic Safe", "Smart TV"],
@@ -20,55 +20,50 @@ const ROOM_TYPE_INFO = {
   },
 };
 
+type RoomTypeProfile = {
+  title: string;
+  description: string | null;
+  features: string[];
+  images: { url: string }[];
+};
+
 async function getRoomTypeData(type: "STUDIO" | "PREMIUM") {
   try {
-    const rooms = await db.room.findMany({
-      where: { type },
-      include: {
-        photos: { orderBy: { sortOrder: "asc" } },
-        amenities: { include: { amenity: true } },
-      },
-    });
+    const dbAny = db as unknown as Record<string, { findUnique: (args: unknown) => Promise<unknown> }>;
+    const [rooms, profile] = await Promise.all([
+      db.room.findMany({
+        where: { type },
+        select: { status: true, basePriceSingle: true, basePriceDouble: true },
+      }),
+      dbAny.roomTypeProfile.findUnique({
+        where: { type },
+        include: { images: { orderBy: { sortOrder: "asc" } } },
+      }) as Promise<RoomTypeProfile | null>,
+    ]);
 
-    if (rooms.length === 0) {
-      // Return static data if no rooms in DB
-      return {
-        basePriceSingle: type === "STUDIO" ? 999 : 1999,
-        basePriceDouble: type === "STUDIO" ? 1799 : 2999,
-        description: ROOM_TYPE_INFO[type].description,
-        features: ROOM_TYPE_INFO[type].features,
-        photos: [`/room-placeholder.svg`],
-        vacantCount: type === "STUDIO" ? 18 : 18,
-        totalCount: type === "STUDIO" ? 18 : 18,
-      };
-    }
-
-    // Get sample room for pricing and amenities
+    const fallback = ROOM_TYPE_FALLBACK[type];
     const sampleRoom = rooms[0];
     const vacantCount = rooms.filter((r) => r.status === "VACANT").length;
 
-    // Collect all unique photos from all rooms of this type
-    const allPhotos = rooms.flatMap((r) => r.photos.map((p) => p.url));
-    const uniquePhotos = [...new Set(allPhotos)];
-
     return {
-      basePriceSingle: sampleRoom.basePriceSingle.toNumber(),
-      basePriceDouble: sampleRoom.basePriceDouble.toNumber(),
-      description: ROOM_TYPE_INFO[type].description,
-      features: sampleRoom.amenities.map((a) => a.amenity.name),
-      photos: uniquePhotos.length > 0 ? uniquePhotos : [`/room-placeholder.svg`],
+      basePriceSingle: sampleRoom?.basePriceSingle.toNumber() ?? (type === "STUDIO" ? 999 : 1999),
+      basePriceDouble: sampleRoom?.basePriceDouble.toNumber() ?? (type === "STUDIO" ? 1799 : 2999),
+      description: profile?.description ?? fallback.description,
+      features: profile?.features?.length ? profile.features : fallback.features,
+      photos: profile?.images?.length ? profile.images.map((i) => i.url) : ["/room-placeholder.svg"],
       vacantCount,
       totalCount: rooms.length,
     };
   } catch {
+    const fallback = ROOM_TYPE_FALLBACK[type];
     return {
       basePriceSingle: type === "STUDIO" ? 999 : 1999,
       basePriceDouble: type === "STUDIO" ? 1799 : 2999,
-      description: ROOM_TYPE_INFO[type].description,
-      features: ROOM_TYPE_INFO[type].features,
-      photos: [`/room-placeholder.svg`],
-      vacantCount: 18,
-      totalCount: 18,
+      description: fallback.description,
+      features: fallback.features,
+      photos: ["/room-placeholder.svg"],
+      vacantCount: type === "STUDIO" ? 24 : 12,
+      totalCount: type === "STUDIO" ? 24 : 12,
     };
   }
 }
