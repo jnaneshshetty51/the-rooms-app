@@ -50,28 +50,33 @@ interface RoomTypeInfo {
 
 async function getRoomTypes(): Promise<RoomTypeInfo[]> {
   try {
-    // Get all rooms grouped by type
-    const rooms = await db.room.findMany({
-      include: {
-        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-        amenities: { include: { amenity: true }, take: 5 },
-      },
-      orderBy: [{ type: "asc" }, { roomNumber: "asc" }],
-    });
+    type TypeProfile = { type: string; description: string | null; features: string[]; images: { url: string }[] };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbAny = db as any;
+    const [rooms, typeProfiles]: [
+      Array<{ type: string; status: string; basePriceSingle: { toNumber(): number }; basePriceDouble: { toNumber(): number } }>,
+      TypeProfile[]
+    ] = await Promise.all([
+      db.room.findMany({
+        select: { type: true, status: true, basePriceSingle: true, basePriceDouble: true },
+        orderBy: [{ type: "asc" as const }, { roomNumber: "asc" as const }],
+      }) as Promise<Array<{ type: string; status: string; basePriceSingle: { toNumber(): number }; basePriceDouble: { toNumber(): number } }>>,
+      dbAny.roomTypeProfile.findMany({
+        include: { images: { orderBy: { sortOrder: "asc" } } },
+      }) as Promise<TypeProfile[]>,
+    ]);
+
+    const profileMap = Object.fromEntries(typeProfiles.map((p) => [p.type, p]));
 
     if (rooms.length === 0) {
-      // Return static data if no rooms in DB
       return [
         { ...ROOM_TYPE_DATA.STUDIO, vacantCount: 24, totalCount: 24 },
         { ...ROOM_TYPE_DATA.PREMIUM, vacantCount: 12, totalCount: 12 },
       ];
     }
 
-    // Group rooms by type and calculate aggregate data
     const studioRooms = rooms.filter((r) => r.type === "STUDIO");
     const premiumRooms = rooms.filter((r) => r.type === "PREMIUM");
-
-    // Get a sample room for each type to get shared images and features
     const studioSample = studioRooms[0];
     const premiumSample = premiumRooms[0];
 
@@ -82,9 +87,11 @@ async function getRoomTypes(): Promise<RoomTypeInfo[]> {
         type: "STUDIO" as const,
         basePriceSingle: studioSample.basePriceSingle.toNumber(),
         basePriceDouble: studioSample.basePriceDouble.toNumber(),
-        features: studioSample.amenities.map((a) => a.amenity.name),
-        image: studioSample.photos[0]?.url ?? `/room-placeholder.svg`,
-        description: ROOM_TYPE_DATA.STUDIO.description,
+        features: profileMap["STUDIO"]?.features?.length
+          ? profileMap["STUDIO"].features
+          : ROOM_TYPE_DATA.STUDIO.features,
+        image: profileMap["STUDIO"]?.images[0]?.url ?? `/room-placeholder.svg`,
+        description: profileMap["STUDIO"]?.description ?? ROOM_TYPE_DATA.STUDIO.description,
         vacantCount: studioRooms.filter((r) => r.status === "VACANT").length,
         totalCount: studioRooms.length,
       },
@@ -94,15 +101,16 @@ async function getRoomTypes(): Promise<RoomTypeInfo[]> {
         type: "PREMIUM" as const,
         basePriceSingle: premiumSample.basePriceSingle.toNumber(),
         basePriceDouble: premiumSample.basePriceDouble.toNumber(),
-        features: premiumSample.amenities.map((a) => a.amenity.name),
-        image: premiumSample.photos[0]?.url ?? `/room-placeholder.svg`,
-        description: ROOM_TYPE_DATA.PREMIUM.description,
+        features: profileMap["PREMIUM"]?.features?.length
+          ? profileMap["PREMIUM"].features
+          : ROOM_TYPE_DATA.PREMIUM.features,
+        image: profileMap["PREMIUM"]?.images[0]?.url ?? `/room-placeholder.svg`,
+        description: profileMap["PREMIUM"]?.description ?? ROOM_TYPE_DATA.PREMIUM.description,
         vacantCount: premiumRooms.filter((r) => r.status === "VACANT").length,
         totalCount: premiumRooms.length,
       },
     ];
   } catch {
-    // DB not reachable - use static fallback
     return [
       { ...ROOM_TYPE_DATA.STUDIO, vacantCount: 24, totalCount: 24 },
       { ...ROOM_TYPE_DATA.PREMIUM, vacantCount: 12, totalCount: 12 },

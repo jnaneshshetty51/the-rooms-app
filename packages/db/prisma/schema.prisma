@@ -145,6 +145,34 @@ model RoomPhoto {
   @@map("room_photos")
 }
 
+// ── Room Type Profiles ────────────────────────────────────────────────────────
+// One row per room type (STUDIO / PREMIUM). Images here are shared by all rooms
+// of that type so admins upload once and every room card shows the same set.
+model RoomTypeProfile {
+  id          String   @id @default(cuid())
+  type        RoomType @unique
+  title       String
+  description String?
+  features    String[] @default([])
+  images      RoomTypeImage[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("room_type_profiles")
+}
+
+model RoomTypeImage {
+  id        String          @id @default(cuid())
+  profileId String
+  profile   RoomTypeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  url       String
+  caption   String?
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+
+  @@map("room_type_images")
+}
+
 // ── Amenities ────────────────────────────────────────────────────────────
 model Amenity {
   id          String         @id @default(cuid())

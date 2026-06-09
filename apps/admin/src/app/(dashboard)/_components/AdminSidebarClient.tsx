@@ -19,12 +19,14 @@ import {
   Settings,
   LogOut,
   Building2,
+  Images,
 } from "lucide-react";
 import { PortalSidebar, type NavItem } from "@the-rooms/ui";
 
 const ADMIN_NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Room Management", href: "/rooms", icon: BedDouble },
+  { label: "Room Types & Images", href: "/room-types", icon: Images },
   { label: "Bookings", href: "/bookings", icon: CalendarDays },
   { label: "Amenities", href: "/amenities", icon: Sparkles },
   { label: "Staff Management", href: "/users", icon: Users },

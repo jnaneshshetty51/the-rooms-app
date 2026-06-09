@@ -10,20 +10,31 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("[ROOMS_BOARD] Fetching rooms...");
-    const rooms = await prisma.room.findMany({
-      include: {
-        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-        amenities: { include: { amenity: true } },
-        bookings: {
-          where: { status: { in: ["CONFIRMED", "CHECKED_IN"] } },
-          include: { guest: { select: { name: true } } },
-          orderBy: { checkIn: "asc" },
-          take: 1,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prismaAny = prisma as any;
+    const [rooms, typeProfiles] = await Promise.all([
+      prisma.room.findMany({
+        include: {
+          amenities: { include: { amenity: true } },
+          bookings: {
+            where: { status: { in: ["CONFIRMED", "CHECKED_IN"] } },
+            include: { guest: { select: { name: true } } },
+            orderBy: { checkIn: "asc" },
+            take: 1,
+          },
         },
-      },
-      orderBy: [{ floor: "asc" }, { roomNumber: "asc" }],
-    });
+        orderBy: [{ floor: "asc" }, { roomNumber: "asc" }],
+      }),
+      prismaAny.roomTypeProfile.findMany({
+        include: { images: { orderBy: { sortOrder: "asc" }, take: 1 } },
+      }) as Promise<Array<{ type: string; images: { url: string }[] }>>,
+    ]);
     console.log("[ROOMS_BOARD] Found", rooms.length, "rooms");
+
+    const typeImageMap: Record<string, string> = {};
+    for (const p of typeProfiles) {
+      if (p.images[0]) typeImageMap[p.type] = p.images[0].url;
+    }
 
     const boardData = rooms.map((room) => {
       const activeBooking = room.bookings[0] ?? null;
@@ -39,6 +50,7 @@ export async function GET(request: NextRequest) {
         basePriceDouble: room.basePriceDouble,
         monthlyPriceSingle: room.monthlyPriceSingle,
         monthlyPriceDouble: room.monthlyPriceDouble,
+        thumbnail: typeImageMap[room.type] ?? null,
         amenities: room.amenities.map((ra) => ra.amenity.name),
         currentBooking: activeBooking
           ? { id: activeBooking.id, guestName: activeBooking.guest?.name ?? "Unknown", checkIn: activeBooking.checkIn, checkOut: activeBooking.checkOut }

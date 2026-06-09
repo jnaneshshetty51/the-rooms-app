@@ -76,31 +76,44 @@ export async function GET(request: NextRequest) {
     // Filter out booked rooms
     const availableRooms = allMatchingRooms.filter(room => !bookedRoomIds.has(room.id));
 
+    // Load room type profiles for images/description/features
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbAny = db as any;
+    type TypeProfile = { type: string; title: string; description: string | null; features: string[]; images: { url: string }[] };
+    const typeProfiles: TypeProfile[] = await dbAny.roomTypeProfile.findMany({
+      include: { images: { orderBy: { sortOrder: 'asc' } } },
+    });
+    const profileMap = Object.fromEntries(typeProfiles.map(p => [p.type, p]));
+
+    // Get pricing from first available room of each type
+    const studioSample = allMatchingRooms.find(r => r.type === 'STUDIO');
+    const premiumSample = allMatchingRooms.find(r => r.type === 'PREMIUM');
+
     // Group by room type and aggregate data
     const roomTypes = [
       {
         type: 'STUDIO',
-        title: 'Studio Room',
-        description: 'Perfect for solo travellers and digital nomads. All essentials included.',
-        features: ['Queen Bed', 'Work Desk', 'WiFi', 'AC'],
+        title: profileMap['STUDIO']?.title ?? 'Studio Room',
+        description: profileMap['STUDIO']?.description ?? 'Perfect for solo travellers and digital nomads. All essentials included.',
+        features: profileMap['STUDIO']?.features?.length ? profileMap['STUDIO'].features : ['Queen Bed', 'Work Desk', 'WiFi', 'AC'],
         availableCount: showStudio ? availableRooms.filter(r => r.type === 'STUDIO').length : 0,
-        basePriceSingle: 999,
-        basePriceDouble: 1799,
-        monthlyPriceSingle: 19999,
-        monthlyPriceDouble: 29999,
-        photos: ['https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80'],
+        basePriceSingle: studioSample?.basePriceSingle.toNumber() ?? 999,
+        basePriceDouble: studioSample?.basePriceDouble.toNumber() ?? 1799,
+        monthlyPriceSingle: studioSample?.monthlyPriceSingle?.toNumber() ?? 19999,
+        monthlyPriceDouble: studioSample?.monthlyPriceDouble?.toNumber() ?? 29999,
+        photos: profileMap['STUDIO']?.images.map(i => i.url) ?? [],
       },
       {
         type: 'PREMIUM',
-        title: 'Premium Room',
-        description: 'Spacious rooms with premium amenities. Ideal for couples and business travellers.',
-        features: ['King Bed', 'Mini Bar', 'City View', 'Room Service'],
+        title: profileMap['PREMIUM']?.title ?? 'Premium Room',
+        description: profileMap['PREMIUM']?.description ?? 'Spacious rooms with premium amenities. Ideal for couples and business travellers.',
+        features: profileMap['PREMIUM']?.features?.length ? profileMap['PREMIUM'].features : ['King Bed', 'Mini Bar', 'City View', 'Room Service'],
         availableCount: showPremium ? availableRooms.filter(r => r.type === 'PREMIUM').length : 0,
-        basePriceSingle: 1999,
-        basePriceDouble: 2999,
-        monthlyPriceSingle: 39999,
-        monthlyPriceDouble: 49999,
-        photos: ['https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&q=80'],
+        basePriceSingle: premiumSample?.basePriceSingle.toNumber() ?? 1999,
+        basePriceDouble: premiumSample?.basePriceDouble.toNumber() ?? 2999,
+        monthlyPriceSingle: premiumSample?.monthlyPriceSingle?.toNumber() ?? 39999,
+        monthlyPriceDouble: premiumSample?.monthlyPriceDouble?.toNumber() ?? 49999,
+        photos: profileMap['PREMIUM']?.images.map(i => i.url) ?? [],
       },
     ].filter(rt => rt.availableCount > 0);
 

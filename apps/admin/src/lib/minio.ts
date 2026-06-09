@@ -57,3 +57,31 @@ export async function uploadRoomPhoto(
   // Fallback: presigned URL valid for 7 days
   return client.presignedGetObject(bucket, key, 7 * 24 * 60 * 60);
 }
+
+export async function uploadRoomTypeImage(
+  roomType: string,
+  fileName: string,
+  fileBuffer: Buffer
+): Promise<string> {
+  const client = getMinioClient();
+  const bucket = process.env.MINIO_BUCKET || 'therooms-storage';
+  const safeName = fileName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+  const key = `room-type-images/${roomType.toLowerCase()}/${Date.now()}-${safeName}`;
+
+  const exists = await client.bucketExists(bucket);
+  if (!exists) {
+    await client.makeBucket(bucket, 'us-east-1');
+  }
+  const policy = JSON.stringify({
+    Version: '2012-10-17',
+    Statement: [{ Effect: 'Allow', Principal: { AWS: ['*'] }, Action: ['s3:GetObject'], Resource: [`arn:aws:s3:::${bucket}/*`] }],
+  });
+  await client.setBucketPolicy(bucket, policy);
+  await client.putObject(bucket, key, fileBuffer);
+
+  const publicBase = process.env.MINIO_PUBLIC_URL;
+  if (publicBase) {
+    return `${publicBase.replace(/\/$/, '')}/${bucket}/${key}`;
+  }
+  return client.presignedGetObject(bucket, key, 7 * 24 * 60 * 60);
+}
