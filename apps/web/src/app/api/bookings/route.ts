@@ -17,7 +17,8 @@ const dateString = z.string().refine(
 );
 
 const CreateBookingSchema = z.object({
-  roomId: z.string().min(1, 'Room ID is required'),
+  roomId: z.string().min(1, 'Room ID is required').optional(),
+  roomType: z.enum(['STUDIO', 'PREMIUM']).optional(),
   checkIn: dateString,
   checkOut: dateString,
   guestsCount: z.number().int().min(1).max(4).default(1),
@@ -26,6 +27,8 @@ const CreateBookingSchema = z.object({
   guestEmail: z.string().email().optional().or(z.literal('')),
   specialRequests: z.string().optional(),
   discountCode: z.string().optional(),
+}).refine(data => data.roomId || data.roomType, {
+  message: 'Either roomId or roomType is required',
 });
 
 const ListBookingsSchema = z.object({
@@ -140,19 +143,58 @@ export async function POST(request: NextRequest) {
       return badRequest('Check-out must be after check-in');
     }
 
-    // Verify room exists and is available
-    const room = await db.room.findUnique({
-      where: { id: data.roomId },
-    });
+    // Determine the room to use - either provided roomId or auto-assign from roomType
+    let actualRoomId: string;
+    let room: { id: string; roomNumber: string; type: string } | null = null;
 
-    if (!room) {
-      return badRequest('Room not found');
+    if (data.roomId) {
+      // Use the provided room ID
+      actualRoomId = data.roomId;
+      room = await db.room.findUnique({ where: { id: actualRoomId } });
+      if (!room) {
+        return badRequest('Room not found');
+      }
+    } else if (data.roomType) {
+      // Auto-assign an available room of the specified type
+      // Find rooms of this type that are not blocked/maintenance
+      const availableRooms = await db.room.findMany({
+        where: {
+          type: data.roomType,
+          status: { notIn: ['MAINTENANCE', 'BLOCKED'] },
+        },
+      });
+
+      // Find bookings that overlap with requested dates
+      const overlappingBookings = await db.booking.findMany({
+        where: {
+          status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+          roomId: { in: availableRooms.map(r => r.id) },
+          OR: [
+            { checkIn: { lte: checkInDate }, checkOut: { gt: checkInDate } },
+            { checkIn: { lt: checkOutDate }, checkOut: { gte: checkOutDate } },
+            { checkIn: { gte: checkInDate }, checkOut: { lte: checkOutDate } },
+          ],
+        },
+        select: { roomId: true },
+      });
+
+      const bookedRoomIds = new Set(overlappingBookings.map(b => b.roomId));
+      const availableRoom = availableRooms.find(r => !bookedRoomIds.has(r.id));
+
+      if (!availableRoom) {
+        return badRequest(`No ${data.roomType} rooms available for the selected dates`);
+      }
+
+      actualRoomId = availableRoom.id;
+      room = availableRoom;
+    } else {
+      return badRequest('Either roomId or roomType is required');
     }
 
-    // Check for overlapping bookings
+    // Check for overlapping bookings on the actual room
     const overlapping = await db.booking.findFirst({
       where: {
-        roomId: data.roomId,
+        roomId: actualRoomId,
         status: { in: ['CONFIRMED', 'CHECKED_IN'] },
         OR: [
           { checkIn: { lte: checkInDate }, checkOut: { gt: checkInDate } },
@@ -185,9 +227,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate pricing
-    
+
     const pricing = await calculateBookingPrice(
-      data.roomId,
+      actualRoomId,
       checkInDate,
       checkOutDate,
       data.guestsCount,
@@ -213,7 +255,7 @@ export async function POST(request: NextRequest) {
       data: {
         bookingNumber,
         guestId: guest.id,
-        roomId: data.roomId,
+        roomId: actualRoomId,
         checkIn: checkInDate,
         checkOut: checkOutDate,
         guestsCount: data.guestsCount,

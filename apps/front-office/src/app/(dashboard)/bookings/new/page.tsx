@@ -8,7 +8,7 @@ import Link from "next/link";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
 
 interface Guest { id: string; name: string; phone: string; email?: string; bookings: Array<{ id: string; checkIn: string; checkOut: string; status: string; room: { roomNumber: string; type: string } }> }
-interface Room { id: string; roomNumber: string; type: "STUDIO" | "PREMIUM"; floor: number; status: string; basePriceSingle: number; basePriceDouble: number }
+interface Room { id: string; roomNumber: string; type: "STUDIO" | "PREMIUM"; floor: number; status: string; basePriceSingle: number; basePriceDouble: number; monthlyPriceSingle?: number; monthlyPriceDouble?: number }
 interface BookingForm { guestId?: string; guestName: string; guestPhone: string; guestEmail: string; roomId: string; checkIn: string; checkOut: string; guestsCount: number; bookingType: "DAILY" | "MONTHLY"; paymentMethod: string; paymentAmount: number; frontId?: string; backId?: string; docType?: string; complimentaryReason?: string }
 
 const STEPS = [
@@ -77,10 +77,42 @@ function NewBookingPageContent() {
 
   const pricing = (() => {
     const room = rooms.find((r) => r.id === form.roomId);
-    if (!room) return { basePrice: 0, nights: 0, total: 0 };
+    if (!room) return { basePrice: 0, nights: 0, total: 0, extraGuestCharge: 0 };
     const nights = Math.ceil((new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()) / 86400000);
-    const pricePerNight = form.guestsCount === 1 ? Number(room.basePriceSingle) : Number(room.basePriceDouble);
-    return { basePrice: pricePerNight, nights: nights > 0 ? nights : 1, total: pricePerNight * (nights > 0 ? nights : 1) };
+
+    // Determine if using monthly or daily rate
+    const isMonthly = form.bookingType === "MONTHLY";
+
+    // Get base price based on occupancy and booking type
+    let pricePerUnit: number;
+    if (isMonthly) {
+      // Monthly pricing
+      pricePerUnit = form.guestsCount === 1
+        ? Number(room.monthlyPriceSingle ?? room.basePriceSingle)
+        : Number(room.monthlyPriceDouble ?? room.basePriceDouble);
+    } else {
+      // Daily pricing
+      pricePerUnit = form.guestsCount === 1 ? Number(room.basePriceSingle) : Number(room.basePriceDouble);
+    }
+
+    // Calculate total before extras
+    let total = isMonthly ? pricePerUnit : pricePerUnit * nights;
+
+    // Extra guest charge: +₹500 per extra guest per night for DAILY only (not for MONTHLY)
+    let extraGuestCharge = 0;
+    if (!isMonthly && form.guestsCount > 2) {
+      const extraGuests = form.guestsCount - 2;
+      extraGuestCharge = 500 * extraGuests * nights;
+      total += extraGuestCharge;
+    }
+
+    return {
+      basePrice: pricePerUnit,
+      nights: nights > 0 ? nights : 1,
+      total,
+      extraGuestCharge,
+      isMonthly
+    };
   })();
 
   const handleSubmit = async () => {

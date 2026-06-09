@@ -13,7 +13,6 @@ import {
   AlertCircle,
   Printer,
   Download,
-  CheckCircle,
   ArrowRight,
 } from "lucide-react";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
@@ -239,11 +238,10 @@ export default function DailyReportPage() {
                 <div
                   className="h-full bg-green-500 rounded-full"
                   style={{
-                    width: `${
-                      ((report?.roomTypeBreakdown.studio.occupied ?? 0) /
-                        (report?.roomTypeBreakdown.studio.total ?? 1)) *
+                    width: `${((report?.roomTypeBreakdown.studio.occupied ?? 0) /
+                      (report?.roomTypeBreakdown.studio.total ?? 1)) *
                       100
-                    }%`,
+                      }%`,
                   }}
                 />
               </div>
@@ -262,11 +260,10 @@ export default function DailyReportPage() {
                 <div
                   className="h-full bg-purple-500 rounded-full"
                   style={{
-                    width: `${
-                      ((report?.roomTypeBreakdown.premium.occupied ?? 0) /
-                        (report?.roomTypeBreakdown.premium.total ?? 1)) *
+                    width: `${((report?.roomTypeBreakdown.premium.occupied ?? 0) /
+                      (report?.roomTypeBreakdown.premium.total ?? 1)) *
                       100
-                    }%`,
+                      }%`,
                   }}
                 />
               </div>
@@ -375,19 +372,6 @@ export default function DailyReportPage() {
         </div>
       </div>
 
-      {/* Night Audit Section */}
-      {selectedDate === new Date().toISOString().split("T")[0] && (
-        <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">End of Day Procedures</h3>
-          <p className="text-gray-500 mb-4">
-            Review all transactions and lock the day&apos;s accounts
-          </p>
-          <button className="inline-flex items-center gap-2 rounded-lg bg-[#E17055] px-6 py-3 text-sm font-medium text-white hover:bg-[#D35B3F]">
-            <CheckCircle className="h-5 w-5" />
-            Complete Night Audit
-          </button>
-        </div>
-      )}
     </div>
   );
 }

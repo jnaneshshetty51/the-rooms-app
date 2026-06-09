@@ -52,8 +52,8 @@ export async function GET() {
                 vacantRooms: vacantCounts.find((r) => r.type === "STUDIO")?._count.id ?? 0,
                 basePriceSingle: studioRoom?.basePriceSingle ? Number(studioRoom.basePriceSingle) : 999,
                 basePriceDouble: studioRoom?.basePriceDouble ? Number(studioRoom.basePriceDouble) : 1799,
-                monthlyPriceSingle: studioRoom?.monthlyPriceSingle ? Number(studioRoom.monthlyPriceSingle) : 29999,
-                monthlyPriceDouble: studioRoom?.monthlyPriceDouble ? Number(studioRoom.monthlyPriceDouble) : 39999,
+                monthlyPriceSingle: studioRoom?.monthlyPriceSingle ? Number(studioRoom.monthlyPriceSingle) : 19999,
+                monthlyPriceDouble: studioRoom?.monthlyPriceDouble ? Number(studioRoom.monthlyPriceDouble) : 29999,
                 sizeSqft: studioRoom?.sizeSqft ?? 200,
             },
             {
@@ -65,8 +65,8 @@ export async function GET() {
                 vacantRooms: vacantCounts.find((r) => r.type === "PREMIUM")?._count.id ?? 0,
                 basePriceSingle: premiumRoom?.basePriceSingle ? Number(premiumRoom.basePriceSingle) : 1999,
                 basePriceDouble: premiumRoom?.basePriceDouble ? Number(premiumRoom.basePriceDouble) : 2999,
-                monthlyPriceSingle: premiumRoom?.monthlyPriceSingle ? Number(premiumRoom.monthlyPriceSingle) : null,
-                monthlyPriceDouble: premiumRoom?.monthlyPriceDouble ? Number(premiumRoom.monthlyPriceDouble) : null,
+                monthlyPriceSingle: premiumRoom?.monthlyPriceSingle ? Number(premiumRoom.monthlyPriceSingle) : 39999,
+                monthlyPriceDouble: premiumRoom?.monthlyPriceDouble ? Number(premiumRoom.monthlyPriceDouble) : 49999,
                 sizeSqft: premiumRoom?.sizeSqft ?? 320,
             },
         ];

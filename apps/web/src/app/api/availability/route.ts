@@ -27,12 +27,16 @@ export async function GET(request: NextRequest) {
       return badRequest('Check-out must be after check-in');
     }
 
+    // Determine which room types to show
+    const showStudio = !params.type || params.type === 'STUDIO' || params.type === 'MONTHLY';
+    const showPremium = !params.type || params.type === 'PREMIUM';
+
     // Find rooms that match type and are not blocked/maintenance
     const roomWhere: any = {
       status: { notIn: ['MAINTENANCE', 'BLOCKED'] },
       maxOccupancy: { gte: params.guestsCount },
     };
-    
+
     // If MONTHLY is selected, we only show STUDIO
     if (params.type === 'MONTHLY') {
       roomWhere.type = 'STUDIO';
@@ -72,20 +76,35 @@ export async function GET(request: NextRequest) {
     // Filter out booked rooms
     const availableRooms = allMatchingRooms.filter(room => !bookedRoomIds.has(room.id));
 
-    // Map to a clean frontend response
-    const formattedRooms = availableRooms.map(room => ({
-      id: room.id,
-      roomNumber: room.roomNumber,
-      type: room.type,
-      basePriceSingle: room.basePriceSingle.toNumber(),
-      basePriceDouble: room.basePriceDouble.toNumber(),
-      monthlyPriceSingle: room.monthlyPriceSingle?.toNumber(),
-      monthlyPriceDouble: room.monthlyPriceDouble?.toNumber(),
-      features: room.amenities.slice(0, 5).map(a => a.amenity.name),
-      photos: room.photos.length > 0 ? room.photos.map(p => p.url) : ['/room-placeholder.svg'],
-    }));
+    // Group by room type and aggregate data
+    const roomTypes = [
+      {
+        type: 'STUDIO',
+        title: 'Studio Room',
+        description: 'Perfect for solo travellers and digital nomads. All essentials included.',
+        features: ['Queen Bed', 'Work Desk', 'WiFi', 'AC'],
+        availableCount: showStudio ? availableRooms.filter(r => r.type === 'STUDIO').length : 0,
+        basePriceSingle: 999,
+        basePriceDouble: 1799,
+        monthlyPriceSingle: 19999,
+        monthlyPriceDouble: 29999,
+        photos: ['https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80'],
+      },
+      {
+        type: 'PREMIUM',
+        title: 'Premium Room',
+        description: 'Spacious rooms with premium amenities. Ideal for couples and business travellers.',
+        features: ['King Bed', 'Mini Bar', 'City View', 'Room Service'],
+        availableCount: showPremium ? availableRooms.filter(r => r.type === 'PREMIUM').length : 0,
+        basePriceSingle: 1999,
+        basePriceDouble: 2999,
+        monthlyPriceSingle: 39999,
+        monthlyPriceDouble: 49999,
+        photos: ['https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&q=80'],
+      },
+    ].filter(rt => rt.availableCount > 0);
 
-    return ok(formattedRooms);
+    return ok(roomTypes);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return badRequest(error.errors.map((e) => e.message).join(', '));
