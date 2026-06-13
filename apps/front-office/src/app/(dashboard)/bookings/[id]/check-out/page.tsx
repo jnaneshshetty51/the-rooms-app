@@ -25,8 +25,8 @@ export default function CheckOutPage({ params }: { params: Promise<{ id: string 
       try { 
         const res = await fetch(`/api/bookings/${id}`); 
         if (!res.ok) throw new Error("Not found"); 
-        const data = await res.json(); 
-        if (data.status !== "CHECKED_IN") setError("Not checked in"); 
+        const data = await res.json();
+        if (data.status === "CHECKED_OUT") setError("Already checked out");
         setBooking(data); 
         
         const paid = data.payments.filter((p: { status: string }) => p.status === "PAID").reduce((s: number, p: { amount: string }) => s + Number(p.amount), 0); 
@@ -44,20 +44,30 @@ export default function CheckOutPage({ params }: { params: Promise<{ id: string 
   }, [id]);
 
   const handleCheckOut = async () => {
-    try { 
-      const res = await fetch(`/api/bookings/${id}/check-out`, { 
-        method: "POST", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ 
-          finalPayment: finalPayment > 0 ? finalPayment : (refundAmount > 0 ? -refundAmount : 0), 
-          paymentMethod, 
+    try {
+      // Auto check-in if booking is CONFIRMED (express checkout)
+      if (booking?.status === "CONFIRMED") {
+        const ciRes = await fetch(`/api/bookings/${id}/check-in`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (!ciRes.ok) throw new Error("Failed to check in guest before checkout");
+      }
+
+      const res = await fetch(`/api/bookings/${id}/check-out`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          finalPayment: finalPayment > 0 ? finalPayment : (refundAmount > 0 ? -refundAmount : 0),
+          paymentMethod,
           notes: sendInvoice ? "Invoice requested" : undefined,
           sendInvoice
-        }) 
-      }); 
-      
-      if (!res.ok) throw new Error("Failed"); 
-      setComplete(true); 
+        })
+      });
+
+      if (!res.ok) throw new Error("Failed");
+      setComplete(true);
       if (sendInvoice) setInvoiceReady(true);
     }
     catch (err) { alert(err instanceof Error ? err.message : "Failed"); }
