@@ -31,6 +31,7 @@ function NewBookingPageContent() {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [checkedIn, setCheckedIn] = useState(false);
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
 
@@ -169,6 +170,14 @@ function NewBookingPageContent() {
       if (form.paymentAmount > 0 && !isComplimentary) {
         await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingId: bookingData.id, amount: form.paymentAmount, method: form.paymentMethod }) });
       }
+
+      // Walk-in guest is physically present — check in immediately
+      const checkInRes = await fetch(`/api/bookings/${bookingData.id}/check-in`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      setCheckedIn(checkInRes.ok);
 
       // Step 4 Confirmation
       setStep(4);
@@ -405,12 +414,18 @@ function NewBookingPageContent() {
       {step === 4 && (
         <>
           <div className="rounded-xl border border-gray-200 bg-white p-8 text-center space-y-6 print:hidden">
-            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-              <CheckCircle className="h-10 w-10 text-green-600" />
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto ${checkedIn ? "bg-green-100" : "bg-yellow-100"}`}>
+              <CheckCircle className={`h-10 w-10 ${checkedIn ? "text-green-600" : "text-yellow-600"}`} />
             </div>
             <div>
-              <h3 className="text-2xl font-bold">Booking Complete!</h3>
-              <p className="text-gray-500 mt-2">{form.guestName} booked Room {rooms.find((r) => r.id === form.roomId)?.roomNumber}</p>
+              <h3 className="text-2xl font-bold">{checkedIn ? "Checked In!" : "Booking Created"}</h3>
+              <p className="text-gray-500 mt-2">
+                {form.guestName} — Room {rooms.find((r) => r.id === form.roomId)?.roomNumber}
+              </p>
+              {checkedIn
+                ? <p className="mt-1 inline-block rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700">Room is now OCCUPIED</p>
+                : <p className="mt-1 text-sm text-yellow-700">Check-in could not be completed automatically — please check in manually from the booking page.</p>
+              }
             </div>
 
             <div className="flex gap-3">
@@ -427,7 +442,7 @@ function NewBookingPageContent() {
           <div className="hidden print:block w-[80mm] mx-auto text-black bg-white p-4 font-mono text-sm">
             <div className="text-center border-b-2 border-black pb-4 mb-4">
               <h2 className="text-xl font-bold uppercase">The Rooms</h2>
-              <p>Walk-In Booking Receipt</p>
+              <p>{checkedIn ? "Check-In Receipt" : "Booking Receipt"}</p>
               <p className="mt-2 text-xs">Date: {new Date().toLocaleDateString()}</p>
             </div>
 
