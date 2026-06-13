@@ -47,7 +47,19 @@ export default function PaymentsPage() {
     async function fetchPayments() {
       setLoading(true);
       try {
-        const res = await fetch("/api/payments");
+        const now = new Date();
+        const params = new URLSearchParams();
+        if (filter === "today") {
+          const start = new Date(now); start.setHours(0, 0, 0, 0);
+          const end = new Date(now); end.setHours(23, 59, 59, 999);
+          params.set("from", start.toISOString());
+          params.set("to", end.toISOString());
+        } else if (filter === "week") {
+          const start = new Date(now); start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0);
+          params.set("from", start.toISOString());
+          params.set("to", new Date(now.setHours(23, 59, 59, 999)).toISOString());
+        }
+        const res = await fetch(`/api/payments?${params}`);
         if (res.ok) {
           const data = await res.json();
           setPayments(data.payments ?? []);
@@ -71,7 +83,7 @@ export default function PaymentsPage() {
     return guestName.includes(query) || bookingNumber.includes(query);
   });
 
-  const totalToday = filteredPayments
+  const totalRevenue = filteredPayments
     .filter((p) => p.status === "PAID")
     .reduce((sum, p) => sum + Number(p.amount), 0);
 
@@ -98,7 +110,7 @@ export default function PaymentsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">Today&apos;s Collection</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">{formatCurrency(totalToday)}</p>
+              <p className="mt-2 text-3xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
             </div>
             <div className="rounded-lg bg-green-100 p-3">
               <ArrowUpRight className="h-6 w-6 text-green-600" />
@@ -122,7 +134,7 @@ export default function PaymentsPage() {
               <p className="text-sm font-medium text-gray-500">Average Transaction</p>
               <p className="mt-2 text-3xl font-bold text-gray-900">
                 {filteredPayments.length > 0
-                  ? formatCurrency(totalToday / filteredPayments.length)
+                  ? formatCurrency(totalRevenue / filteredPayments.length)
                   : "₹0"}
               </p>
             </div>

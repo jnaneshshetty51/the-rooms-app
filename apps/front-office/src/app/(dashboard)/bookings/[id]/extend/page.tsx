@@ -8,7 +8,6 @@ import { Loader2, ArrowLeft, Calendar, CheckCircle, AlertCircle, IndianRupee } f
 import { formatDate, formatCurrency } from "@the-rooms/ui";
 
 interface Booking { id: string; bookingNumber: string; status: string; checkIn: string; checkOut: string; totalAmount: string; guest: { name: string; phone: string }; room: { roomNumber: string; type: string; basePriceSingle: number; basePriceDouble: number } }
-const PRICING = { STUDIO: { single: 999, double: 1799 }, PREMIUM: { single: 1999, double: 2999 } };
 
 export default function ModifyStayPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -42,8 +41,9 @@ export default function ModifyStayPage({ params }: { params: Promise<{ id: strin
     const newNights = Math.ceil((ext.getTime() - checkIn.getTime()) / 86400000);
     const nightsDifference = newNights - origNights;
     
-    const rt = booking.room.type as keyof typeof PRICING;
-    const pricePerNight = guestsCount === 1 ? PRICING[rt]?.single ?? 999 : PRICING[rt]?.double ?? 1799;
+    const pricePerNight = guestsCount === 1
+      ? Number(booking.room.basePriceSingle)
+      : Number(booking.room.basePriceDouble);
     
     const newTotal = newNights * pricePerNight;
     const additionalAmount = newTotal - Number(booking.totalAmount);

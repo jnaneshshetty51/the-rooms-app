@@ -135,7 +135,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="space-y-3">
-              {booking.status === "CONFIRMED" && booking.paymentStatus === "PAID" && <button onClick={handleCheckIn} className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F]"><CheckCircle className="h-4 w-4" />Check-In Guest</button>}
+              {booking.status === "CONFIRMED" && (
+                <button onClick={handleCheckIn} className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F]">
+                  <CheckCircle className="h-4 w-4" />Check-In Guest
+                  {balanceDue > 0 && <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px]">Balance due</span>}
+                </button>
+              )}
               {booking.status === "CHECKED_IN" && <Link href={`/bookings/${id}/check-out`} className="block w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700"><Bed className="h-4 w-4" />Check-Out Guest</Link>}
               {(booking.status === "CONFIRMED" || booking.status === "CHECKED_IN") && (
                 <>
