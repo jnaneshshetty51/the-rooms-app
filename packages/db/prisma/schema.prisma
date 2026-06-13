@@ -554,6 +554,7 @@ model HotelSettings {
   checkOutTime       String?
   lateCheckOutFee    Decimal?  @db.Decimal(10, 2)
   earlyCheckInFee    Decimal?  @db.Decimal(10, 2)
+  extraGuestRateDaily Decimal  @default(500) @db.Decimal(10, 2)
   gstNumber          String?
   bankName           String?
   accountNumber      String?

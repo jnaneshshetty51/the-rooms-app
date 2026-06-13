@@ -37,7 +37,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { name, phone, alternatePhone, address, companyName } = body;
+    const { name, phone, alternatePhone, address, city, state, pincode, companyName } = body;
 
     const updatedGuest = await db.guest.update({
       where: { id: guest.id },
@@ -46,6 +46,9 @@ export async function PUT(request: Request) {
         phone,
         alternatePhone,
         address,
+        city,
+        state,
+        pincode,
         companyName,
       },
     });

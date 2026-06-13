@@ -17,6 +17,9 @@ type Profile = {
   email: string | null;
   alternatePhone: string | null;
   address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
   companyName: string | null;
 };
 
@@ -32,6 +35,9 @@ function ProfilePageContent() {
   const [phone, setPhone] = useState("");
   const [alternatePhone, setAlternatePhone] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [pincode, setPincode] = useState("");
   const [companyName, setCompanyName] = useState("");
 
   useEffect(() => {
@@ -46,6 +52,9 @@ function ProfilePageContent() {
             setPhone(data.profile.phone || "");
             setAlternatePhone(data.profile.alternatePhone || "");
             setAddress(data.profile.address || "");
+            setCity(data.profile.city || "");
+            setState(data.profile.state || "");
+            setPincode(data.profile.pincode || "");
             setCompanyName(data.profile.companyName || "");
           }
         }
@@ -73,6 +82,9 @@ function ProfilePageContent() {
           phone,
           alternatePhone,
           address,
+          city,
+          state,
+          pincode,
           companyName,
         }),
       });
@@ -194,12 +206,51 @@ function ProfilePageContent() {
                 <label className="block text-sm font-medium text-[#2D3436] mb-1.5 flex items-center gap-1.5">
                   <MapPin className="w-4 h-4 text-[#636E72]" /> Address
                 </label>
-                <textarea
+                <input
+                  type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  rows={3}
-                  className="w-full px-4 py-2.5 rounded-lg border border-[#E5E5E5] bg-white text-[#2D3436] text-sm focus:outline-none focus:ring-2 focus:ring-[#E17055] resize-none"
+                  placeholder="House / Flat / Street"
+                  className="w-full px-4 py-2.5 rounded-lg border border-[#E5E5E5] bg-white text-[#2D3436] text-sm focus:outline-none focus:ring-2 focus:ring-[#E17055]"
                 />
+              </div>
+
+              {/* City */}
+              <div>
+                <label className="block text-sm font-medium text-[#2D3436] mb-1.5">City</label>
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="City"
+                  className="w-full px-4 py-2.5 rounded-lg border border-[#E5E5E5] bg-white text-[#2D3436] text-sm focus:outline-none focus:ring-2 focus:ring-[#E17055]"
+                />
+              </div>
+
+              {/* State + Pincode */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[#2D3436] mb-1.5">State</label>
+                  <input
+                    type="text"
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    placeholder="State"
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E5E5E5] bg-white text-[#2D3436] text-sm focus:outline-none focus:ring-2 focus:ring-[#E17055]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#2D3436] mb-1.5">Pincode</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={pincode}
+                    onChange={(e) => setPincode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="6-digit"
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E5E5E5] bg-white text-[#2D3436] text-sm focus:outline-none focus:ring-2 focus:ring-[#E17055]"
+                  />
+                </div>
               </div>
             </div>
 

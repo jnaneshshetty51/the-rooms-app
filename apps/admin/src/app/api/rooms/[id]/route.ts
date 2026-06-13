@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id } = await params;
     const body = await request.json();
 
-    const { status, roomNumber, type, floor, description, maxOccupancy, basePriceSingle, basePriceDouble, internalNotes } = body;
+    const { status, roomNumber, type, floor, description, maxOccupancy, basePriceSingle, basePriceDouble, monthlyPriceSingle, monthlyPriceDouble, internalNotes } = body;
 
     const updateData: Record<string, unknown> = {};
     if (status !== undefined) updateData.status = status;
@@ -58,6 +58,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (maxOccupancy !== undefined) updateData.maxOccupancy = maxOccupancy;
     if (basePriceSingle !== undefined) updateData.basePriceSingle = new Prisma.Decimal(basePriceSingle);
     if (basePriceDouble !== undefined) updateData.basePriceDouble = new Prisma.Decimal(basePriceDouble);
+    if (monthlyPriceSingle !== undefined) updateData.monthlyPriceSingle = monthlyPriceSingle ? new Prisma.Decimal(monthlyPriceSingle) : null;
+    if (monthlyPriceDouble !== undefined) updateData.monthlyPriceDouble = monthlyPriceDouble ? new Prisma.Decimal(monthlyPriceDouble) : null;
     if (internalNotes !== undefined) updateData.internalNotes = internalNotes;
 
     const room = await prisma.room.update({

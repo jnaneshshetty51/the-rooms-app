@@ -10,6 +10,7 @@ interface HotelSettings {
   address: string;
   phone: string;
   email: string;
+  extraGuestRateDaily: string;
   emailOnBooking: boolean;
   emailOnCancel: boolean;
   dailyReport: boolean;
@@ -27,6 +28,7 @@ export default function SettingsPage() {
     address: "",
     phone: "",
     email: "",
+    extraGuestRateDaily: "500",
     emailOnBooking: true,
     emailOnCancel: true,
     dailyReport: true,
@@ -50,6 +52,7 @@ export default function SettingsPage() {
               address: data.settings.address || "",
               phone: data.settings.phone || "",
               email: data.settings.email || "",
+              extraGuestRateDaily: data.settings.extraGuestRateDaily != null ? String(data.settings.extraGuestRateDaily) : "500",
               emailOnBooking: data.settings.emailOnBooking ?? true,
               emailOnCancel: data.settings.emailOnCancel ?? true,
               dailyReport: data.settings.dailyReport ?? true,
@@ -77,6 +80,7 @@ export default function SettingsPage() {
           address: settings.address,
           phone: settings.phone,
           email: settings.email,
+          extraGuestRateDaily: parseFloat(settings.extraGuestRateDaily) || 500,
         }),
       });
       if (!res.ok) throw new Error("Failed to save property info");
@@ -170,22 +174,34 @@ export default function SettingsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Phone</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={settings.phone}
                   onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Email</label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={settings.email}
                   onChange={(e) => setSettings({ ...settings, email: e.target.value })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Extra Guest Charge (₹ per guest per night)</label>
+              <p className="text-xs text-muted-foreground">Applies for DAILY bookings with more than 2 guests</p>
+              <input
+                type="number"
+                min="0"
+                step="50"
+                value={settings.extraGuestRateDaily}
+                onChange={(e) => setSettings({ ...settings, extraGuestRateDaily: e.target.value })}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
             </div>
             <button 
               onClick={handlePropertySave}

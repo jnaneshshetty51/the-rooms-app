@@ -8,7 +8,6 @@ import {
   PRICING_CONFIG,
   calculateNights,
   shouldUseMonthlyRate,
-  calculateExtraGuestCharge,
 } from './config';
 
 export type PriceBreakdown = {
@@ -65,13 +64,19 @@ export async function calculatePrice(
     subtotal = new Decimal(baseAmount.toNumber()).mul(nights);
   }
 
-  // Extra guest charge: +₹500 per extra guest per night for DAILY only
-  const extraGuestChargeValue = calculateExtraGuestCharge(guestsCount, nights, isMonthly);
+  // Extra guest charge: configurable via HotelSettings, DAILY only
+  const hotelSettings = await db.hotelSettings.findUnique({ where: { id: 'default' } });
+  const extraGuestRateDaily = hotelSettings?.extraGuestRateDaily
+    ? hotelSettings.extraGuestRateDaily.toNumber()
+    : PRICING_CONFIG.EXTRA_GUEST_RATE_DAILY;
+  const extraGuestChargeValue = (!isMonthly && guestsCount > PRICING_CONFIG.FREE_GUESTS_COUNT)
+    ? extraGuestRateDaily * (guestsCount - PRICING_CONFIG.FREE_GUESTS_COUNT) * nights
+    : 0;
   let extraGuestCharge = new Decimal(extraGuestChargeValue);
   if (extraGuestChargeValue > 0) {
     subtotal = subtotal.add(extraGuestCharge);
     const extraGuests = guestsCount - PRICING_CONFIG.FREE_GUESTS_COUNT;
-    rateLabel += ` (+₹${PRICING_CONFIG.EXTRA_GUEST_RATE_DAILY}/night × ${extraGuests} extra guest${extraGuests > 1 ? 's' : ''})`;
+    rateLabel += ` (+₹${extraGuestRateDaily}/night × ${extraGuests} extra guest${extraGuests > 1 ? 's' : ''})`;
   }
 
   // Apply discount if code is valid

@@ -35,13 +35,20 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const role = (session.user as { role?: string }).role;
+    if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
-    
+
     // Whitelist the fields we allow updating
     const updateData: any = {};
     const allowedFields = [
-      "hotelName", "address", "phone", "email", 
-      "emailOnBooking", "emailOnCancel", "dailyReport", "maintenanceAlerts"
+      "hotelName", "address", "phone", "email",
+      "checkInTime", "checkOutTime", "lateCheckOutFee", "earlyCheckInFee",
+      "extraGuestRateDaily", "gstNumber",
+      "emailOnBooking", "emailOnCancel", "dailyReport", "maintenanceAlerts",
     ];
     
     for (const field of allowedFields) {
