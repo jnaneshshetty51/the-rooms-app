@@ -17,9 +17,18 @@ export async function GET(request: NextRequest) {
       const payments = await getPaymentsByBooking(bookingId);
       return NextResponse.json({ payments });
     } else {
+      const from = searchParams.get("from");
+      const to = searchParams.get("to");
+      const where: { createdAt?: { gte?: Date; lte?: Date } } = {};
+      if (from || to) {
+        where.createdAt = {};
+        if (from) where.createdAt.gte = new Date(from);
+        if (to) where.createdAt.lte = new Date(to);
+      }
       const payments = await prisma.payment.findMany({
+        where,
         orderBy: { createdAt: "desc" },
-        take: 100,
+        take: 500,
         include: {
           booking: {
             select: {
