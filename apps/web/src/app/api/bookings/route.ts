@@ -45,6 +45,10 @@ const CreateBookingSchema = z.object({
   guestName: z.string().min(1, 'Guest name is required'),
   guestPhone: z.string().min(10, 'Valid phone number required'),
   guestEmail: z.string().email().optional().or(z.literal('')),
+  guestAddress: z.string().optional(),
+  guestCity: z.string().optional(),
+  guestState: z.string().optional(),
+  guestPincode: z.string().optional(),
   specialRequests: z.string().optional(),
   discountCode: z.string().optional(),
 }).refine(data => data.roomId || data.roomType, {
@@ -177,6 +181,21 @@ export async function POST(request: NextRequest) {
           name: data.guestName,
           phone: data.guestPhone,
           email: data.guestEmail || null,
+          address: data.guestAddress || null,
+          city: data.guestCity || null,
+          state: data.guestState || null,
+          pincode: data.guestPincode || null,
+        },
+      });
+    } else if (data.guestAddress && !guest.address) {
+      // Back-fill address if guest exists but has no address yet
+      await db.guest.update({
+        where: { id: guest.id },
+        data: {
+          address: data.guestAddress,
+          city: data.guestCity || null,
+          state: data.guestState || null,
+          pincode: data.guestPincode || null,
         },
       });
     }

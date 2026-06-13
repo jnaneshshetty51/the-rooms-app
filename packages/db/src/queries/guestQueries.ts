@@ -384,6 +384,9 @@ export type CreateGuestData = {
   email?: string;
   alternatePhone?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
   companyName?: string;
   notes?: string;
 };

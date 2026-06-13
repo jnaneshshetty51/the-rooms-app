@@ -25,6 +25,10 @@ export default function BookingDetailsPage() {
   const [name, setName] = useState(guestDetails?.name || "");
   const [phone, setPhone] = useState(guestDetails?.phone || "");
   const [email, setEmail] = useState(guestDetails?.email || "");
+  const [address, setAddress] = useState(guestDetails?.address || "");
+  const [city, setCity] = useState(guestDetails?.city || "");
+  const [state, setState] = useState(guestDetails?.state || "");
+  const [pincode, setPincode] = useState(guestDetails?.pincode || "");
   const [requests, setRequests] = useState(guestDetails?.specialRequests || "");
   const [selectedExtras, setSelectedExtras] = useState<string[]>(extras || []);
   const [code, setCode] = useState(discountCode || "");
@@ -57,6 +61,10 @@ export default function BookingDetailsPage() {
     const digits = phone.replace(/\D/g, "");
     if (!phone.trim() || (digits.length !== 10 && digits.length !== 12)) errs.phone = "Valid 10-digit phone required";
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Valid email required";
+    if (!address.trim()) errs.address = "Address is required";
+    if (!city.trim()) errs.city = "City is required";
+    if (!state.trim()) errs.state = "State is required";
+    if (!pincode.trim() || !/^\d{6}$/.test(pincode.trim())) errs.pincode = "Valid 6-digit pincode required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -64,7 +72,7 @@ export default function BookingDetailsPage() {
   const handleContinue = () => {
     if (!validate()) return;
     setExtras(selectedExtras);
-    setGuestDetails({ name, phone, email, specialRequests: requests });
+    setGuestDetails({ name, phone, email, address, city, state, pincode, specialRequests: requests });
     setDiscountCode(code);
     setStep(4);
     router.push("/book/payment");
@@ -178,6 +186,56 @@ export default function BookingDetailsPage() {
                 )}
               />
               {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-primary">Address *</label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="House / Flat / Street"
+              className={cn("w-full px-4 py-3 border rounded-xl text-sm outline-none", errors.address ? "border-destructive" : "focus:border-secondary")}
+            />
+            {errors.address && <p className="text-xs text-destructive">{errors.address}</p>}
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-primary">City *</label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="City"
+                className={cn("w-full px-4 py-3 border rounded-xl text-sm outline-none", errors.city ? "border-destructive" : "focus:border-secondary")}
+              />
+              {errors.city && <p className="text-xs text-destructive">{errors.city}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-primary">State *</label>
+              <input
+                type="text"
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+                placeholder="State"
+                className={cn("w-full px-4 py-3 border rounded-xl text-sm outline-none", errors.state ? "border-destructive" : "focus:border-secondary")}
+              />
+              {errors.state && <p className="text-xs text-destructive">{errors.state}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-primary">Pincode *</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={pincode}
+                onChange={(e) => setPincode(e.target.value.replace(/\D/g, ""))}
+                placeholder="6-digit"
+                className={cn("w-full px-4 py-3 border rounded-xl text-sm outline-none", errors.pincode ? "border-destructive" : "focus:border-secondary")}
+              />
+              {errors.pincode && <p className="text-xs text-destructive">{errors.pincode}</p>}
             </div>
           </div>
 

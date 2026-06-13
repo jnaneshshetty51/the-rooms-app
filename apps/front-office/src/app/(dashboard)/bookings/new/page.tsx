@@ -9,7 +9,7 @@ import { formatDate, formatCurrency } from "@the-rooms/ui";
 
 interface Guest { id: string; name: string; phone: string; email?: string; bookings: Array<{ id: string; checkIn: string; checkOut: string; status: string; room: { roomNumber: string; type: string } }> }
 interface Room { id: string; roomNumber: string; type: "STUDIO" | "PREMIUM"; floor: number; status: string; basePriceSingle: number; basePriceDouble: number; monthlyPriceSingle?: number; monthlyPriceDouble?: number }
-interface BookingForm { guestId?: string; guestName: string; guestPhone: string; guestEmail: string; roomId: string; checkIn: string; checkOut: string; guestsCount: number; bookingType: "DAILY" | "MONTHLY"; paymentMethod: string; paymentAmount: number; frontId?: string; backId?: string; docType?: string; complimentaryReason?: string }
+interface BookingForm { guestId?: string; guestName: string; guestPhone: string; guestEmail: string; guestAddress: string; guestCity: string; guestState: string; guestPincode: string; roomId: string; checkIn: string; checkOut: string; guestsCount: number; bookingType: "DAILY" | "MONTHLY"; paymentMethod: string; paymentAmount: number; frontId?: string; backId?: string; docType?: string; complimentaryReason?: string }
 
 const STEPS = [
   { id: 1, name: "Details", icon: User },
@@ -36,6 +36,7 @@ function NewBookingPageContent() {
 
   const [form, setForm] = useState<BookingForm>({
     guestName: "", guestPhone: "", guestEmail: "",
+    guestAddress: "", guestCity: "", guestState: "", guestPincode: "",
     roomId: preselectedRoom ?? "", checkIn: new Date().toISOString().split("T")[0], checkOut: new Date(Date.now() + 86400000).toISOString().split("T")[0],
     guestsCount: 1, bookingType: "DAILY",
     paymentMethod: "CASH", paymentAmount: 0,
@@ -131,7 +132,7 @@ function NewBookingPageContent() {
 
       let guestId = form.guestId;
       if (!guestId && form.guestName) {
-        const guestRes = await fetch("/api/guests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: form.guestName, phone: form.guestPhone, email: form.guestEmail || undefined }) });
+        const guestRes = await fetch("/api/guests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: form.guestName, phone: form.guestPhone, email: form.guestEmail || undefined, address: form.guestAddress || undefined, city: form.guestCity || undefined, state: form.guestState || undefined, pincode: form.guestPincode || undefined }) });
         if (!guestRes.ok) throw new Error("Failed to create guest");
         const guestData = await guestRes.json(); guestId = guestData.id;
       }
@@ -218,7 +219,13 @@ function NewBookingPageContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Guest Name *</label><input type="text" value={form.guestName} onChange={(e) => setForm((f) => ({ ...f, guestName: e.target.value }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label><input type="tel" value={form.guestPhone} onChange={(e) => setForm((f) => ({ ...f, guestPhone: e.target.value }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" value={form.guestEmail} onChange={(e) => setForm((f) => ({ ...f, guestEmail: e.target.value }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
+              <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" value={form.guestEmail} onChange={(e) => setForm((f) => ({ ...f, guestEmail: e.target.value }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
+              <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input type="text" placeholder="House / Flat / Street" value={form.guestAddress} onChange={(e) => setForm((f) => ({ ...f, guestAddress: e.target.value }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">City *</label><input type="text" placeholder="City" value={form.guestCity} onChange={(e) => setForm((f) => ({ ...f, guestCity: e.target.value }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">State *</label><input type="text" placeholder="State" value={form.guestState} onChange={(e) => setForm((f) => ({ ...f, guestState: e.target.value }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Pincode *</label><input type="text" inputMode="numeric" maxLength={6} placeholder="6-digit" value={form.guestPincode} onChange={(e) => setForm((f) => ({ ...f, guestPincode: e.target.value.replace(/\D/g, "") }))} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055]" /></div>
+              </div>
             </div>
           </div>
 

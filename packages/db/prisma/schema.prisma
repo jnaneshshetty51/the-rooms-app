@@ -93,6 +93,9 @@ model Guest {
   email           String?
   alternatePhone  String?
   address         String?
+  city            String?
+  state           String?
+  pincode         String?
   dateOfBirth     DateTime?
   companyName     String?
   stayCount       Int       @default(0)

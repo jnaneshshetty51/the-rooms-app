@@ -9,7 +9,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("[ROOMS_BOARD] Fetching rooms...");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
     const prismaAny = prisma as unknown as Record<string, { findMany: (args: unknown) => Promise<unknown> }>;
     const [rooms, rawTypeProfiles] = await Promise.all([
       prisma.room.findMany({
@@ -17,7 +21,7 @@ export async function GET(request: NextRequest) {
           amenities: { include: { amenity: true } },
           bookings: {
             where: { status: { in: ["CONFIRMED", "CHECKED_IN"] } },
-            include: { guest: { select: { name: true } } },
+            include: { guest: { select: { name: true, phone: true } } },
             orderBy: { checkIn: "asc" },
             take: 1,
           },
@@ -29,7 +33,6 @@ export async function GET(request: NextRequest) {
       }),
     ]);
     const typeProfiles = rawTypeProfiles as Array<{ type: string; images: { url: string }[] }>;
-    console.log("[ROOMS_BOARD] Found", rooms.length, "rooms");
 
     const typeImageMap: Record<string, string> = {};
     for (const p of typeProfiles) {
@@ -38,6 +41,14 @@ export async function GET(request: NextRequest) {
 
     const boardData = rooms.map((room) => {
       const activeBooking = room.bookings[0] ?? null;
+      const checkInDate = activeBooking ? new Date(activeBooking.checkIn) : null;
+      const arrivingToday = !!(
+        activeBooking &&
+        activeBooking.status === "CONFIRMED" &&
+        checkInDate &&
+        checkInDate >= today &&
+        checkInDate < tomorrow
+      );
       return {
         id: room.id,
         roomNumber: room.roomNumber,
@@ -53,12 +64,20 @@ export async function GET(request: NextRequest) {
         thumbnail: typeImageMap[room.type] ?? null,
         amenities: room.amenities.map((ra) => ra.amenity.name),
         currentBooking: activeBooking
-          ? { id: activeBooking.id, guestName: activeBooking.guest?.name ?? "Unknown", checkIn: activeBooking.checkIn, checkOut: activeBooking.checkOut }
+          ? {
+              id: activeBooking.id,
+              bookingNumber: (activeBooking as { bookingNumber?: string }).bookingNumber ?? null,
+              guestName: activeBooking.guest?.name ?? "Unknown",
+              guestPhone: activeBooking.guest?.phone ?? null,
+              checkIn: activeBooking.checkIn,
+              checkOut: activeBooking.checkOut,
+              status: activeBooking.status,
+              arrivingToday,
+            }
           : null,
       };
     });
 
-    console.log("[ROOMS_BOARD] Returning", boardData.length, "rooms");
     return NextResponse.json({
       rooms: boardData,
       totalRooms: rooms.length,
@@ -66,6 +85,7 @@ export async function GET(request: NextRequest) {
       occupied: rooms.filter((r) => r.status === "OCCUPIED").length,
       maintenance: rooms.filter((r) => r.status === "MAINTENANCE").length,
       blocked: rooms.filter((r) => r.status === "BLOCKED").length,
+      arrivingToday: boardData.filter((r) => r.currentBooking?.arrivingToday).length,
     });
   } catch (error) {
     console.error("[ROOMS_BOARD] Error:", error);

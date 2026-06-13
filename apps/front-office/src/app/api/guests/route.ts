@@ -10,13 +10,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, phone, email, alternatePhone, address, companyName, notes } = body;
+    const { name, phone, email, alternatePhone, address, city, state, pincode, companyName, notes } = body;
 
     if (!name || !phone) {
       return NextResponse.json({ error: "Name and phone are required" }, { status: 400 });
     }
 
-    const guest = await createGuest({ name, phone, email, alternatePhone, address, companyName, notes });
+    const guest = await createGuest({ name, phone, email, alternatePhone, address, city, state, pincode, companyName, notes });
     return NextResponse.json(guest, { status: 201 });
   } catch (error) {
     console.error("Error creating guest:", error);
