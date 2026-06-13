@@ -49,12 +49,19 @@ export async function GET(request: NextRequest) {
         checkInDate >= today &&
         checkInDate < tomorrow
       );
+      // A CONFIRMED booking means the room is reserved — don't show it as VACANT
+      const displayStatus =
+        activeBooking?.status === "CONFIRMED"
+          ? "BOOKED"
+          : activeBooking?.status === "CHECKED_IN"
+          ? "OCCUPIED"
+          : room.status;
       return {
         id: room.id,
         roomNumber: room.roomNumber,
         type: room.type,
         floor: room.floor,
-        status: room.status,
+        status: displayStatus,
         cleaningStatus: room.cleaningStatus,
         description: room.description,
         basePriceSingle: room.basePriceSingle,
@@ -81,10 +88,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       rooms: boardData,
       totalRooms: rooms.length,
-      vacant: rooms.filter((r) => r.status === "VACANT").length,
-      occupied: rooms.filter((r) => r.status === "OCCUPIED").length,
-      maintenance: rooms.filter((r) => r.status === "MAINTENANCE").length,
-      blocked: rooms.filter((r) => r.status === "BLOCKED").length,
+      vacant: boardData.filter((r) => r.status === "VACANT").length,
+      booked: boardData.filter((r) => r.status === "BOOKED").length,
+      occupied: boardData.filter((r) => r.status === "OCCUPIED").length,
+      maintenance: boardData.filter((r) => r.status === "MAINTENANCE" || r.status === "BLOCKED").length,
       arrivingToday: boardData.filter((r) => r.currentBooking?.arrivingToday).length,
     });
   } catch (error) {

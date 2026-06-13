@@ -21,7 +21,7 @@ interface RoomEntry {
   roomNumber: string;
   type: "STUDIO" | "PREMIUM";
   floor: number;
-  status: "VACANT" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED";
+  status: "VACANT" | "BOOKED" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED";
   cleaningStatus: "CLEAN" | "DIRTY" | "CLEANING";
   currentBooking: CurrentBooking | null;
 }
@@ -30,14 +30,15 @@ interface RoomBoardData {
   rooms: RoomEntry[];
   totalRooms: number;
   vacant: number;
+  booked: number;
   occupied: number;
   maintenance: number;
-  blocked: number;
   arrivingToday: number;
 }
 
 const STATUS_CONFIG = {
   VACANT:      { label: "Vacant",      bgColor: "bg-green-100",  borderColor: "border-green-300",  textColor: "text-green-800",  icon: Bed },
+  BOOKED:      { label: "Booked",      bgColor: "bg-purple-100", borderColor: "border-purple-300", textColor: "text-purple-800", icon: Lock },
   OCCUPIED:    { label: "Occupied",    bgColor: "bg-blue-100",   borderColor: "border-blue-300",   textColor: "text-blue-800",   icon: Users },
   MAINTENANCE: { label: "Maintenance", bgColor: "bg-yellow-100", borderColor: "border-yellow-300", textColor: "text-yellow-800", icon: Wrench },
   BLOCKED:     { label: "Blocked",     bgColor: "bg-gray-100",   borderColor: "border-gray-300",   textColor: "text-gray-800",   icon: Lock },
@@ -127,13 +128,14 @@ export default function RoomBoardPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
         {([
-          { key: "all",         label: "All",        count: data?.totalRooms ?? 0,   colorClass: "text-gray-600",   activeRing: "ring-gray-400",   activeBg: "bg-gray-50",   Icon: Bed },
-          { key: "vacant",      label: "Vacant",     count: data?.vacant ?? 0,       colorClass: "text-green-600",  activeRing: "ring-green-400",  activeBg: "bg-green-50",  Icon: Bed },
-          { key: "occupied",    label: "In-House",   count: data?.occupied ?? 0,     colorClass: "text-blue-600",   activeRing: "ring-blue-400",   activeBg: "bg-blue-50",   Icon: Users },
-          { key: "arriving",    label: "Arriving",   count: data?.arrivingToday ?? 0,colorClass: "text-orange-600", activeRing: "ring-orange-400", activeBg: "bg-orange-50", Icon: Bell },
-          { key: "maintenance", label: "Maint.",     count: data?.maintenance ?? 0,  colorClass: "text-yellow-600", activeRing: "ring-yellow-400", activeBg: "bg-yellow-50", Icon: Wrench },
+          { key: "all",         label: "All",        count: data?.totalRooms ?? 0,   colorClass: "text-gray-600",   activeRing: "ring-gray-400",   activeBg: "bg-gray-50",     Icon: Bed },
+          { key: "vacant",      label: "Vacant",     count: data?.vacant ?? 0,       colorClass: "text-green-600",  activeRing: "ring-green-400",  activeBg: "bg-green-50",    Icon: Bed },
+          { key: "booked",      label: "Booked",     count: data?.booked ?? 0,       colorClass: "text-purple-600", activeRing: "ring-purple-400", activeBg: "bg-purple-50",   Icon: Lock },
+          { key: "occupied",    label: "In-House",   count: data?.occupied ?? 0,     colorClass: "text-blue-600",   activeRing: "ring-blue-400",   activeBg: "bg-blue-50",     Icon: Users },
+          { key: "arriving",    label: "Arriving",   count: data?.arrivingToday ?? 0,colorClass: "text-orange-600", activeRing: "ring-orange-400", activeBg: "bg-orange-50",   Icon: Bell },
+          { key: "maintenance", label: "Maint.",     count: data?.maintenance ?? 0,  colorClass: "text-yellow-600", activeRing: "ring-yellow-400", activeBg: "bg-yellow-50",   Icon: Wrench },
         ] as const).map(({ key, label, count, colorClass, activeRing, activeBg, Icon }) => (
           <button
             key={key}
