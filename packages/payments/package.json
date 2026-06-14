@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "exports": {
     ".": "./razorpay.ts",
-    "./razorpay": "./razorpay.ts"
+    "./razorpay": "./razorpay.ts",
+    "./indusind": "./indusind.ts"
   },
   "main": "./razorpay.ts",
   "types": "./razorpay.ts",
