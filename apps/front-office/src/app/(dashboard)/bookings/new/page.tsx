@@ -9,12 +9,13 @@ import { formatDate, formatCurrency } from "@the-rooms/ui";
 
 interface Guest { id: string; name: string; phone: string; email?: string; bookings: Array<{ id: string; checkIn: string; checkOut: string; status: string; room: { roomNumber: string; type: string } }> }
 interface Room { id: string; roomNumber: string; type: "STUDIO" | "PREMIUM"; floor: number; status: string; basePriceSingle: number; basePriceDouble: number; monthlyPriceSingle?: number; monthlyPriceDouble?: number }
+interface GuestDoc { docType: string; frontId?: string; backId?: string; }
 interface BookingForm {
   guestId?: string; guestName: string; guestPhone: string; guestEmail: string;
   guestAddress: string; guestCity: string; guestState: string; guestPincode: string;
   roomId: string; checkIn: string; checkOut: string; guestsCount: number;
   bookingType: "DAILY" | "MONTHLY"; paymentMethod: string; paymentAmount: number;
-  frontId?: string; backId?: string; docType: string; complimentaryReason?: string;
+  docs: GuestDoc[]; complimentaryReason?: string;
 }
 
 // ─── Document Types ─────────────────────────────────────────────────────────
@@ -84,10 +85,11 @@ function calcPricing(room: Room | undefined, form: BookingForm): PricingBreakdow
     ? EXTRA_GUEST_RATE * extraGuests * nights
     : 0;
 
-  const subtotal = roomCharge + extraGuestCharge;
+  // baseRate is GST-inclusive — back-calculate subtotal and tax
+  const total = roomCharge + extraGuestCharge;
+  const subtotal = total / (1 + GST_RATE);
   const cgst = subtotal * (GST_RATE / 2);
   const sgst = subtotal * (GST_RATE / 2);
-  const total = subtotal + cgst + sgst;
 
   return {
     nights, isMonthly, autoMonthly, baseRate, roomCharge,
@@ -114,10 +116,9 @@ function NewBookingPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [checkedIn, setCheckedIn] = useState(false);
-  const [uploadingFront, setUploadingFront] = useState(false);
-  const [uploadingBack, setUploadingBack] = useState(false);
-  const frontInputRef = useRef<HTMLInputElement>(null);
-  const backInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingIdx, setUploadingIdx] = useState<{ idx: number; side: "front" | "back" } | null>(null);
+  const frontInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const backInputRefs  = useRef<(HTMLInputElement | null)[]>([]);
 
   const today = new Date().toISOString().split("T")[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
@@ -128,8 +129,20 @@ function NewBookingPageContent() {
     roomId: preselectedRoom ?? "", checkIn: today, checkOut: tomorrow,
     guestsCount: 1, bookingType: "DAILY",
     paymentMethod: "CASH", paymentAmount: 0,
-    docType: "AADHAAR",
+    docs: [{ docType: "AADHAAR" }],
   });
+
+  // Keep docs array in sync with guestsCount
+  useEffect(() => {
+    setForm((f) => {
+      if (f.docs.length === f.guestsCount) return f;
+      if (f.guestsCount > f.docs.length) {
+        const extra = Array.from({ length: f.guestsCount - f.docs.length }, () => ({ docType: "AADHAAR" }));
+        return { ...f, docs: [...f.docs, ...extra] };
+      }
+      return { ...f, docs: f.docs.slice(0, f.guestsCount) };
+    });
+  }, [form.guestsCount]);
 
   const searchGuests = useCallback(async (query: string) => {
     if (query.length < 2) { setGuestResults([]); return; }
@@ -163,10 +176,13 @@ function NewBookingPageContent() {
     setGuestSearch(""); setGuestResults([]);
   };
 
+  const updateDoc = (idx: number, patch: Partial<GuestDoc>) => {
+    setForm((f) => ({ ...f, docs: f.docs.map((d, i) => i === idx ? { ...d, ...patch } : d) }));
+  };
+
   // ─── File Upload to MinIO ─────────────────────────────────────────────────
-  const handleFileUpload = async (side: "front" | "back", file: File) => {
-    const setSide = side === "front" ? setUploadingFront : setUploadingBack;
-    setSide(true);
+  const handleFileUpload = async (guestIdx: number, side: "front" | "back", file: File) => {
+    setUploadingIdx({ idx: guestIdx, side });
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -178,25 +194,18 @@ function NewBookingPageContent() {
         return;
       }
       const { url } = await res.json();
-      setForm((f) => ({ ...f, [side === "front" ? "frontId" : "backId"]: url }));
+      updateDoc(guestIdx, side === "front" ? { frontId: url } : { backId: url });
     } catch {
       alert("Upload failed. Check your connection.");
     } finally {
-      setSide(false);
+      setUploadingIdx(null);
     }
-  };
-
-  const handleFileChange = (side: "front" | "back", e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    handleFileUpload(side, file);
   };
 
   const selectedRoom = rooms.find((r) => r.id === form.roomId);
   const pricing = calcPricing(selectedRoom, form);
-  const needsBack = DOC_TYPES[form.docType]?.needsBack ?? false;
   const canProceedToDocs = !!form.guestName && !!form.guestPhone && !!form.roomId && !!form.checkIn && !!form.checkOut && pricing.nights > 0;
-  const canProceedToPayment = !!form.frontId; // back is optional
+  const canProceedToPayment = form.docs.every((d) => !!d.frontId);
   const canSubmit = !isSubmitting && (form.paymentMethod !== "COMPLIMENTARY" || !!form.complimentaryReason);
 
   // ─── Booking Submission ───────────────────────────────────────────────────
@@ -233,7 +242,7 @@ function NewBookingPageContent() {
           baseAmount: pricing.roomCharge,
           totalAmount: Math.round(pricing.total),
           complimentaryReason: isComplimentary ? form.complimentaryReason : undefined,
-          docType: form.docType, frontId: form.frontId, backId: form.backId,
+          docs: form.docs,
         }),
       });
       if (!bookingRes.ok) throw new Error("Failed to create booking");
@@ -431,76 +440,80 @@ function NewBookingPageContent() {
         </div>
       )}
 
-      {/* ── Step 2: Document Capture ──────────────────────────────────────── */}
+      {/* ── Step 2: Document Capture (one section per guest) ─────────────── */}
       {step === 2 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 space-y-6 print:hidden">
-          <h3 className="text-lg font-semibold text-gray-900">Document Capture</h3>
-
-          {/* Document Type */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Document Type</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {Object.entries(DOC_TYPES).map(([val, { label }]) => (
-                <button key={val} onClick={() => setForm(f => ({ ...f, docType: val, backId: undefined }))}
-                  className={cn("rounded-lg border-2 py-3 text-sm font-medium", form.docType === val ? "border-[#E17055] bg-[#E17055]/5 text-[#E17055]" : "border-gray-200 text-gray-600")}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Front & Back Upload */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Front */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Front Side *</label>
-              <input ref={frontInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" capture="environment" className="hidden" onChange={(e) => handleFileChange("front", e)} />
-              <div onClick={() => !uploadingFront && frontInputRef.current?.click()}
-                className={cn("relative rounded-lg border-2 border-dashed p-4 text-center cursor-pointer hover:border-[#E17055] transition-colors min-h-[140px] flex flex-col items-center justify-center gap-2",
-                  form.frontId ? "border-green-400 bg-green-50" : "border-gray-300 bg-gray-50")}>
-                {uploadingFront ? (
-                  <><Loader2 className="h-8 w-8 animate-spin text-[#E17055]" /><p className="text-sm text-gray-500">Uploading...</p></>
-                ) : form.frontId ? (
-                  <><img src={form.frontId} alt="Front" className="max-h-28 rounded object-contain" />
-                    <button onClick={(e) => { e.stopPropagation(); setForm(f => ({ ...f, frontId: undefined })); }} className="text-xs text-red-600 hover:underline">Remove</button></>
-                ) : (
-                  <><Camera className="h-10 w-10 text-gray-400" /><p className="text-sm text-gray-600">Tap to capture or upload</p><p className="text-xs text-gray-400">JPEG, PNG, PDF · max 5MB</p></>
-                )}
-              </div>
-            </div>
-
-            {/* Back (optional for some doc types) */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Back Side
-                {!needsBack && <span className="ml-2 text-xs font-normal text-gray-400">(optional for {DOC_TYPES[form.docType]?.label})</span>}
-              </label>
-              <input ref={backInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" capture="environment" className="hidden" onChange={(e) => handleFileChange("back", e)} />
-              <div onClick={() => !uploadingBack && backInputRef.current?.click()}
-                className={cn("relative rounded-lg border-2 border-dashed p-4 text-center cursor-pointer hover:border-[#E17055] transition-colors min-h-[140px] flex flex-col items-center justify-center gap-2",
-                  form.backId ? "border-green-400 bg-green-50" : "border-gray-300 bg-gray-50")}>
-                {uploadingBack ? (
-                  <><Loader2 className="h-8 w-8 animate-spin text-[#E17055]" /><p className="text-sm text-gray-500">Uploading...</p></>
-                ) : form.backId ? (
-                  <><img src={form.backId} alt="Back" className="max-h-28 rounded object-contain" />
-                    <button onClick={(e) => { e.stopPropagation(); setForm(f => ({ ...f, backId: undefined })); }} className="text-xs text-red-600 hover:underline">Remove</button></>
-                ) : (
-                  <><Camera className="h-10 w-10 text-gray-400" /><p className="text-sm text-gray-600">Tap to capture or upload</p><p className="text-xs text-gray-400">JPEG, PNG, PDF · max 5MB</p></>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {!form.frontId && (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
-              Front side of the document is required to proceed.
+        <div className="space-y-6 print:hidden">
+          <div className="rounded-xl border border-gray-200 bg-white p-6">
+            <h3 className="text-lg font-semibold text-gray-900">Document Capture</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {form.guestsCount === 1 ? "Upload ID proof for the guest." : `Upload ID proof for each of the ${form.guestsCount} guests.`}
             </p>
-          )}
+          </div>
+
+          {form.docs.map((doc, idx) => {
+            const needsBack = DOC_TYPES[doc.docType]?.needsBack ?? false;
+            const isUploadingFront = uploadingIdx?.idx === idx && uploadingIdx.side === "front";
+            const isUploadingBack  = uploadingIdx?.idx === idx && uploadingIdx.side === "back";
+            const guestLabel = form.guestsCount === 1 ? "Guest" : `Guest ${idx + 1}`;
+            return (
+              <div key={idx} className="rounded-xl border border-gray-200 bg-white p-6 space-y-5">
+                <h4 className="font-semibold text-gray-900">{guestLabel}</h4>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Document Type</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {Object.entries(DOC_TYPES).map(([val, { label }]) => (
+                      <button key={val} onClick={() => updateDoc(idx, { docType: val, backId: undefined })}
+                        className={cn("rounded-lg border-2 py-3 text-sm font-medium", doc.docType === val ? "border-[#E17055] bg-[#E17055]/5 text-[#E17055]" : "border-gray-200 text-gray-600")}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Front Side *</label>
+                    <input ref={(el) => { frontInputRefs.current[idx] = el; }} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" capture="environment" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(idx, "front", f); }} />
+                    <div onClick={() => !isUploadingFront && frontInputRefs.current[idx]?.click()}
+                      className={cn("rounded-lg border-2 border-dashed p-4 text-center cursor-pointer hover:border-[#E17055] transition-colors min-h-[140px] flex flex-col items-center justify-center gap-2",
+                        doc.frontId ? "border-green-400 bg-green-50" : "border-gray-300 bg-gray-50")}>
+                      {isUploadingFront ? <><Loader2 className="h-8 w-8 animate-spin text-[#E17055]" /><p className="text-sm text-gray-500">Uploading...</p></>
+                        : doc.frontId ? <><img src={doc.frontId} alt="Front" className="max-h-28 rounded object-contain" /><button onClick={(e) => { e.stopPropagation(); updateDoc(idx, { frontId: undefined }); }} className="text-xs text-red-600 hover:underline">Remove</button></>
+                        : <><Camera className="h-10 w-10 text-gray-400" /><p className="text-sm text-gray-600">Tap to capture or upload</p><p className="text-xs text-gray-400">JPEG, PNG, PDF · max 5MB</p></>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Back Side {!needsBack && <span className="text-xs font-normal text-gray-400">(optional for {DOC_TYPES[doc.docType]?.label})</span>}
+                    </label>
+                    <input ref={(el) => { backInputRefs.current[idx] = el; }} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" capture="environment" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(idx, "back", f); }} />
+                    <div onClick={() => !isUploadingBack && backInputRefs.current[idx]?.click()}
+                      className={cn("rounded-lg border-2 border-dashed p-4 text-center cursor-pointer hover:border-[#E17055] transition-colors min-h-[140px] flex flex-col items-center justify-center gap-2",
+                        doc.backId ? "border-green-400 bg-green-50" : "border-gray-300 bg-gray-50")}>
+                      {isUploadingBack ? <><Loader2 className="h-8 w-8 animate-spin text-[#E17055]" /><p className="text-sm text-gray-500">Uploading...</p></>
+                        : doc.backId ? <><img src={doc.backId} alt="Back" className="max-h-28 rounded object-contain" /><button onClick={(e) => { e.stopPropagation(); updateDoc(idx, { backId: undefined }); }} className="text-xs text-red-600 hover:underline">Remove</button></>
+                        : <><Camera className="h-10 w-10 text-gray-400" /><p className="text-sm text-gray-600">Tap to capture or upload</p><p className="text-xs text-gray-400">JPEG, PNG, PDF · max 5MB</p></>}
+                    </div>
+                  </div>
+                </div>
+
+                {!doc.frontId && (
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+                    Front side required for {guestLabel.toLowerCase()}.
+                  </p>
+                )}
+              </div>
+            );
+          })}
 
           <div className="flex gap-3">
             <button onClick={() => setStep(1)} className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Back</button>
             <button onClick={() => { setForm((f) => ({ ...f, paymentAmount: Math.round(pricing.total) })); setStep(3); }}
-              disabled={!canProceedToPayment || uploadingFront || uploadingBack}
+              disabled={!canProceedToPayment || uploadingIdx !== null}
               className="flex-1 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50">
               Continue to Payment
             </button>

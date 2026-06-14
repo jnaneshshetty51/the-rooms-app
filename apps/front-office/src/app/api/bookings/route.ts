@@ -77,9 +77,7 @@ export async function POST(request: NextRequest) {
       extrasAmount = 0,
       totalAmount,
       complimentaryReason,
-      docType,
-      frontId,
-      backId,
+      docs,
       propertyId,
     } = body;
 
@@ -173,30 +171,30 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Create guest document if provided
-      if (frontId && docType) {
-        await tx.guestDocument.create({
-          data: {
-            guestId,
-            bookingId: newBooking.id,
-            documentType: docType,
-            frontUrl: frontId,
-            backUrl: backId || null,
-            uploadedById: (session.user as { id?: string }).id,
-          },
-        });
-
-        // Audit log for document upload
+      // Create guest documents (one per guest)
+      if (Array.isArray(docs) && docs.length > 0) {
+        const uploaderId = (session.user as { id?: string }).id;
+        for (const doc of docs as Array<{ docType: string; frontId?: string; backId?: string }>) {
+          if (!doc.frontId) continue;
+          await tx.guestDocument.create({
+            data: {
+              guestId,
+              bookingId: newBooking.id,
+              documentType: doc.docType as "AADHAAR" | "PASSPORT" | "VOTER_ID" | "DRIVING_LICENSE",
+              frontUrl: doc.frontId,
+              backUrl: doc.backId || null,
+              uploadedById: uploaderId,
+            },
+          });
+        }
         await tx.auditLog.create({
           data: {
-            userId: (session.user as { id?: string }).id,
+            userId: uploaderId,
             bookingId: newBooking.id,
             action: "DOCUMENT_UPLOADED",
             entity: "guestDocument",
             entityId: newBooking.id,
-            metadata: {
-              documentType: docType,
-            },
+            metadata: { count: docs.length },
           },
         });
       }
