@@ -165,7 +165,19 @@ function InvoicePDF({ invoice, hotel }: { invoice: any; hotel: any }) {
         React.createElement(Text, { style: [styles.tdText, styles.colRight, { color: "#065f46" }] as any }, `-${fmt(discount)}`),
       ) : null,
 
-      extras > 0 ? React.createElement(View, { style: styles.tableRow },
+      // Add-on charges (itemized)
+      b.addons?.length > 0 ? b.addons.map((addon: any) =>
+        React.createElement(View, { key: addon.id, style: styles.tableRow },
+          React.createElement(Text, { style: [styles.tdText, styles.colDesc] as any },
+            `Add-on: ${addon.description} (${addon.type})`
+          ),
+          React.createElement(Text, { style: [styles.tdText, styles.colRight] as any }, addon.quantity > 1 ? String(addon.quantity) : ""),
+          React.createElement(Text, { style: [styles.tdText, styles.colRight] as any }, addon.quantity > 1 ? fmt(Number(addon.amount)) : ""),
+          React.createElement(Text, { style: [styles.tdText, styles.colRight] as any }, fmt(addon.totalAmount)),
+        )
+      ) : null,
+
+      extras > 0 && !b.addons?.length ? React.createElement(View, { style: styles.tableRow },
         React.createElement(Text, { style: [styles.tdText, styles.colDesc] as any }, "Additional Charges"),
         React.createElement(Text, { style: [styles.tdText, styles.colRight] as any }, ""),
         React.createElement(Text, { style: [styles.tdText, styles.colRight] as any }, ""),
@@ -192,12 +204,12 @@ function InvoicePDF({ invoice, hotel }: { invoice: any; hotel: any }) {
         ),
         isPaid
           ? React.createElement(View, { style: styles.paidBadge },
-              React.createElement(Text, { style: styles.paidText }, "✓ PAID"))
+            React.createElement(Text, { style: styles.paidText }, "✓ PAID"))
           : React.createElement(View, { style: styles.summaryRow },
-              React.createElement(Text, { style: [styles.summaryLabel, { color: "#dc2626", fontFamily: "Helvetica-Bold" }] as any }, "Balance Due"),
-              React.createElement(Text, { style: [styles.summaryValue, { color: "#dc2626", fontFamily: "Helvetica-Bold" }] as any },
-                fmt(Number(b.totalAmount) - totalPaid)),
-            ),
+            React.createElement(Text, { style: [styles.summaryLabel, { color: "#dc2626", fontFamily: "Helvetica-Bold" }] as any }, "Balance Due"),
+            React.createElement(Text, { style: [styles.summaryValue, { color: "#dc2626", fontFamily: "Helvetica-Bold" }] as any },
+              fmt(Number(b.totalAmount) - totalPaid)),
+          ),
       ),
 
       // ── Footer ──

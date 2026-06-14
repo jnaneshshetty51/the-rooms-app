@@ -423,3 +423,58 @@ export async function incrementStayCount(guestId: string) {
     data: { stayCount: { increment: 1 } },
   });
 }
+
+export type GetGuestsOptions = {
+  page?: number;
+  perPage?: number;
+  search?: string;
+  sortBy?: 'name' | 'createdAt' | 'stayCount';
+  sortOrder?: 'asc' | 'desc';
+};
+
+export async function getGuests(options: GetGuestsOptions = {}) {
+  const {
+    page = 1,
+    perPage = 20,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+  } = options;
+
+  const skip = (page - 1) * perPage;
+
+  const where = search
+    ? {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { phone: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+      ],
+    }
+    : {};
+
+  const [guests, total] = await Promise.all([
+    prisma.guest.findMany({
+      where,
+      include: {
+        bookings: {
+          include: { room: { select: { roomNumber: true, type: true } } },
+          orderBy: { checkIn: 'desc' },
+          take: 3,
+        },
+      },
+      skip,
+      take: perPage,
+      orderBy: { [sortBy]: sortOrder },
+    }),
+    prisma.guest.count({ where }),
+  ]);
+
+  return {
+    guests,
+    total,
+    page,
+    perPage,
+    totalPages: Math.ceil(total / perPage),
+  };
+}

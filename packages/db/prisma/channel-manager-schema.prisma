@@ -1,0 +1,306 @@
+// packages/db/prisma/channel-manager-schema.prisma
+// Channel Manager database schema additions
+// Add these models to the existing schema.prisma file
+
+// ── Channel Configuration ─────────────────────────────────────────────────────
+
+model Channel {
+  id            String      @id @default(cuid())
+  name          ChannelName @unique
+  displayName   String
+  logoUrl       String?
+  isActive      Boolean     @default(false)
+  config        Json?       // Encrypted credentials/secrets
+  metadata      Json?       // Channel-specific settings
+  
+  // Rate plan and room type mappings
+  roomMappings  RoomChannelMapping[]
+  rateMappings  RateChannelMapping[]
+  
+  // Sync configuration
+  syncSettings  ChannelSyncSettings?
+  
+  // Sync logs
+  syncLogs      SyncLog[]
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("channels")
+}
+
+enum ChannelName {
+  BOOKING_COM
+  EXPEDIA
+  AIRBNB
+  AGODA
+}
+
+// ── Room Mapping (PMS Room → OTA Room Type) ───────────────────────────────────
+
+model RoomChannelMapping {
+  id              String    @id @default(cuid())
+  channelId       String
+  channel         Channel   @relation(fields: [channelId], references: [id])
+  
+  // PMS side
+  roomId          String
+  roomType        RoomType
+  
+  // OTA side
+  otaRoomTypeId   String    // Room type ID in OTA system
+  otaRoomTypeName String?
+  
+  // Mapping metadata
+  isActive        Boolean   @default(true)
+  lastSyncedAt    DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([channelId, roomId])
+  @@map("room_channel_mappings")
+}
+
+// ── Rate Mapping (PMS Rate → OTA Rate Plan) ───────────────────────────────────
+
+model RateChannelMapping {
+  id              String    @id @default(cuid())
+  channelId       String
+  channel         Channel   @relation(fields: [channelId], references: [id])
+  
+  // PMS side
+  rateType        RateType // SINGLE, DOUBLE, MONTHLY
+  roomType        RoomType
+  
+  // OTA side
+  otaRatePlanId   String
+  otaRatePlanName String?
+  
+  // Rate settings
+  isActive        Boolean   @default(true)
+  lastSyncedAt    DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([channelId, rateType, roomType])
+  @@map("rate_channel_mappings")
+}
+
+enum RateType {
+  SINGLE
+  DOUBLE
+  MONTHLY
+}
+
+// ── Channel Sync Settings ──────────────────────────────────────────────────────
+
+model ChannelSyncSettings {
+  id                    String    @id @default(cuid())
+  channelId             String    @unique
+  channel               Channel   @relation(fields: [channelId], references: [id])
+  
+  // Sync mode
+  syncMode              SyncMode  @default(PUSH_BASED)
+  
+  // Sync schedules (cron expressions)
+  fullSyncSchedule      String?   // e.g., "0 2 * * *" (2 AM daily)
+  incrementalSyncSchedule String? // e.g., "*/15 * * * *" (every 15 min)
+  
+  // Sync preferences
+  autoSyncInventory     Boolean   @default(true)
+  autoSyncRates         Boolean   @default(true)
+  autoImportBookings    Boolean   @default(true)
+  
+  // Conflict resolution
+  conflictStrategy      ConflictStrategy @default(PMS_WINS)
+  
+  // Real-time push settings
+  pushEnabled           Boolean   @default(false)
+  pushEndpoint          String?   // Callback URL for push-based channels
+  
+  // Retry settings
+  maxRetries            Int       @default(3)
+  retryDelayMs          Int       @default(5000)
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("channel_sync_settings")
+}
+
+enum SyncMode {
+  PUSH_BASED        // PMS pushes updates to OTA
+  PULL_BASED        // PMS pulls from OTA periodically
+  WEBHOOK_BASED     // OTA pushes changes via webhooks
+  HYBRID            // Combination of push/pull/webhook
+}
+
+enum ConflictStrategy {
+  PMS_WINS          // PMS data takes precedence
+  OTA_WINS          // OTA data takes precedence
+  NEWEST_WINS       // Most recent update wins
+  MANUAL            // Requires manual resolution
+}
+
+// ── Sync Log ───────────────────────────────────────────────────────────────────
+
+model SyncLog {
+  id              String      @id @default(cuid())
+  channelId       String
+  channel         Channel     @relation(fields: [channelId], references: [id])
+  
+  // Sync details
+  syncType        SyncType
+  syncDirection   SyncDirection
+  status          SyncStatus @default(PENDING)
+  
+  // Data snapshot
+  itemsTotal      Int         @default(0)
+  itemsSynced     Int         @default(0)
+  itemsFailed     Int         @default(0)
+  
+  // Error handling
+  errorMessage    String?
+  errorDetails    Json?
+  
+  // Timing
+  startedAt       DateTime?
+  completedAt     DateTime?
+  durationMs      Int?
+  
+  // Request/Response for debugging
+  requestPayload  Json?
+  responsePayload Json?
+  
+  createdAt       DateTime    @default(now())
+
+  @@index([channelId, status])
+  @@index([channelId, createdAt])
+  @@map("sync_logs")
+}
+
+enum SyncType {
+  FULL_INVENTORY
+  INCREMENTAL_INVENTORY
+  RATE_UPDATE
+  BOOKING_IMPORT
+  BOOKING_UPDATE
+  BOOKING_CANCEL
+}
+
+enum SyncDirection {
+  OUTBOUND  // PMS → OTA
+  INBOUND   // OTA → PMS
+}
+
+enum SyncStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  PARTIAL_FAILURE
+}
+
+// ── OTA Booking Mapping ────────────────────────────────────────────────────────
+
+model OtaBookingMapping {
+  id                  String    @id @default(cuid())
+  
+  // PMS booking
+  bookingId           String    @unique
+  bookingNumber       String
+  
+  // OTA booking
+  channelId           String
+  channelBookingId   String    // Booking ID in OTA system
+  channelBookingRef  String?   // External reference
+  
+  // Status tracking
+  lastSyncAt          DateTime
+  syncStatus         OtaSyncStatus @default(SYNCED)
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([channelId, channelBookingId])
+  @@map("ota_booking_mappings")
+}
+
+enum OtaSyncStatus {
+  SYNCED
+  PENDING_UPDATE
+  PENDING_CANCEL
+  CONFLICT
+  FAILED
+}
+
+// ── Webhook Log ───────────────────────────────────────────────────────────────
+
+model WebhookLog {
+  id              String      @id @default(cuid())
+  channelId       String
+  channelName     ChannelName
+  
+  // Webhook details
+  webhookType     String      // "booking.created", "inventory.update", etc.
+  eventId         String?     // External event ID
+  
+  // Payload
+  rawPayload      Json
+  parsedPayload   Json?
+  
+  // Processing
+  status          WebhookStatus @default(RECEIVED)
+  processedAt     DateTime?
+  processingTimeMs Int?
+  
+  // Error handling
+  errorMessage    String?
+  
+  // Response
+  responseStatus  Int?
+  responseBody    String?
+  
+  createdAt       DateTime    @default(now())
+
+  @@index([channelId, status])
+  @@index([createdAt])
+  @@map("webhook_logs")
+}
+
+enum WebhookStatus {
+  RECEIVED
+  VALIDATED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+// ── Inventory Snapshot (for conflict detection) ───────────────────────────────
+
+model InventorySnapshot {
+  id              String      @id @default(cuid())
+  channelId       String
+  roomId          String
+  date            DateTime    @db.Date
+  
+  // Snapshot data
+  availableRooms  Int
+  totalRooms      Int
+  rateSingle      Decimal?    @db.Decimal(10, 2)
+  rateDouble      Decimal?    @db.Decimal(10, 2)
+  rateMonthly     Decimal?    @db.Decimal(10, 2)
+  
+  // Source tracking
+  source          String      // "PMS" or channel name
+  version         Int         @default(1)
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([channelId, roomId, date])
+  @@index([channelId, date])
+  @@map("inventory_snapshots")
+}

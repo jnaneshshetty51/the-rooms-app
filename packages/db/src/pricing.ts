@@ -9,6 +9,7 @@ import {
   calculateNights,
   shouldUseMonthlyRate,
 } from './config';
+import { validateDiscountCode, calculateDiscountAmount } from './queries/discountQueries';
 
 export type PriceBreakdown = {
   baseAmount: Prisma.Decimal;
@@ -23,6 +24,9 @@ export type PriceBreakdown = {
   bookingType: 'DAILY' | 'MONTHLY';
   rateLabel: string;
   extraGuestCharge: Prisma.Decimal;
+  discountCode?: string;
+  discountType?: string;
+  discountValue?: number;
 };
 
 /**
@@ -81,21 +85,22 @@ export async function calculatePrice(
 
   // Apply discount if code is valid
   let discountAmount = new Decimal(0);
-  if (discountCode) {
-    const discount = await db.discount.findUnique({ where: { code: discountCode } });
-    if (discount && discount.isActive) {
-      const now = new Date();
-      const inRange =
-        (!discount.validFrom || discount.validFrom <= now) &&
-        (!discount.validTo || discount.validTo >= now);
-      const underLimit = !discount.maxUses || discount.usedCount < discount.maxUses;
-      const minNightsOk = nights >= (discount.minDays ?? 1);
-      const maxNightsOk = !discount.maxDays || nights <= discount.maxDays;
+  let discountType: string | undefined;
+  let discountValue: number | undefined;
 
-      if (inRange && underLimit && minNightsOk && maxNightsOk) {
-        discountAmount = subtotal.mul(discount.discountPercent.toNumber()).div(100);
-        subtotal = subtotal.sub(discountAmount);
-      }
+  if (discountCode) {
+    const validation = await validateDiscountCode(discountCode, {
+      checkIn,
+      checkOut,
+      roomType: room.type,
+      subtotal: subtotal.toNumber(),
+    });
+
+    if (validation.isValid && validation.discount && validation.discountAmount) {
+      discountAmount = new Decimal(validation.discountAmount);
+      subtotal = subtotal.sub(discountAmount);
+      discountType = validation.discount.type;
+      discountValue = Number(validation.discount.value);
     }
   }
 
@@ -125,6 +130,9 @@ export async function calculatePrice(
     bookingType,
     rateLabel,
     extraGuestCharge,
+    discountCode,
+    discountType,
+    discountValue,
   };
 }
 

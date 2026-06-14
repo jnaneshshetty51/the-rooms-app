@@ -312,3 +312,181 @@ export async function generateBookingNumber(): Promise<string> {
 
   return `${prefix}${String(counter).padStart(4, '0')}`;
 }
+
+// ─── No-Show Handling ─────────────────────────────────────────────────────────
+
+export type NoShowPolicy = {
+  chargeType: 'FIRST_NIGHT' | 'PERCENTAGE' | 'FLAT_FEE';
+  chargeValue: number;
+  cutoffHour: number;
+  enabled: boolean;
+};
+
+/**
+ * Get no-show policy from hotel settings
+ */
+export async function getNoShowPolicy(propertyId: string = 'default'): Promise<NoShowPolicy> {
+  const settings = await prisma.hotelSettings.findUnique({
+    where: { id: propertyId === 'default' ? 'default' : propertyId },
+  });
+
+  return {
+    chargeType: (settings?.noShowChargeType as NoShowPolicy['chargeType']) || 'FIRST_NIGHT',
+    chargeValue: settings?.noShowChargeValue?.toNumber() ?? 0,
+    cutoffHour: settings?.noShowCutoffHour ?? 11,
+    enabled: settings?.noShowEnabled ?? true,
+  };
+}
+
+/**
+ * Calculate no-show charge based on policy
+ */
+export async function calculateNoShowCharge(
+  bookingId: string,
+  policy: NoShowPolicy
+): Promise<{ amount: number; description: string }> {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { room: true },
+  });
+
+  if (!booking) {
+    throw new Error(`Booking not found: ${bookingId}`);
+  }
+
+  let amount = 0;
+  let description = '';
+
+  switch (policy.chargeType) {
+    case 'FIRST_NIGHT': {
+      // First night charge based on double rate (most common)
+      const firstNightRate = booking.room.basePriceDouble;
+      amount = firstNightRate.toNumber();
+      description = 'First night no-show charge';
+      break;
+    }
+    case 'PERCENTAGE': {
+      // Percentage of total booking value
+      amount = (booking.totalAmount.toNumber() * policy.chargeValue) / 100;
+      description = `No-show charge (${policy.chargeValue}% of booking value)`;
+      break;
+    }
+    case 'FLAT_FEE': {
+      // Flat fee as configured
+      amount = policy.chargeValue;
+      description = 'No-show charge (flat fee)';
+      break;
+    }
+  }
+
+  return { amount, description };
+}
+
+/**
+ * Get bookings that should be processed as no-shows
+ * A booking is considered a no-show if:
+ * - Check-in date has passed
+ * - Status is still CONFIRMED (not CHECKED_IN or CANCELLED)
+ * - No check-in was performed
+ */
+export async function getPotentialNoShows(propertyId: string = 'default', asOfDate?: Date) {
+  const now = asOfDate || new Date();
+  const cutoffHour = 11; // Default cutoff is 11 AM
+
+  // Calculate the cutoff datetime
+  // If current time is before cutoff hour on check-in date + 1 day, don't process yet
+  const checkInDate = new Date(now);
+  checkInDate.setHours(0, 0, 0, 0);
+
+  // Get all confirmed bookings where check-in date has passed
+  const bookings = await prisma.booking.findMany({
+    where: {
+      propertyId,
+      status: 'CONFIRMED',
+      checkIn: { lt: checkInDate },
+    },
+    include: {
+      guest: { select: { id: true, name: true, phone: true, email: true } },
+      room: { select: { id: true, roomNumber: true, type: true } },
+    },
+    orderBy: { checkIn: 'asc' },
+  });
+
+  // Filter by cutoff time (only process if we're past the cutoff on the day after check-in)
+  const nextDayAfterCheckIn = new Date(checkInDate);
+  nextDayAfterCheckIn.setDate(nextDayAfterCheckIn.getDate() + 1);
+
+  return bookings.filter((booking) => {
+    const bookingCheckIn = new Date(booking.checkIn);
+    const cutoffDateTime = new Date(nextDayAfterCheckIn);
+    cutoffDateTime.setHours(cutoffHour, 0, 0, 0);
+    return now >= cutoffDateTime;
+  });
+}
+
+/**
+ * Mark a booking as no-show
+ */
+export async function markBookingAsNoShow(
+  bookingId: string,
+  noShowCharge: number,
+  txClient?: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">
+) {
+  const dbClient = txClient || prisma;
+
+  const booking = await dbClient.booking.update({
+    where: { id: bookingId },
+    data: {
+      status: 'NO_SHOW',
+      noShowAt: new Date(),
+      noShowCharge: new Prisma.Decimal(noShowCharge),
+    },
+  });
+
+  // Release the room - mark as VACANT
+  await dbClient.room.update({
+    where: { id: booking.roomId },
+    data: { status: 'VACANT' },
+  });
+
+  return booking;
+}
+
+/**
+ * Get all no-show bookings for a property
+ */
+export async function getNoShowBookings(
+  propertyId: string = 'default',
+  options: { page?: number; perPage?: number; startDate?: Date; endDate?: Date } = {}
+) {
+  const { page = 1, perPage = 20, startDate, endDate } = options;
+
+  const where: Prisma.BookingWhereInput = {
+    propertyId,
+    status: 'NO_SHOW',
+  };
+
+  if (startDate || endDate) {
+    where.noShowAt = {};
+    if (startDate) where.noShowAt.gte = startDate;
+    if (endDate) where.noShowAt.lte = endDate;
+  }
+
+  const [bookings, total] = await Promise.all([
+    prisma.booking.findMany({
+      where,
+      include: {
+        guest: true,
+        room: { include: { photos: true } },
+        payments: true,
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { noShowAt: 'desc' },
+      skip: (page - 1) * perPage,
+      take: perPage,
+    }),
+    prisma.booking.count({ where }),
+  ]);
+
+  return { bookings, total, pages: Math.ceil(total / perPage), page };
+}

@@ -96,6 +96,12 @@ export async function getInvoiceByBookingId(bookingId: string) {
         include: {
           guest: true,
           room: true,
+          addons: {
+            orderBy: { serviceDate: 'asc' },
+          },
+          roomCharges: {
+            orderBy: { chargeDate: 'asc' },
+          },
         },
       },
       payment: true,
@@ -114,6 +120,12 @@ export async function getInvoiceByNumber(invoiceNumber: string) {
         include: {
           guest: true,
           room: true,
+          addons: {
+            orderBy: { serviceDate: 'asc' },
+          },
+          roomCharges: {
+            orderBy: { chargeDate: 'asc' },
+          },
         },
       },
       payment: true,

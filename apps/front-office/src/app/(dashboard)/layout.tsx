@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Bed, CalendarPlus, ClipboardList, Users, FileText, CreditCard, MessageSquare, BarChart3, LogOut, Menu, X, Bell } from "lucide-react";
+import { LayoutDashboard, Bed, CalendarPlus, ClipboardList, Users, FileText, CreditCard, MessageSquare, BarChart3, LogOut, Menu, X, Bell, Shield, AlertTriangle, Clock } from "lucide-react";
 import { cn } from "@the-rooms/ui";
 import { useState } from "react";
 
@@ -16,6 +16,9 @@ const navigation = [
   { name: "Documents", href: "/documents", icon: FileText },
   { name: "Payments", href: "/payments", icon: CreditCard },
   { name: "Complaints", href: "/complaints", icon: MessageSquare },
+  { name: "Night Audit", href: "/night-audit", icon: Shield },
+  { name: "No-Shows", href: "/bookings/no-shows", icon: AlertTriangle },
+  { name: "Stay Modifications", href: "/bookings/stay-modifications", icon: Clock },
   { name: "Daily Report", href: "/reports/daily", icon: BarChart3 },
 ];
 
@@ -26,7 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen bg-gray-50">
       {sidebarOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-      
+
       <aside className={cn("fixed inset-y-0 left-0 z-50 w-72 bg-[#2D3436] transform transition-transform lg:translate-x-0 lg:static lg:z-auto", sidebarOpen ? "translate-x-0" : "-translate-x-full")}>
         <div className="flex h-full flex-col">
           <div className="flex h-16 items-center justify-between px-6 border-b border-white/10">

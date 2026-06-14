@@ -3,27 +3,28 @@
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@the-rooms/ui";
-import { Search, Loader2, User, Check, Camera, Printer, CheckCircle, Info } from "lucide-react";
+import { Search, Loader2, User, Check, Camera, Printer, CheckCircle, Info, Tag, X, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
 
 interface Guest { id: string; name: string; phone: string; email?: string; bookings: Array<{ id: string; checkIn: string; checkOut: string; status: string; room: { roomNumber: string; type: string } }> }
 interface Room { id: string; roomNumber: string; type: "STUDIO" | "PREMIUM"; floor: number; status: string; basePriceSingle: number; basePriceDouble: number; monthlyPriceSingle?: number; monthlyPriceDouble?: number }
 interface GuestDoc { docType: string; frontId?: string; backId?: string; }
+interface DiscountValidation { valid: boolean; error?: string; discountAmount?: number; discount?: { code: string; name: string; type: string; value: number } }
 interface BookingForm {
   guestId?: string; guestName: string; guestPhone: string; guestEmail: string;
   guestAddress: string; guestCity: string; guestState: string; guestPincode: string;
   roomId: string; checkIn: string; checkOut: string; guestsCount: number;
   bookingType: "DAILY" | "MONTHLY"; paymentMethod: string; paymentAmount: number;
-  docs: GuestDoc[]; complimentaryReason?: string;
+  docs: GuestDoc[]; complimentaryReason?: string; discountCode: string;
 }
 
 // ─── Document Types ─────────────────────────────────────────────────────────
 const DOC_TYPES: Record<string, { label: string; needsBack: boolean }> = {
-  AADHAAR:         { label: "Aadhaar Card",     needsBack: true  },
-  PASSPORT:        { label: "Passport",          needsBack: false },
-  VOTER_ID:        { label: "Voter ID",          needsBack: false },
-  DRIVING_LICENSE: { label: "Driving License",   needsBack: true  },
+  AADHAAR: { label: "Aadhaar Card", needsBack: true },
+  PASSPORT: { label: "Passport", needsBack: false },
+  VOTER_ID: { label: "Voter ID", needsBack: false },
+  DRIVING_LICENSE: { label: "Driving License", needsBack: true },
 };
 
 // ─── Pricing Logic ───────────────────────────────────────────────────────────
@@ -99,7 +100,7 @@ function calcPricing(room: Room | undefined, form: BookingForm): PricingBreakdow
 
 const STEPS = [
   { id: 1, name: "Details", icon: User },
-  { id: 2, name: "Docs",    icon: Camera },
+  { id: 2, name: "Docs", icon: Camera },
   { id: 3, name: "Payment", icon: Check },
   { id: 4, name: "Confirm", icon: Check },
 ];
@@ -117,8 +118,10 @@ function NewBookingPageContent() {
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [checkedIn, setCheckedIn] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState<{ idx: number; side: "front" | "back" } | null>(null);
+  const [discountValidation, setDiscountValidation] = useState<DiscountValidation | null>(null);
+  const [validatingDiscount, setValidatingDiscount] = useState(false);
   const frontInputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const backInputRefs  = useRef<(HTMLInputElement | null)[]>([]);
+  const backInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const today = new Date().toISOString().split("T")[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
@@ -130,6 +133,7 @@ function NewBookingPageContent() {
     guestsCount: 1, bookingType: "DAILY",
     paymentMethod: "CASH", paymentAmount: 0,
     docs: [{ docType: "AADHAAR" }],
+    discountCode: "",
   });
 
   // Keep docs array in sync with guestsCount
@@ -151,6 +155,49 @@ function NewBookingPageContent() {
       if (res.ok) { const data = await res.json(); setGuestResults(data.guests ?? []); }
     } catch { /* ignore */ }
   }, []);
+
+  // ─── Discount Code Validation ──────────────────────────────────────────────
+  const validateDiscount = useCallback(async (code: string, roomType?: string, subtotal?: number) => {
+    if (!code.trim()) {
+      setDiscountValidation(null);
+      return;
+    }
+    if (!form.checkIn || !form.checkOut) return;
+
+    setValidatingDiscount(true);
+    try {
+      const params = new URLSearchParams({
+        code,
+        checkIn: form.checkIn,
+        checkOut: form.checkOut,
+      });
+      if (roomType) params.set("roomType", roomType);
+      if (subtotal !== undefined) params.set("subtotal", String(subtotal));
+      const res = await fetch(`/api/discounts/validate?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDiscountValidation(data);
+      } else {
+        setDiscountValidation({ valid: false, error: "Failed to validate discount" });
+      }
+    } catch {
+      setDiscountValidation({ valid: false, error: "Failed to validate discount" });
+    } finally {
+      setValidatingDiscount(false);
+    }
+  }, [form.checkIn, form.checkOut]);
+
+  // Debounced discount validation
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (form.discountCode) {
+        const room = rooms.find((r) => r.id === form.roomId);
+        const p = calcPricing(room, form);
+        validateDiscount(form.discountCode, room?.type, p.subtotal);
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [form.discountCode, form.roomId, form.checkIn, form.checkOut, validateDiscount, rooms, calcPricing]);
 
   useEffect(() => {
     const t = setTimeout(() => { if (guestSearch) searchGuests(guestSearch); }, 300);
@@ -232,6 +279,8 @@ function NewBookingPageContent() {
 
       const isComplimentary = form.paymentMethod === "COMPLIMENTARY";
       const effectiveBookingType = pricing.isMonthly ? "MONTHLY" : "DAILY";
+      const discountAmount = discountValidation?.valid ? (discountValidation.discountAmount ?? 0) : 0;
+      const finalTotal = Math.max(0, pricing.total - discountAmount);
 
       const bookingRes = await fetch("/api/bookings", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -240,7 +289,9 @@ function NewBookingPageContent() {
           guestsCount: form.guestsCount, bookingType: effectiveBookingType,
           bookingSource: isComplimentary ? "COMPLIMENTARY" : "WALK_IN",
           baseAmount: pricing.roomCharge,
-          totalAmount: Math.round(pricing.total),
+          discountAmount: discountAmount,
+          totalAmount: Math.round(finalTotal),
+          discountCode: discountValidation?.valid ? form.discountCode : undefined,
           complimentaryReason: isComplimentary ? form.complimentaryReason : undefined,
           docs: form.docs,
         }),
@@ -395,6 +446,56 @@ function NewBookingPageContent() {
               </div>
             )}
 
+            {/* Discount Code Input */}
+            <div className="rounded-lg border border-gray-200 p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Discount Code</label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={form.discountCode}
+                    onChange={(e) => setForm((f) => ({ ...f, discountCode: e.target.value.toUpperCase() }))}
+                    placeholder="Enter code (e.g., SUMMER20)"
+                    className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] font-mono"
+                  />
+                </div>
+                {form.discountCode && (
+                  <button
+                    type="button"
+                    onClick={() => { setForm((f) => ({ ...f, discountCode: "" })); setDiscountValidation(null); }}
+                    className="px-3 py-3 rounded-lg border border-gray-300 hover:bg-gray-50"
+                  >
+                    <X className="h-4 w-4 text-gray-500" />
+                  </button>
+                )}
+              </div>
+              {validatingDiscount && (
+                <p className="text-sm text-gray-500 mt-2 flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Validating...
+                </p>
+              )}
+              {discountValidation && !discountValidation.valid && (
+                <p className="text-sm text-red-600 mt-2 flex items-center gap-1">
+                  <X className="h-3 w-3" /> {discountValidation.error}
+                </p>
+              )}
+              {discountValidation && discountValidation.valid && (
+                <div className="mt-2 p-3 rounded-lg bg-green-50 border border-green-200">
+                  <p className="text-sm text-green-700 flex items-center gap-1 font-medium">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {discountValidation.discount?.name} applied!
+                  </p>
+                  <p className="text-sm text-green-600 mt-1">
+                    {discountValidation.discount?.type === "PERCENTAGE"
+                      ? `${discountValidation.discount.value}% off`
+                      : `₹${discountValidation.discount?.value} off`}
+                    {" "}— Save {formatCurrency(discountValidation.discountAmount ?? 0)}
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Pricing Preview */}
             {selectedRoom && pricing.nights > 0 && (
               <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 space-y-2">
@@ -413,9 +514,15 @@ function NewBookingPageContent() {
                     <span>+{formatCurrency(pricing.extraGuestCharge)}</span>
                   </div>
                 )}
+                {discountValidation?.valid && (discountValidation.discountAmount ?? 0) > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Discount ({discountValidation.discount?.code})</span>
+                    <span>-{formatCurrency(discountValidation.discountAmount ?? 0)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm text-gray-500 border-t border-gray-200 pt-2">
                   <span>Subtotal (excl. GST)</span>
-                  <span>{formatCurrency(pricing.subtotal)}</span>
+                  <span>{formatCurrency(pricing.subtotal - (discountValidation?.valid ? (discountValidation.discountAmount ?? 0) : 0))}</span>
                 </div>
                 <div className="flex justify-between text-sm text-gray-500">
                   <span>CGST 9%</span>
@@ -427,7 +534,7 @@ function NewBookingPageContent() {
                 </div>
                 <div className="flex justify-between font-bold text-[#E17055] text-base border-t border-gray-200 pt-2">
                   <span>Total (incl. GST)</span>
-                  <span>{formatCurrency(pricing.total)}</span>
+                  <span>{formatCurrency(pricing.total - (discountValidation?.valid ? (discountValidation.discountAmount ?? 0) : 0))}</span>
                 </div>
               </div>
             )}
@@ -453,7 +560,7 @@ function NewBookingPageContent() {
           {form.docs.map((doc, idx) => {
             const needsBack = DOC_TYPES[doc.docType]?.needsBack ?? false;
             const isUploadingFront = uploadingIdx?.idx === idx && uploadingIdx.side === "front";
-            const isUploadingBack  = uploadingIdx?.idx === idx && uploadingIdx.side === "back";
+            const isUploadingBack = uploadingIdx?.idx === idx && uploadingIdx.side === "back";
             const guestLabel = form.guestsCount === 1 ? "Guest" : `Guest ${idx + 1}`;
             return (
               <div key={idx} className="rounded-xl border border-gray-200 bg-white p-6 space-y-5">
@@ -481,7 +588,7 @@ function NewBookingPageContent() {
                         doc.frontId ? "border-green-400 bg-green-50" : "border-gray-300 bg-gray-50")}>
                       {isUploadingFront ? <><Loader2 className="h-8 w-8 animate-spin text-[#E17055]" /><p className="text-sm text-gray-500">Uploading...</p></>
                         : doc.frontId ? <><img src={doc.frontId} alt="Front" className="max-h-28 rounded object-contain" /><button onClick={(e) => { e.stopPropagation(); updateDoc(idx, { frontId: undefined }); }} className="text-xs text-red-600 hover:underline">Remove</button></>
-                        : <><Camera className="h-10 w-10 text-gray-400" /><p className="text-sm text-gray-600">Tap to capture or upload</p><p className="text-xs text-gray-400">JPEG, PNG, PDF · max 5MB</p></>}
+                          : <><Camera className="h-10 w-10 text-gray-400" /><p className="text-sm text-gray-600">Tap to capture or upload</p><p className="text-xs text-gray-400">JPEG, PNG, PDF · max 5MB</p></>}
                     </div>
                   </div>
 
@@ -496,7 +603,7 @@ function NewBookingPageContent() {
                         doc.backId ? "border-green-400 bg-green-50" : "border-gray-300 bg-gray-50")}>
                       {isUploadingBack ? <><Loader2 className="h-8 w-8 animate-spin text-[#E17055]" /><p className="text-sm text-gray-500">Uploading...</p></>
                         : doc.backId ? <><img src={doc.backId} alt="Back" className="max-h-28 rounded object-contain" /><button onClick={(e) => { e.stopPropagation(); updateDoc(idx, { backId: undefined }); }} className="text-xs text-red-600 hover:underline">Remove</button></>
-                        : <><Camera className="h-10 w-10 text-gray-400" /><p className="text-sm text-gray-600">Tap to capture or upload</p><p className="text-xs text-gray-400">JPEG, PNG, PDF · max 5MB</p></>}
+                          : <><Camera className="h-10 w-10 text-gray-400" /><p className="text-sm text-gray-600">Tap to capture or upload</p><p className="text-xs text-gray-400">JPEG, PNG, PDF · max 5MB</p></>}
                     </div>
                   </div>
                 </div>
@@ -512,7 +619,12 @@ function NewBookingPageContent() {
 
           <div className="flex gap-3">
             <button onClick={() => setStep(1)} className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Back</button>
-            <button onClick={() => { setForm((f) => ({ ...f, paymentAmount: Math.round(pricing.total) })); setStep(3); }}
+            <button onClick={() => {
+              const discountAmt = discountValidation?.valid ? (discountValidation.discountAmount ?? 0) : 0;
+              const finalTotal = Math.max(0, pricing.total - discountAmt);
+              setForm((f) => ({ ...f, paymentAmount: Math.round(finalTotal) }));
+              setStep(3);
+            }}
               disabled={!canProceedToPayment || uploadingIdx !== null}
               className="flex-1 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50">
               Continue to Payment
@@ -543,8 +655,15 @@ function NewBookingPageContent() {
                 <span>+{formatCurrency(pricing.extraGuestCharge)}</span>
               </div>
             )}
+            {discountValidation?.valid && (discountValidation.discountAmount ?? 0) > 0 && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Discount ({discountValidation.discount?.code})</span>
+                <span>-{formatCurrency(discountValidation.discountAmount ?? 0)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm text-gray-500 border-t pt-2">
-              <span>Subtotal</span><span>{formatCurrency(pricing.subtotal)}</span>
+              <span>Subtotal</span>
+              <span>{formatCurrency(pricing.subtotal - (discountValidation?.valid ? (discountValidation.discountAmount ?? 0) : 0))}</span>
             </div>
             <div className="flex justify-between text-sm text-gray-500">
               <span>CGST 9%</span><span>{formatCurrency(pricing.cgst)}</span>
@@ -554,7 +673,7 @@ function NewBookingPageContent() {
             </div>
             <div className="flex justify-between font-bold text-[#E17055] text-lg border-t pt-2">
               <span>Total (incl. GST)</span>
-              <span>{formatCurrency(pricing.total)}</span>
+              <span>{formatCurrency(pricing.total - (discountValidation?.valid ? (discountValidation.discountAmount ?? 0) : 0))}</span>
             </div>
           </div>
 

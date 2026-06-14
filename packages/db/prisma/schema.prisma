@@ -73,6 +73,19 @@ model User {
   expenses    Expense[]
   housekeepingTasks HousekeepingTask[]
   propertyAccess UserPropertyAccess[]
+  
+  // Night audit relations
+  dailyCloses PropertyDailyClose[]
+  roomCharges  RoomCharge[]
+
+  // Housekeeping relations
+  cleanedRooms Room[]     @relation("RoomCleanedBy")
+  
+  // Stay modification approvals
+  approvedStayModifications StayModificationRequest[]
+
+  // Receipt collection
+  collectedReceipts Receipt[]
 
   @@map("users")
 }
@@ -101,11 +114,17 @@ model Guest {
   stayCount       Int       @default(0)
   loyaltyTier     LoyaltyTier @default(BRONZE)
   notes           String?
+  
+  // Blacklist flags (quick access - actual blacklist is in GuestBlacklist table)
+  isBlacklisted   Boolean   @default(false)
+  blacklistReason String?
+  
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  bookings  Booking[]
-  documents GuestDocument[]
+  bookings        Booking[]
+  documents      GuestDocument[]
+  blacklistEntry GuestBlacklist?
 
   @@index([phone])
   @@index([email])
@@ -140,6 +159,16 @@ model Room {
   // Internal notes (admin-only, not guest-visible)
   internalNotes    String?
 
+  // Housekeeping tracking
+  cleaningNotes    String?      // Notes from housekeeping staff about room condition
+  lastCleanedAt     DateTime?   // Timestamp when room was last cleaned
+  cleanedById       String?     // User who last cleaned the room
+  cleanedBy         User?       @relation("RoomCleanedBy", fields: [cleanedById], references: [id])
+  
+  // Priority cleaning (VIP arrival, etc.)
+  isPriorityCleaning Boolean   @default(false)
+  priorityReason     String?
+
   createdAt         DateTime    @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -148,6 +177,10 @@ model Room {
   bookings      Booking[]
   housekeepingTasks HousekeepingTask[]
   property      Property    @relation(fields: [propertyId], references: [id])
+  
+  // Room move history (self-referencing for from/to)
+  moveHistoryFrom RoomMoveHistory[] @relation("MoveFromRoom")
+  moveHistoryTo   RoomMoveHistory[] @relation("MoveToRoom")
 
   @@map("rooms")
 }
@@ -289,6 +322,17 @@ model Booking {
   checkInTime   DateTime?
   checkOutTime  DateTime?
 
+  // No-show tracking
+  noShowAt      DateTime?
+  noShowCharge  Decimal?     @db.Decimal(10, 2)
+
+  // Group booking link
+  groupBookingId String?
+  groupBooking   GroupBooking? @relation(fields: [groupBookingId], references: [id])
+
+  // Overbooking flag
+  isOverbooking  Boolean   @default(false)
+
   createdById   String?
   createdBy     User?        @relation(fields: [createdById], references: [id])
 
@@ -300,6 +344,12 @@ model Booking {
   complaint    Complaint?
   documents    GuestDocument[]
   auditLogs    AuditLog[]    @relation("BookingAudit")
+  roomCharges  RoomCharge[]
+  discrepancies AuditDiscrepancy[]
+  stayModificationRequests StayModificationRequest[]
+  addons       BookingAddon[]
+  folio        Folio?
+  advanceDeposit AdvanceDeposit?
 
   @@index([checkIn])
   @@index([checkOut])
@@ -382,9 +432,19 @@ model Payment {
   refundReason   String?
   refundAmount   Decimal?      @db.Decimal(10, 2)
   refundStatus   RefundStatus?
+  
+  // Idempotency support
+  idempotencyKey String?       @unique
+  refundId       String?       // External refund reference
+  
   createdAt      DateTime      @default(now())
 
-  invoice        Invoice?
+  // Invoice link (multiple payments can be linked to one invoice)
+  invoiceId      String?
+  invoice        Invoice?      @relation(fields: [invoiceId], references: [id])
+
+  // Receipt for this payment
+  receipt        Receipt?
 
   @@map("payments")
 }
@@ -405,45 +465,193 @@ enum RefundStatus {
   FAILED
 }
 
+// ── Invoice Status ─────────────────────────────────────────────────────────────
+enum InvoiceStatus {
+  DRAFT      // Invoice created but not finalized
+  ISSUED     // Invoice issued to guest
+  CANCELLED  // Invoice cancelled (immutable - only cancelled, never edited)
+}
+
+// ── Invoice ─────────────────────────────────────────────────────────────────
 model Invoice {
   id            String    @id @default(cuid())
   bookingId     String    @unique
   booking       Booking  @relation(fields: [bookingId], references: [id])
-  paymentId     String    @unique
-  payment       Payment  @relation(fields: [paymentId], references: [id])
   invoiceNumber String   @unique
-  pdfUrl        String?
-  issuedAt      DateTime  @default(now())
 
+  // Status
+  status        InvoiceStatus @default(DRAFT)
+  issuedAt      DateTime  @default(now())
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancellationReason String?
+
+  // Financial breakdown (all amounts in INR)
+  subtotal      Decimal   @db.Decimal(12, 2) @default(0)
+  cgst         Decimal   @db.Decimal(12, 2) @default(0)  // Central GST
+  sgst         Decimal   @db.Decimal(12, 2) @default(0)  // State GST
+  igst         Decimal   @db.Decimal(12, 2) @default(0)  // Integrated GST (interstate)
+  taxAmount    Decimal   @db.Decimal(12, 2) @default(0)
+  roundOff     Decimal   @db.Decimal(12, 2) @default(0)
+  totalAmount  Decimal   @db.Decimal(12, 2) @default(0)
+
+  // GST Details
+  placeOfSupply String?  // State code for GST (e.g., "29" for Karnataka)
+  isInterstate  Boolean  @default(false)  // IGST applies if true
+
+  // Guest GSTIN (if business customer)
+  guestGstin   String?
+
+  // PDF Storage
+  pdfUrl       String?
+
+  // Line items
+  items        InvoiceItem[]
+
+  // Payments applied to this invoice
+  payments     Payment[]
+
+  // Receipts generated for payments on this invoice
+  receipts     Receipt[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([issuedAt])
   @@map("invoices")
 }
 
-// ── Discounts ───────────────────────────────────────────────────────────
-model Discount {
-  id              String       @id @default(cuid())
-  name            String
-  code            String      @unique
-  type            DiscountType
-  discountPercent Decimal     @db.Decimal(5, 2)
-  minDays         Int         @default(1)
-  maxDays         Int?
-  validFrom       DateTime?
-  validTo         DateTime?
-  maxUses         Int?
-  usedCount       Int         @default(0)
-  isActive        Boolean     @default(true)
-  createdAt       DateTime    @default(now())
+// ── Invoice Line Items ─────────────────────────────────────────────────────────
+model InvoiceItem {
+  id          String    @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
-  @@map("discounts")
+  // Item details
+  description String
+  hsnCode     String?   // Harmonized System Nomenclature code for GST
+  quantity    Int       @default(1)
+
+  // Pricing
+  rate        Decimal   @db.Decimal(12, 2)
+  amount      Decimal   @db.Decimal(12, 2)  // quantity × rate
+
+  // Tax breakdown for this item
+  taxRate     Decimal   @db.Decimal(5, 2)   // e.g., 12.00 for 12%
+  cgst        Decimal   @db.Decimal(12, 2) @default(0)
+  sgst        Decimal   @db.Decimal(12, 2) @default(0)
+  igst        Decimal   @db.Decimal(12, 2) @default(0)
+  taxAmount   Decimal   @db.Decimal(12, 2) @default(0)
+  totalAmount Decimal   @db.Decimal(12, 2)
+
+  // Optional reference to source (room charge, addon, etc.)
+  sourceType  String?   // "ROOM_CHARGE" | "ADDON" | "EXTRA" | "DISCOUNT"
+  sourceId    String?   // ID of the source record
+
+  // Date of service (for line item ordering)
+  serviceDate DateTime  @db.Date
+
+  createdAt   DateTime  @default(now())
+
+  @@index([invoiceId])
+  @@map("invoice_items")
 }
 
-enum DiscountType {
-  CORPORATE
-  STUDENT
-  SEASONAL
-  LOYALTY
-  EXTENDED_STAY
-  CUSTOM
+// ── Receipt ───────────────────────────────────────────────────────────────────
+model Receipt {
+  id            String    @id @default(cuid())
+  receiptNumber String   @unique
+
+  // Link to payment
+  paymentId     String    @unique
+  payment       Payment   @relation(fields: [paymentId], references: [id])
+
+  // Link to invoice (if payment is for an invoice)
+  invoiceId     String?
+  invoice       Invoice?  @relation(fields: [invoiceId], references: [id])
+
+  // Receipt details
+  amount        Decimal   @db.Decimal(12, 2)
+  amountInWords String?   // e.g., "Rupees Two Thousand Five Hundred Only"
+
+  // Payment context
+  paymentType   ReceiptPaymentType @default(FULL)  // ADVANCE | PARTIAL | FULL | REFUND
+  remainingBalance Decimal         @db.Decimal(12, 2) @default(0)
+
+  // Collected by
+  collectedById String?
+  collectedBy   User?     @relation(fields: [collectedById], references: [id])
+
+  // PDF Storage
+  pdfUrl        String?
+
+  // Status
+  status        ReceiptStatus @default(ACTIVE)
+
+  createdAt     DateTime  @default(now())
+
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@index([createdAt])
+  @@map("receipts")
+}
+
+enum ReceiptPaymentType {
+  ADVANCE   // Advance payment before checkout
+  PARTIAL   // Partial payment of invoice
+  FULL      // Full settlement
+  REFUND    // Refund receipt
+}
+
+enum ReceiptStatus {
+  ACTIVE
+  CANCELLED
+}
+
+// ── Discount Codes ───────────────────────────────────────────────────────
+model DiscountCode {
+  id              String       @id @default(cuid())
+  code            String       @unique
+  name            String
+  description     String?
+  
+  // Discount type and value
+  type            DiscountValueType
+  value           Decimal      @db.Decimal(10, 2)  // Percentage or fixed amount
+  
+  // Validity period
+  validFrom       DateTime?
+  validUntil      DateTime?
+  
+  // Usage limits
+  maxUses         Int?         // Maximum total uses (null = unlimited)
+  currentUses     Int          @default(0)
+  maxUsesPerUser  Int?         // Max uses per user (null = unlimited)
+  
+  // Booking requirements
+  minNights       Int          @default(1)
+  maxNights       Int?
+  minBookingValue Decimal?     @db.Decimal(10, 2)  // Minimum booking value to apply discount
+  maxBookingValue Decimal?     @db.Decimal(10, 2)  // Maximum booking value cap
+  
+  // Room type restrictions
+  applicableRoomTypes RoomType[]  // Empty array = all room types
+  
+  // Status
+  isActive        Boolean     @default(true)
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@map("discount_codes")
+}
+
+enum DiscountValueType {
+  PERCENTAGE
+  FIXED_AMOUNT
 }
 
 // ── Announcements / Banners ─────────────────────────────────────────────
@@ -561,6 +769,23 @@ model HotelSettings {
   ifscCode           String?
   cancellationPolicy String?
   
+  // No-show policy settings
+  noShowChargeType   String?  @default("FIRST_NIGHT")  // "FIRST_NIGHT" | "PERCENTAGE" | "FLAT_FEE"
+  noShowChargeValue  Decimal? @db.Decimal(10, 2)       // Percentage (0-100) or flat fee amount
+  noShowCutoffHour   Int?    @default(11)              // Hour of day when no-show is processed (0-23)
+  noShowEnabled      Boolean @default(true)
+  
+  // Early check-in policy settings
+  earlyCheckinEnabled     Boolean @default(true)
+  earlyCheckinCutoffHour Int?    @default(10)           // Hour before which early check-in is free (0-23)
+  earlyCheckinChargeType String? @default("HALF_DAY")   // "HOURLY" | "HALF_DAY" | "FULL_DAY"
+  
+  // Late check-out policy settings
+  lateCheckoutEnabled     Boolean @default(true)
+  lateCheckoutCutoffHour  Int?    @default(12)           // Hour after which late checkout incurs charge (0-23)
+  lateCheckoutChargeType String? @default("HALF_DAY")   // "HOURLY" | "HALF_DAY" | "FULL_DAY"
+  lateCheckoutMaxHour     Int?    @default(16)            // Latest checkout time (0-23)
+  
   emailOnBooking     Boolean  @default(true)
   emailOnCancel      Boolean  @default(true)
   dailyReport        Boolean  @default(true)
@@ -569,6 +794,108 @@ model HotelSettings {
   updatedAt          DateTime @updatedAt
 
   @@map("hotel_settings")
+}
+
+// ── Stay Modification Requests ──────────────────────────────────────────────
+model StayModificationRequest {
+  id            String                      @id @default(cuid())
+  bookingId     String
+  booking       Booking                     @relation(fields: [bookingId], references: [id])
+  type          StayModificationType
+  status        StayModificationStatus       @default(PENDING)
+  
+  // Original dates
+  originalCheckIn  DateTime
+  originalCheckOut DateTime
+  
+  // Requested dates
+  requestedCheckIn  DateTime?
+  requestedCheckOut DateTime?
+  
+  // Request details
+  reason         String?
+  notes          String?
+  
+  // Charge calculation
+  extraChargeAmount Decimal?                @db.Decimal(10, 2)
+  chargeDescription String?
+  
+  // Approval tracking
+  approvedById   String?
+  approvedBy     User?                      @relation(fields: [approvedById], references: [id])
+  approvedAt     DateTime?
+  rejectionReason String?
+  
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([type])
+  @@map("stay_modification_requests")
+}
+
+// ── Booking Add-ons / Folio Charges ─────────────────────────────────────────
+model BookingAddon {
+  id            String       @id @default(cuid())
+  bookingId     String
+  booking       Booking      @relation(fields: [bookingId], references: [id])
+  
+  // Add-on type
+  type          AddonType
+  
+  // Description (for custom add-ons or override)
+  description   String
+  
+  // Amount (in INR - stored as Decimal for precision)
+  amount        Decimal      @db.Decimal(10, 2)
+  
+  // Quantity (for items like laundry, minibar, etc.)
+  quantity      Int          @default(1)
+  
+  // Date when the service was provided
+  serviceDate   DateTime     @db.Date
+  
+  // User who added this add-on
+  addedById     String?
+  addedBy       User?        @relation(fields: [addedById], references: [id])
+  
+  // GST calculation
+  cgst          Decimal      @db.Decimal(10, 2) @default(0)
+  sgst          Decimal      @db.Decimal(10, 2) @default(0)
+  
+  // Total amount (amount * quantity + taxes)
+  totalAmount   Decimal      @db.Decimal(10, 2)
+  
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([bookingId])
+  @@index([serviceDate])
+  @@index([type])
+  @@map("booking_addons")
+}
+
+enum AddonType {
+  FB              // Food & Beverage
+  LAUNDRY         // Laundry
+  SPA             // Spa Services
+  MINIBAR         // Mini Bar
+  RESTAURANT      // Restaurant
+  TRANSPORT       // Transportation
+  ROOM_SERVICE    // Room Service
+  OTHER           // Other charges
+}
+
+enum StayModificationType {
+  EARLY_CHECKIN
+  LATE_CHECKOUT
+}
+
+enum StayModificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model Backup {
@@ -606,4 +933,810 @@ model Alert {
   createdAt    DateTime @default(now())
   
   @@map("alerts")
+}
+
+// ── Night Audit ────────────────────────────────────────────────────────────────
+
+// Tracks which dates have been closed per property (day-close functionality)
+model PropertyDailyClose {
+  id              String    @id @default(cuid())
+  propertyId      String    @default("default")
+  closeDate       DateTime  @db.Date  // The date that was closed
+  closedById      String?              // User who performed the close
+  closedBy        User?     @relation(fields: [closedById], references: [id])
+  closedAt        DateTime  @default(now())
+  
+  // Audit trail
+  totalCheckIns   Int       @default(0)
+  totalCheckOuts  Int       @default(0)
+  totalOccupied   Int       @default(0)
+  totalRevenue    Decimal  @db.Decimal(12, 2) @default(0)
+  totalPayments    Int       @default(0)
+  totalCharges    Int       @default(0)
+  discrepancies   Int       @default(0)
+  notes           String?
+  
+  // Room charges posted
+  roomChargesPosted Boolean @default(false)
+  roomChargesAmount  Decimal? @db.Decimal(12, 2)
+  
+  // Report generated
+  reportGenerated  Boolean @default(false)
+  
+  // Opposite relations for RoomCharge and AuditDiscrepancy
+  roomCharges     RoomCharge[]
+  auditDiscrepancies AuditDiscrepancy[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([propertyId, closeDate])
+  @@index([propertyId, closeDate])
+  @@map("property_daily_close")
+}
+
+// Tracks individual room charges posted during night audit
+model RoomCharge {
+  id              String    @id @default(cuid())
+  bookingId       String
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  propertyId      String    @default("default")
+  
+  // Charge details
+  chargeDate      DateTime  @db.Date
+  roomRate        Decimal   @db.Decimal(10, 2)  // Daily rate for this day
+  extraGuestCharge Decimal  @db.Decimal(10, 2) @default(0)
+  subtotal        Decimal   @db.Decimal(10, 2)
+  cgst            Decimal   @db.Decimal(10, 2) @default(0)
+  sgst            Decimal   @db.Decimal(10, 2) @default(0)
+  totalAmount     Decimal   @db.Decimal(10, 2)
+  
+  // Audit reference
+  postedById      String?
+  postedBy        User?     @relation(fields: [postedById], references: [id])
+  postedAt        DateTime  @default(now())
+  
+  // Daily close reference
+  dailyCloseId    String?
+  dailyClose      PropertyDailyClose? @relation(fields: [dailyCloseId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+
+  @@index([bookingId, chargeDate])
+  @@index([propertyId, chargeDate])
+  @@map("room_charges")
+}
+
+// Tracks discrepancies found during night audit
+model AuditDiscrepancy {
+  id              String           @id @default(cuid())
+  propertyId      String           @default("default")
+  dailyCloseId    String?
+  dailyClose      PropertyDailyClose? @relation(fields: [dailyCloseId], references: [id])
+  
+  // Discrepancy details
+  type            DiscrepancyType
+  severity        String           @default("MEDIUM")  // LOW, MEDIUM, HIGH, CRITICAL
+  description     String
+  
+  // Related entities
+  bookingId       String?
+  booking         Booking?         @relation(fields: [bookingId], references: [id])
+  paymentId       String?
+  
+  // Resolution
+  resolved        Boolean          @default(false)
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolutionNotes String?
+  
+  createdAt       DateTime         @default(now())
+
+  @@index([propertyId, type])
+  @@index([dailyCloseId])
+  @@map("audit_discrepancies")
+}
+
+enum DiscrepancyType {
+  PAYMENT_MISMATCH       // Payment amount doesn't match invoice
+  CHARGE_MISSING         // Expected charge not found
+  DUPLICATE_PAYMENT      // Duplicate payment detected
+  UNVERIFIED_TRANSACTION // Transaction couldn't be verified
+  ROOM_STATUS_MISMATCH  // Room status doesn't match booking status
+  PRICING_ERROR          // Pricing calculation error
+  DOCUMENT_PENDING       // Required document not uploaded
+  OVERBOOKING            // Room double-booked
+}
+
+// ── Channel Manager ────────────────────────────────────────────────────────────
+
+// ── Channel Configuration ──────────────────────────────────────────────────────
+
+model Channel {
+  id            String      @id @default(cuid())
+  name          ChannelName @unique
+  displayName   String
+  logoUrl       String?
+  isActive      Boolean     @default(false)
+  config        Json?       // Encrypted credentials/secrets
+  metadata      Json?       // Channel-specific settings
+  
+  // Rate plan and room type mappings
+  roomMappings  RoomChannelMapping[]
+  rateMappings  RateChannelMapping[]
+  
+  // Sync configuration
+  syncSettings  ChannelSyncSettings?
+  
+  // Sync logs
+  syncLogs      SyncLog[]
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("channels")
+}
+
+enum ChannelName {
+  BOOKING_COM
+  EXPEDIA
+  AIRBNB
+  AGODA
+}
+
+// ── Room Mapping (PMS Room → OTA Room Type) ───────────────────────────────────
+
+model RoomChannelMapping {
+  id              String    @id @default(cuid())
+  channelId       String
+  channel         Channel   @relation(fields: [channelId], references: [id])
+  
+  // PMS side
+  roomId          String
+  roomType        RoomType
+  
+  // OTA side
+  otaRoomTypeId   String    // Room type ID in OTA system
+  otaRoomTypeName String?
+  
+  // Mapping metadata
+  isActive        Boolean   @default(true)
+  lastSyncedAt    DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([channelId, roomId])
+  @@map("room_channel_mappings")
+}
+
+// ── Rate Mapping (PMS Rate → OTA Rate Plan) ───────────────────────────────────
+
+model RateChannelMapping {
+  id              String    @id @default(cuid())
+  channelId       String
+  channel         Channel   @relation(fields: [channelId], references: [id])
+  
+  // PMS side
+  rateType        RateType // SINGLE, DOUBLE, MONTHLY
+  roomType        RoomType
+  
+  // OTA side
+  otaRatePlanId   String
+  otaRatePlanName String?
+  
+  // Rate settings
+  isActive        Boolean   @default(true)
+  lastSyncedAt    DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([channelId, rateType, roomType])
+  @@map("rate_channel_mappings")
+}
+
+enum RateType {
+  SINGLE
+  DOUBLE
+  MONTHLY
+}
+
+// ── Channel Sync Settings ──────────────────────────────────────────────────────
+
+model ChannelSyncSettings {
+  id                    String    @id @default(cuid())
+  channelId             String    @unique
+  channel               Channel   @relation(fields: [channelId], references: [id])
+  
+  // Sync mode
+  syncMode              SyncMode  @default(PUSH_BASED)
+  
+  // Sync schedules (cron expressions)
+  fullSyncSchedule      String?   // e.g., "0 2 * * *" (2 AM daily)
+  incrementalSyncSchedule String? // e.g., "*/15 * * * *" (every 15 min)
+  
+  // Sync preferences
+  autoSyncInventory     Boolean   @default(true)
+  autoSyncRates         Boolean   @default(true)
+  autoImportBookings    Boolean   @default(true)
+  
+  // Conflict resolution
+  conflictStrategy      ConflictStrategy @default(PMS_WINS)
+  
+  // Real-time push settings
+  pushEnabled           Boolean   @default(false)
+  pushEndpoint          String?   // Callback URL for push-based channels
+  
+  // Retry settings
+  maxRetries            Int       @default(3)
+  retryDelayMs          Int       @default(5000)
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("channel_sync_settings")
+}
+
+enum SyncMode {
+  PUSH_BASED        // PMS pushes updates to OTA
+  PULL_BASED        // PMS pulls from OTA periodically
+  WEBHOOK_BASED     // OTA pushes changes via webhooks
+  HYBRID            // Combination of push/pull/webhook
+}
+
+enum ConflictStrategy {
+  PMS_WINS          // PMS data takes precedence
+  OTA_WINS          // OTA data takes precedence
+  NEWEST_WINS       // Most recent update wins
+  MANUAL            // Requires manual resolution
+}
+
+// ── Sync Log ───────────────────────────────────────────────────────────────────
+
+model SyncLog {
+  id              String      @id @default(cuid())
+  channelId       String
+  channel         Channel     @relation(fields: [channelId], references: [id])
+  
+  // Sync details
+  syncType        SyncType
+  syncDirection   SyncDirection
+  status          SyncStatus @default(PENDING)
+  
+  // Data snapshot
+  itemsTotal      Int         @default(0)
+  itemsSynced     Int         @default(0)
+  itemsFailed     Int         @default(0)
+  
+  // Error handling
+  errorMessage    String?
+  errorDetails    Json?
+  
+  // Timing
+  startedAt       DateTime?
+  completedAt     DateTime?
+  durationMs      Int?
+  
+  // Request/Response for debugging
+  requestPayload  Json?
+  responsePayload Json?
+  
+  createdAt       DateTime    @default(now())
+
+  @@index([channelId, status])
+  @@index([channelId, createdAt])
+  @@map("sync_logs")
+}
+
+enum SyncType {
+  FULL_INVENTORY
+  INCREMENTAL_INVENTORY
+  RATE_UPDATE
+  BOOKING_IMPORT
+  BOOKING_UPDATE
+  BOOKING_CANCEL
+}
+
+enum SyncDirection {
+  OUTBOUND  // PMS → OTA
+  INBOUND   // OTA → PMS
+}
+
+enum SyncStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  PARTIAL_FAILURE
+}
+
+// ── OTA Booking Mapping ────────────────────────────────────────────────────────
+
+model OtaBookingMapping {
+  id                  String    @id @default(cuid())
+  
+  // PMS booking
+  bookingId           String    @unique
+  bookingNumber       String
+  
+  // OTA booking
+  channelId           String
+  channelBookingId   String    // Booking ID in OTA system
+  channelBookingRef  String?   // External reference
+  
+  // Status tracking
+  lastSyncAt          DateTime
+  syncStatus         OtaSyncStatus @default(SYNCED)
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([channelId, channelBookingId])
+  @@map("ota_booking_mappings")
+}
+
+enum OtaSyncStatus {
+  SYNCED
+  PENDING_UPDATE
+  PENDING_CANCEL
+  CONFLICT
+  FAILED
+}
+
+// ── Webhook Log ───────────────────────────────────────────────────────────────
+
+model WebhookLog {
+  id              String      @id @default(cuid())
+  channelId       String
+  channelName     ChannelName
+  
+  // Webhook details
+  webhookType     String      // "booking.created", "inventory.update", etc.
+  eventId         String?     // External event ID
+  
+  // Payload
+  rawPayload      Json
+  parsedPayload   Json?
+  
+  // Processing
+  status          WebhookStatus @default(RECEIVED)
+  processedAt     DateTime?
+  processingTimeMs Int?
+  
+  // Error handling
+  errorMessage    String?
+  
+  // Response
+  responseStatus  Int?
+  responseBody    String?
+  
+  createdAt       DateTime    @default(now())
+
+  @@index([channelId, status])
+  @@index([createdAt])
+  @@map("webhook_logs")
+}
+
+enum WebhookStatus {
+  RECEIVED
+  VALIDATED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+// ── Inventory Snapshot (for conflict detection) ───────────────────────────────
+
+model InventorySnapshot {
+  id              String      @id @default(cuid())
+  channelId       String
+  roomId          String
+  date            DateTime    @db.Date
+  
+  // Snapshot data
+  availableRooms  Int
+  totalRooms      Int
+  rateSingle      Decimal?    @db.Decimal(10, 2)
+  rateDouble      Decimal?    @db.Decimal(10, 2)
+  rateMonthly     Decimal?    @db.Decimal(10, 2)
+  
+  // Source tracking
+  source          String      // "PMS" or channel name
+  version         Int         @default(1)
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([channelId, roomId, date])
+  @@index([channelId, date])
+  @@map("inventory_snapshots")
+}
+
+// ─── Phase 1: Critical Models ─────────────────────────────────────────────────
+
+// ── Guest Blacklist ───────────────────────────────────────────────────────────
+model GuestBlacklist {
+  id          String    @id @default(cuid())
+  guestId     String    @unique
+  guest       Guest     @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  reason      String    // "NON_PAYMENT" | "PROPERTY_DAMAGE" | "MISCONDUCT" | "FRAUD" | "OTHER"
+  description String?
+
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  // Blacklist is permanent unless explicitly removed
+  expiresAt   DateTime? // null = permanent
+
+  @@map("guest_blacklist")
+}
+
+// ── Payment Idempotency ───────────────────────────────────────────────────────
+model PaymentIdempotency {
+  id              String    @id @default(cuid())
+  idempotencyKey  String    @unique
+
+  // Payment details (to detect duplicates)
+  bookingId       String
+  expectedAmount   Decimal   @db.Decimal(10, 2)
+  paymentMethod   PaymentMethod
+
+  // Result
+  paymentId       String?   // Created payment if successful
+  status          IdempotencyStatus @default(PENDING)
+  errorMessage    String?
+
+  // TTL for cleanup (24 hours)
+  expiresAt       DateTime
+
+  createdAt       DateTime  @default(now())
+  processedAt     DateTime?
+
+  @@map("payment_idempotency")
+}
+
+enum IdempotencyStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  EXPIRED
+}
+
+// ── Room Move History ──────────────────────────────────────────────────────────
+model RoomMoveHistory {
+  id              String    @id @default(cuid())
+  bookingId       String
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+
+  // Move details
+  fromRoomId      String
+  fromRoom        Room      @relation("MoveFromRoom", fields: [fromRoomId], references: [id])
+  toRoomId        String
+  toRoom          Room      @relation("MoveToRoom", fields: [toRoomId], references: [id])
+
+  // Reason
+  reason          RoomMoveReason
+
+  // Price adjustment
+  priceDiff       Decimal?  @db.Decimal(10, 2) // Positive = guest pays more
+  refundAmount    Decimal?  @db.Decimal(10, 2)
+
+  // Timing
+  movedAt         DateTime  @default(now())
+  effectiveFrom   DateTime  // When the new room becomes effective
+
+  // User who initiated
+  initiatedById   String?
+  initiatedBy     User?     @relation(fields: [initiatedById], references: [id])
+
+  notes           String?
+
+  @@map("room_move_history")
+}
+
+enum RoomMoveReason {
+  UPGRADE
+  DOWNGRADE
+  MAINTENANCE    // Room went OOO
+  COMPLAINT       // Guest complained about room
+  GUEST_REQUEST   // Guest asked for different room
+  SYSTEM_ERROR    // Wrong room assigned initially
+  OTHER
+}
+
+// ─── Phase 2: Important Models ───────────────────────────────────────────────
+
+// ── Group Booking ─────────────────────────────────────────────────────────────
+model GroupBooking {
+  id              String    @id @default(cuid())
+  groupCode       String    @unique // e.g., "GRP-20240529-001"
+  propertyId      String    @default("default")
+  property        Property  @relation(fields: [propertyId], references: [id])
+
+  name            String    // Group name (company, wedding party, etc.)
+  contactPerson   String?
+  contactPhone    String?
+  contactEmail    String?
+
+  // Billing preference
+  billingType     GroupBillingType @default(INDIVIDUAL)
+
+  // Dates
+  checkInDate     DateTime  @db.Date
+  checkOutDate    DateTime  @db.Date
+
+  // Status
+  status          GroupBookingStatus @default(CONFIRMED)
+
+  createdById      String?
+  createdBy        User?     @relation(fields: [createdById], references: [id])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  bookings        Booking[]
+
+  @@map("group_bookings")
+}
+
+enum GroupBillingType {
+  SHARED        // Single invoice for entire group
+  INDIVIDUAL   // Each booking has separate invoice
+  MIXED        // Some shared, some individual
+}
+
+enum GroupBookingStatus {
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ── Folio (Multi-Folio Support) ───────────────────────────────────────────────
+model Folio {
+  id            String    @id @default(cuid())
+  folioNumber   String    @unique // e.g., "FOL-20240529-001"
+  bookingId     String
+  booking       Booking   @relation(fields: [bookingId], references: [id])
+
+  // Folio type
+  type          FolioType @default(GUEST)
+
+  // For COMPANY type
+  companyName   String?
+  companyGstin  String?
+
+  // Description
+  description   String?
+
+  // Status
+  isClosed      Boolean   @default(false)
+  closedAt      DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  charges       FolioCharge[]
+  payments      FolioPayment[]
+
+  @@map("folios")
+}
+
+enum FolioType {
+  GUEST       // Default - primary guest
+  COMPANY     // Corporate billing
+  SERVICE     // Split by service (F&B, laundry, etc.)
+  SHARED      // Shared expenses split among multiple folios
+}
+
+model FolioCharge {
+  id          String    @id @default(cuid())
+  folioId     String
+  folio       Folio     @relation(fields: [folioId], references: [id])
+
+  // Charge details
+  type        AddonType
+  description String
+  amount      Decimal   @db.Decimal(10, 2)
+  quantity    Int       @default(1)
+  chargeDate  DateTime  @db.Date
+
+  // Tax
+  cgst        Decimal   @db.Decimal(10, 2) @default(0)
+  sgst        Decimal   @db.Decimal(10, 2) @default(0)
+  totalAmount Decimal   @db.Decimal(10, 2)
+
+  // Reference to original addon if converted
+  addonId     String?
+
+  createdAt   DateTime  @default(now())
+
+  @@map("folio_charges")
+}
+
+model FolioPayment {
+  id          String    @id @default(cuid())
+  folioId     String
+  folio       Folio     @relation(fields: [folioId], references: [id])
+  paymentId   String    @unique
+  payment     Payment   @relation(fields: [paymentId], references: [id])
+
+  amount      Decimal   @db.Decimal(10, 2) // Amount allocated to this folio
+
+  createdAt   DateTime  @default(now())
+
+  @@map("folio_payments")
+}
+
+// ── Advance Deposit ────────────────────────────────────────────────────────────
+model AdvanceDeposit {
+  id              String    @id @default(cuid())
+  bookingId       String    @unique
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+
+  // Deposit details
+  amount          Decimal   @db.Decimal(10, 2)
+  paymentId       String    @unique
+  payment         Payment   @relation(fields: [paymentId], references: [id])
+
+  // Status
+  status          DepositStatus @default(HELD)
+
+  // For refund/forfeit
+  refundAmount    Decimal?  @db.Decimal(10, 2)
+  refundReason    String?
+  processedAt     DateTime?
+  processedById   String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("advance_deposits")
+}
+
+enum DepositStatus {
+  HELD       // Deposit is being held
+  APPLIED    // Applied to final bill
+  REFUNDED   // Refunded to guest
+  FORFEITED  // Kept as penalty (no-show, cancellation)
+}
+
+// ── Corporate Account ─────────────────────────────────────────────────────────
+model CorporateAccount {
+  id              String    @id @default(cuid())
+  companyName     String
+  companyGstin    String?
+
+  // Contact
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+
+  // Billing terms
+  paymentTermsDays Int      @default(30) // Net days
+  creditLimit     Decimal?  @db.Decimal(12, 2)
+  discountPercent Decimal?  @db.Decimal(5, 2) // Corporate discount
+
+  // Status
+  isActive        Boolean   @default(true)
+
+  // Billing address
+  billingAddress  String?
+  billingCity     String?
+  billingState    String?
+  billingPincode  String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  bookings        Booking[]
+  folios          Folio[]
+
+  @@map("corporate_accounts")
+}
+
+// ─── Phase 3: Enhancement Models ─────────────────────────────────────────────
+
+// ── Partner Hotel ─────────────────────────────────────────────────────────────
+model PartnerHotel {
+  id              String    @id @default(cuid())
+  name            String
+  address         String?
+  city            String?
+
+  // Contact
+  phone           String?
+  email           String?
+
+  // Room types available
+  roomTypes       RoomType[]
+
+  // Pricing
+  negotiatedRate  Decimal?  @db.Decimal(10, 2) // Our cost
+  guestPays       Decimal?  @db.Decimal(10, 2) // If guest pays difference
+
+  // Distance
+  distanceKm      Decimal?  @db.Decimal(5, 2)
+
+  // Status
+  isActive        Boolean   @default(true)
+
+  // Notes
+  notes           String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("partner_hotels")
+}
+
+// ── Overbooking Policy ──────────────────────────────────────────────────────────
+model OverbookingPolicy {
+  id              String    @id @default(cuid())
+  propertyId      String    @default("default")
+  property        Property  @relation(fields: [propertyId], references: [id])
+
+  // Enabled
+  isEnabled       Boolean   @default(false)
+
+  // Overbooking limits per room type
+  studioOverbookLimit   Int @default(0)
+  premiumOverbookLimit Int @default(0)
+
+  // Waitlist settings
+  enableWaitlist   Boolean   @default(true)
+  waitlistTimeout  Int       @default(60) // Minutes to hold waitlist position
+
+  // Resolution hierarchy (stored as JSON array)
+  resolutionOrder OverbookingResolution[]
+
+  // Partner hotel for relocation
+  partnerHotelId  String?
+  partnerHotel    PartnerHotel? @relation(fields: [partnerHotelId], references: [id])
+  partnerHotelName String?
+  partnerHotelContact String?
+  partnerHotelRate Decimal? @db.Decimal(10, 2)
+
+  updatedAt        DateTime  @updatedAt
+
+  @@map("overbooking_policies")
+}
+
+enum OverbookingResolution {
+  UPGRADE_FREE     // Upgrade to higher room type at no charge
+  RELOCATE_PARTNER // Move to partner hotel, us pay difference
+  RELOCATE_GUEST   // Move to partner hotel, guest pays
+  CANCEL_REFUND    // Cancel with full refund + compensation
+  CANCEL_NO_REFUND // Cancel with no refund (last resort)
+}
+
+// ── Complaint Escalation ───────────────────────────────────────────────────────
+model ComplaintEscalation {
+  id            String    @id @default(cuid())
+  complaintId   String
+  complaint     Complaint @relation(fields: [complaintId], references: [id])
+
+  // Escalation details
+  level        EscalationLevel @default(FIRST)
+  escalatedTo  String    // Manager name/ID
+  reason       String?
+
+  // Timing
+  escalatedAt  DateTime  @default(now())
+  resolvedAt   DateTime?
+
+  // Resolution
+  resolution   String?
+  resolvedById String?
+
+  @@map("complaint_escalations")
+}
+
+enum EscalationLevel {
+  FIRST      // Front office manager
+  SECOND     // General manager
+  THIRD      // Regional/District manager
+  FINAL      // Executive team
 }

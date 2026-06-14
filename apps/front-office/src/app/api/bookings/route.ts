@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       complimentaryReason,
       docs,
       propertyId,
+      discountCode,
     } = body;
 
     console.log("[BOOKING_CREATE] Parsed fields - guestId:", guestId, "roomId:", roomId, "bookingSource:", bookingSource);
@@ -147,9 +148,21 @@ export async function POST(request: NextRequest) {
           totalAmount: new Prisma.Decimal(totalAmount),
           paymentStatus: isComplimentary ? "PAID" : "PENDING", // Complimentary bookings are considered paid
           complimentaryReason: isComplimentary ? complimentaryReason : null,
+          discountCode: discountCode || null,
           createdById: (session.user as { id?: string }).id,
         },
       });
+
+      // Increment discount code usage if applicable
+      if (discountCode) {
+        const discount = await tx.discountCode.findUnique({ where: { code: discountCode.toUpperCase() } });
+        if (discount) {
+          await tx.discountCode.update({
+            where: { id: discount.id },
+            data: { currentUses: { increment: 1 } },
+          });
+        }
+      }
 
       // Create audit log for booking creation
       await tx.auditLog.create({

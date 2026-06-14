@@ -20,6 +20,7 @@ import {
   LogOut,
   Building2,
   Images,
+  Link2,
 } from "lucide-react";
 import { PortalSidebar, type NavItem } from "@the-rooms/ui";
 
@@ -32,6 +33,7 @@ const ADMIN_NAV: NavItem[] = [
   { label: "Staff Management", href: "/users", icon: Users },
   { label: "Announcements", href: "/announcements", icon: Megaphone },
   { label: "Discounts", href: "/discounts", icon: Tag },
+  { label: "Channels", href: "/channels", icon: Link2 },
   { label: "Reports", href: "/reports", icon: BarChart3 },
   { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Settings", href: "/settings", icon: Settings },
