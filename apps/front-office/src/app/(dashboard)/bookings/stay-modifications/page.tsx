@@ -70,8 +70,8 @@ export default function StayModificationsPage() {
                 throw new Error(data.error || "Failed to fetch requests");
             }
             const data = await res.json();
-            setRequests(data.requests);
-            setPolicy(data.policy);
+            setRequests(data.data?.requests ?? []);
+            setPolicy(data.data?.policy ?? null);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Unknown error");
         } finally {

@@ -54,8 +54,8 @@ export default function NoShowsPage() {
                 const res = await fetch(`/api/bookings/no-shows?${params.toString()}`);
                 if (res.ok) {
                     const data = await res.json();
-                    setBookings(data.bookings ?? []);
-                    setPagination({ page: data.page, pages: data.pages, total: data.total });
+                    setBookings(data.data?.bookings ?? []);
+                    setPagination({ page: data.data?.page ?? 1, pages: data.data?.pages ?? 1, total: data.data?.total ?? 0 });
                 }
             } finally {
                 setLoading(false);
