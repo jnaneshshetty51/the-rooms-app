@@ -365,7 +365,7 @@ export async function POST(request: NextRequest) {
                 ipAddress: getClientIp(request),
             });
 
-            return new Response(excel, {
+            return new Response(new Uint8Array(excel), {
                 headers: {
                     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     'Content-Disposition': `attachment; filename="tally-export-${startDate.toISOString().slice(0, 10)}.xlsx"`,
