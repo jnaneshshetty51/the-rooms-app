@@ -139,12 +139,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       const res = await fetch(`/api/bookings/${id}/stay-modification`);
       if (res.ok) {
         const data = await res.json();
-        if (data.hasPendingRequest) {
-          setPendingRequest(data.request);
-          setStayModPolicy(data.policy);
+        const payload = data.data ?? data;
+        if (payload.hasPendingRequest) {
+          setPendingRequest(payload.request);
+          setStayModPolicy(payload.policy);
         } else {
           setPendingRequest(null);
-          setStayModPolicy(data.policy);
+          setStayModPolicy(payload.policy ?? null);
         }
       }
     } catch (err) {
@@ -963,7 +964,7 @@ function StayModificationModal({ bookingId, type, policy, onClose, onSuccess }: 
       if (res.ok) {
         const data = await res.json();
         onSuccess();
-        alert(data.message || "Request submitted successfully");
+        alert((data.data ?? data).message || "Request submitted successfully");
       } else {
         const data = await res.json();
         setError(data.error || "Failed to submit request");
