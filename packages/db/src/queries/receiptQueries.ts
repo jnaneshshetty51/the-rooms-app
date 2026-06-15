@@ -153,6 +153,7 @@ export async function createRefundReceipt(
     amount: Prisma.Decimal;
     amountInWords: string;
     paymentType: ReceiptPaymentType;
+    remainingBalance: Prisma.Decimal;
 }> {
     // Get original payment to find the booking
     const originalPayment = await prisma.payment.findUnique({
