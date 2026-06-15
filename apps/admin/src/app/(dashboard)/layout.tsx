@@ -1,9 +1,8 @@
 // apps/admin/src/app/(dashboard)/layout.tsx
 // Server Component: handles auth check and passes serializable props to clients.
-// Icons and nav arrays live in AdminSidebarClient (Client Component boundary).
 import { redirect } from "next/navigation";
 import { auth } from "@the-rooms/auth";
-import { DashboardHeader, AppShell } from "@the-rooms/ui";
+import { DashboardHeader } from "@the-rooms/ui";
 import { AdminSidebarClient } from "./_components/AdminSidebarClient";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -16,11 +15,26 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const userName = (session.user?.name as string | undefined) ?? "Admin";
 
   return (
-    <AppShell
-      sidebar={<AdminSidebarClient userName={userName} />}
-      header={<DashboardHeader portalName="Admin Portal" userName={userName} notificationCount={0} />}
-    >
-      {children}
-    </AppShell>
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex md:w-64 md:shrink-0">
+        <AdminSidebarClient userName={userName} />
+      </div>
+
+      {/* Main content area */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Header */}
+        <DashboardHeader
+          portalName="Admin Portal"
+          userName={userName}
+          notificationCount={0}
+        />
+
+        {/* Page content */}
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }
