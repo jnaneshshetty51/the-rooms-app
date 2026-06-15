@@ -9,7 +9,6 @@ import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
 import { calculateLateCheckoutFee, applyLateCheckoutFee } from '@the-rooms/db/queries/lateCheckoutQueries';
 import { getDamageAssessmentsByBooking } from '@the-rooms/db/queries/damageAssessmentQueries';
-import { Decimal } from '@prisma/client/runtime/library';
 
 // ─── Auth Helper ───────────────────────────────────────────────────────────────
 
@@ -237,7 +236,7 @@ export async function POST(
         status: 'CHECKED_OUT',
         checkoutType: lateFeeApplied ? 'LATE' : 'STANDARD',
         checkOutTime: actualCheckOutTime ? new Date(actualCheckOutTime) : new Date(),
-        pendingDues: new Decimal(pendingDues),
+        pendingDues: pendingDues,
       },
     });
 
