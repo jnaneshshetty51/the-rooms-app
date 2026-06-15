@@ -2,9 +2,6 @@ import { Client } from 'minio';
 
 let minioClient: Client | null = null;
 
-// ─── File Upload Security Constants ────────────────────────────────────────
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 const MAGIC_BYTES: Record<string, { signatures: number[][], offset: number }> = {
@@ -36,9 +33,6 @@ function sanitizeFileName(fileName: string): string {
 }
 
 function validateFile(buffer: Buffer, _fileName: string): { valid: boolean; error?: string; detectedMime?: string } {
-  if (buffer.length > MAX_FILE_SIZE) {
-    return { valid: false, error: 'File too large. Maximum size is 5MB' };
-  }
   if (buffer.length < 8) {
     return { valid: false, error: 'File too small to be valid' };
   }

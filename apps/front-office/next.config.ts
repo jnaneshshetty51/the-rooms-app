@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  middlewareClientMaxBodySize: 25 * 1024 * 1024,
+  middlewareClientMaxBodySize: 0,
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**" },

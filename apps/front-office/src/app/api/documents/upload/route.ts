@@ -22,27 +22,17 @@ export async function POST(request: NextRequest) {
     }
 
     return new Promise<NextResponse>((resolve) => {
-      const bb = busboy({
-        headers: { "content-type": contentType },
-        limits: { fileSize: 20 * 1024 * 1024 },
-      });
+      const bb = busboy({ headers: { "content-type": contentType } });
 
       let fileBuffer: Buffer | null = null;
       let fileName = "upload";
       let guestId = "";
-      let fileLimitHit = false;
 
       bb.on("file", (_fieldname, stream, info) => {
         fileName = info.filename || "upload";
         const chunks: Buffer[] = [];
         stream.on("data", (chunk: Buffer) => chunks.push(chunk));
-        stream.on("limit", () => {
-          fileLimitHit = true;
-          stream.resume();
-        });
-        stream.on("end", () => {
-          if (!fileLimitHit) fileBuffer = Buffer.concat(chunks);
-        });
+        stream.on("end", () => { fileBuffer = Buffer.concat(chunks); });
       });
 
       bb.on("field", (name, value) => {
@@ -51,14 +41,6 @@ export async function POST(request: NextRequest) {
 
       bb.on("finish", async () => {
         try {
-          if (fileLimitHit) {
-            return resolve(
-              NextResponse.json(
-                { error: "File too large. Maximum size is 20MB" },
-                { status: 400 }
-              )
-            );
-          }
           if (!fileBuffer) {
             return resolve(
               NextResponse.json({ error: "No file provided" }, { status: 400 })
