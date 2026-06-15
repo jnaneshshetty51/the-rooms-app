@@ -34,7 +34,6 @@ import {
     DialogHeader,
     DialogTitle,
     DialogFooter,
-    Textarea as textarea,
 } from "@the-rooms/ui";
 import { formatDate } from "@the-rooms/ui";
 import { cn } from "@the-rooms/ui";
