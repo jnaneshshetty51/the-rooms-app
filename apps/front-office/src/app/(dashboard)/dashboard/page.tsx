@@ -2,23 +2,27 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, LogOut, CalendarCheck, CalendarX, Bed, AlertCircle, ArrowRight, Loader2, IndianRupee } from "lucide-react";
+import { Users, LogOut, CalendarCheck, CalendarX, Bed, AlertCircle, ArrowRight, Loader2, IndianRupee, Calendar } from "lucide-react";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
+
+type ActiveTab = "arrivals" | "departures" | "reservations";
 
 interface DashboardData {
   date: string;
   arrivals: Array<{ id: string; bookingNumber: string; checkIn: string; guest: { name: string; phone: string }; room: { roomNumber: string; type: string } }>;
   departures: Array<{ id: string; bookingNumber: string; checkOut: string; guest: { name: string; phone: string }; room: { roomNumber: string; type: string } }>;
+  reservations: Array<{ id: string; bookingNumber: string; checkIn: string; guest: { name: string; phone: string }; room: { roomNumber: string; type: string } }>;
   inHouseCount: number;
   todayRevenue: number;
   pendingTasks: number;
-  summary: { pendingCheckIns: number; pendingCheckOuts: number; openComplaints: number };
+  summary: { pendingCheckIns: number; pendingCheckOuts: number; openComplaints: number; reservationCount: number };
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("arrivals");
 
   useEffect(() => {
     async function fetchDashboard() {
@@ -67,28 +71,66 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4"><h3 className="text-lg font-semibold text-gray-900">Today&apos;s Arrivals</h3><span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">{data?.arrivals?.length ?? 0} guests</span></div>
-          <div className="divide-y divide-gray-100">
-            {data?.arrivals?.length === 0 ? <div className="px-6 py-12 text-center"><CalendarCheck className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No arrivals scheduled</p></div> : data?.arrivals.map((arrival) => (
+      <div className="rounded-xl border border-gray-200 bg-white">
+        <div className="border-b border-gray-200">
+          <div className="flex items-center gap-6 px-6 py-4">
+            <button
+              onClick={() => setActiveTab("arrivals")}
+              className={`flex items-center gap-2 text-sm font-medium transition-colors ${activeTab === "arrivals" ? "text-[#E17055] border-b-2 border-[#E17055] pb-1" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              <CalendarCheck className="h-4 w-4" />
+              Arrivals
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{data?.arrivals?.length ?? 0}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("departures")}
+              className={`flex items-center gap-2 text-sm font-medium transition-colors ${activeTab === "departures" ? "text-[#E17055] border-b-2 border-[#E17055] pb-1" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              <CalendarX className="h-4 w-4" />
+              Departures
+              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">{data?.departures?.length ?? 0}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("reservations")}
+              className={`flex items-center gap-2 text-sm font-medium transition-colors ${activeTab === "reservations" ? "text-[#E17055] border-b-2 border-[#E17055] pb-1" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              <Calendar className="h-4 w-4" />
+              Reservations
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{data?.reservations?.length ?? 0}</span>
+            </button>
+          </div>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {activeTab === "arrivals" && (
+            data?.arrivals?.length === 0 ? (
+              <div className="px-6 py-12 text-center"><CalendarCheck className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No arrivals scheduled</p></div>
+            ) : data?.arrivals.map((arrival) => (
               <Link key={arrival.id} href={`/bookings/${arrival.id}`} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
                 <div><p className="font-medium text-gray-900">{arrival.guest.name}</p><p className="text-sm text-gray-500">{arrival.guest.phone}</p></div>
                 <div className="text-right"><p className="font-medium text-gray-900">Room {arrival.room.roomNumber}</p><p className="text-sm text-gray-500">{arrival.room.type}</p></div>
               </Link>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4"><h3 className="text-lg font-semibold text-gray-900">Today&apos;s Departures</h3><span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">{data?.departures?.length ?? 0} guests</span></div>
-          <div className="divide-y divide-gray-100">
-            {data?.departures?.length === 0 ? <div className="px-6 py-12 text-center"><CalendarX className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No departures scheduled</p></div> : data?.departures.map((departure) => (
+            ))
+          )}
+          {activeTab === "departures" && (
+            data?.departures?.length === 0 ? (
+              <div className="px-6 py-12 text-center"><CalendarX className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No departures scheduled</p></div>
+            ) : data?.departures.map((departure) => (
               <Link key={departure.id} href={`/bookings/${departure.id}`} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
                 <div><p className="font-medium text-gray-900">{departure.guest.name}</p><p className="text-sm text-gray-500">{departure.guest.phone}</p></div>
                 <div className="text-right"><p className="font-medium text-gray-900">Room {departure.room.roomNumber}</p><p className="text-sm text-gray-500">Check-out: {formatDate(departure.checkOut, "short")}</p></div>
               </Link>
-            ))}
-          </div>
+            ))
+          )}
+          {activeTab === "reservations" && (
+            data?.reservations?.length === 0 ? (
+              <div className="px-6 py-12 text-center"><Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No upcoming reservations</p></div>
+            ) : data?.reservations.map((reservation) => (
+              <Link key={reservation.id} href={`/bookings/${reservation.id}`} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+                <div><p className="font-medium text-gray-900">{reservation.guest.name}</p><p className="text-sm text-gray-500">{reservation.guest.phone}</p><p className="text-xs text-gray-400">{reservation.bookingNumber}</p></div>
+                <div className="text-right"><p className="font-medium text-gray-900">Room {reservation.room.roomNumber}</p><p className="text-sm text-gray-500">Check-in: {formatDate(reservation.checkIn, "short")}</p></div>
+              </Link>
+            ))
+          )}
         </div>
       </div>
 

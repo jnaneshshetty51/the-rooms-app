@@ -13,6 +13,27 @@ export async function GET(request: NextRequest) {
     const today = new Date();
     const { checkIns, checkOuts } = await getBookingsByDate(today);
 
+    // Get future reservations (CONFIRMED bookings with checkIn > today)
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    const reservations = await prisma.booking.findMany({
+      where: {
+        status: "CONFIRMED",
+        checkIn: { gt: tomorrow },
+      },
+      select: {
+        id: true,
+        bookingNumber: true,
+        checkIn: true,
+        guest: { select: { name: true, phone: true } },
+        room: { select: { roomNumber: true, type: true } },
+      },
+      orderBy: { checkIn: "asc" },
+      take: 50,
+    });
+
     const inHouseCount = await prisma.booking.count({ where: { status: "CHECKED_IN" } });
 
     const startOfDay = new Date(today);
@@ -33,6 +54,7 @@ export async function GET(request: NextRequest) {
       date: today.toISOString().split("T")[0],
       arrivals: checkIns,
       departures: checkOuts,
+      reservations,
       inHouseCount,
       todayRevenue: Number(todayPayments._sum.amount ?? 0),
       pendingTasks: openComplaints,
@@ -40,6 +62,7 @@ export async function GET(request: NextRequest) {
         pendingCheckIns: checkIns.filter((b) => b.status === "CONFIRMED").length,
         pendingCheckOuts: checkOuts.filter((b) => b.status === "CHECKED_IN").length,
         openComplaints,
+        reservationCount: reservations.length,
       },
     });
   } catch (error) {
