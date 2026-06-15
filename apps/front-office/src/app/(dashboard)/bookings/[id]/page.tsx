@@ -3,7 +3,7 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { cn } from "@the-rooms/ui";
-import { Loader2, ArrowLeft, User, Calendar, CreditCard, FileText, CheckCircle, Bed, AlertCircle, Plus, Activity, Download, AlertTriangle, Clock, ArrowRight, Trash2, ShoppingBag, Utensils, Shirt, Flower2, Car, Coffee, MoreHorizontal } from "lucide-react";
+import { Loader2, ArrowLeft, User, Calendar, CreditCard, FileText, CheckCircle, Bed, AlertCircle, Plus, Activity, Download, AlertTriangle, Clock, ArrowRight, Trash2, ShoppingBag, Utensils, Shirt, Flower2, Car, Coffee, MoreHorizontal, Tag, Percent, ArrowUpRight, XCircle } from "lucide-react";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
 
 interface AuditLog {
@@ -71,6 +71,30 @@ interface AddonTotals {
   count: number;
 }
 
+interface DiscountApprovalRequest {
+  id: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  originalDiscountPercent: number | null;
+  requestedDiscountPercent: number;
+  reason: string | null;
+  createdAt: string;
+  requestedBy: { id: string; name: string; email: string };
+  approvedBy?: { id: string; name: string; email: string };
+}
+
+interface PriceOverrideRequest {
+  id: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "APPLIED";
+  originalPrice: number;
+  overriddenPrice: number;
+  reason: string | null;
+  effectiveFrom?: string | null;
+  effectiveUntil?: string | null;
+  createdAt: string;
+  requestedBy: { id: string; name: string; email: string };
+  approvedBy?: { id: string; name: string; email: string };
+}
+
 // ─── Add-on Helper Functions ──────────────────────────────────────────────────
 
 function getAddonIcon(type: string) {
@@ -115,6 +139,10 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [addons, setAddons] = useState<BookingAddon[]>([]);
   const [addonTotals, setAddonTotals] = useState<AddonTotals | null>(null);
   const [folioModalOpen, setFolioModalOpen] = useState(false);
+  const [discountApprovals, setDiscountApprovals] = useState<DiscountApprovalRequest[]>([]);
+  const [priceOverrides, setPriceOverrides] = useState<PriceOverrideRequest[]>([]);
+  const [discountModalOpen, setDiscountModalOpen] = useState(false);
+  const [priceOverrideModalOpen, setPriceOverrideModalOpen] = useState(false);
 
   useEffect(() => {
     fetchBooking();
@@ -178,11 +206,37 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function fetchDiscountApprovals() {
+    try {
+      const res = await fetch(`/api/discount-approvals?bookingId=${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDiscountApprovals(data.requests || []);
+      }
+    } catch (err) {
+      console.error("Error fetching discount approvals:", err);
+    }
+  }
+
+  async function fetchPriceOverrides() {
+    try {
+      const res = await fetch(`/api/price-overrides?bookingId=${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPriceOverrides(data.requests || []);
+      }
+    } catch (err) {
+      console.error("Error fetching price overrides:", err);
+    }
+  }
+
   useEffect(() => {
     fetchBooking();
     fetchStayModificationRequest();
     fetchAddons();
     fetchAddonTypes();
+    fetchDiscountApprovals();
+    fetchPriceOverrides();
   }, [id]);
 
   const handleCheckIn = async () => {
@@ -363,6 +417,170 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               )}
             </div>
           )}
+
+          {/* ─── Discount Approval Section ─────────────────────────────────────────── */}
+          {(booking.status === "CONFIRMED" || booking.status === "CHECKED_IN") && (
+            <div className="rounded-xl border border-gray-200 bg-white p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Percent className="h-5 w-5" />
+                  Discount Approvals
+                  {discountApprovals.length > 0 && (
+                    <span className="ml-2 rounded-full bg-[#E17055]/10 px-2 py-0.5 text-xs font-medium text-[#E17055]">
+                      {discountApprovals.length}
+                    </span>
+                  )}
+                </h3>
+                <button
+                  onClick={() => setDiscountModalOpen(true)}
+                  className="text-sm text-[#E17055] hover:underline flex items-center gap-1"
+                >
+                  <Plus className="h-4 w-4" /> Request
+                </button>
+              </div>
+
+              {discountApprovals.length === 0 ? (
+                <div className="text-center py-6">
+                  <Percent className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">No discount requests</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {discountApprovals.map((request) => (
+                    <div key={request.id} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center",
+                            request.status === "PENDING" ? "bg-orange-100" :
+                              request.status === "APPROVED" ? "bg-green-100" : "bg-red-100"
+                          )}>
+                            {request.status === "PENDING" ? <Clock className="h-4 w-4 text-orange-600" /> :
+                              request.status === "APPROVED" ? <CheckCircle className="h-4 w-4 text-green-600" /> :
+                                <XCircle className="h-4 w-4 text-red-600" />}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-900">
+                              {request.requestedDiscountPercent.toFixed(1)}%
+                            </span>
+                            {request.originalDiscountPercent && request.originalDiscountPercent > 0 && (
+                              <span className="text-sm text-gray-400 ml-2 line-through">
+                                {request.originalDiscountPercent.toFixed(1)}%
+                              </span>
+                            )}
+                            <p className="text-xs text-gray-500">
+                              by {request.requestedBy.name} • {formatDate(request.createdAt, "short")}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={cn(
+                          "rounded-full px-2 py-1 text-xs font-medium",
+                          request.status === "PENDING" ? "bg-orange-100 text-orange-700" :
+                            request.status === "APPROVED" ? "bg-green-100 text-green-700" :
+                              "bg-red-100 text-red-700"
+                        )}>
+                          {request.status}
+                        </span>
+                      </div>
+                      {request.reason && (
+                        <p className="mt-2 text-xs text-gray-600 pl-11">{request.reason}</p>
+                      )}
+                    </div>
+                  ))}
+                  <Link
+                    href="/discount-approvals"
+                    className="block text-center text-sm text-[#E17055] hover:underline py-2"
+                  >
+                    View all discount approvals
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── Price Override Section ───────────────────────────────────────────── */}
+          {(booking.status === "CONFIRMED" || booking.status === "CHECKED_IN") && (
+            <div className="rounded-xl border border-gray-200 bg-white p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Tag className="h-5 w-5" />
+                  Price Overrides
+                  {priceOverrides.length > 0 && (
+                    <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-600">
+                      {priceOverrides.length}
+                    </span>
+                  )}
+                </h3>
+                <button
+                  onClick={() => setPriceOverrideModalOpen(true)}
+                  className="text-sm text-[#E17055] hover:underline flex items-center gap-1"
+                >
+                  <Plus className="h-4 w-4" /> Request
+                </button>
+              </div>
+
+              {priceOverrides.length === 0 ? (
+                <div className="text-center py-6">
+                  <Tag className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">No price override requests</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {priceOverrides.map((request) => (
+                    <div key={request.id} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center",
+                            request.status === "PENDING" ? "bg-orange-100" :
+                              request.status === "APPROVED" ? "bg-blue-100" :
+                                request.status === "APPLIED" ? "bg-green-100" : "bg-red-100"
+                          )}>
+                            {request.status === "PENDING" ? <Clock className="h-4 w-4 text-orange-600" /> :
+                              request.status === "APPROVED" || request.status === "APPLIED" ?
+                                <CheckCircle className="h-4 w-4 text-green-600" /> :
+                                <XCircle className="h-4 w-4 text-red-600" />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-400 line-through">
+                                {formatCurrency(request.originalPrice)}
+                              </span>
+                              <ArrowUpRight className="h-3 w-3 text-gray-400" />
+                              <span className="font-semibold text-gray-900">
+                                {formatCurrency(request.overriddenPrice)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              by {request.requestedBy.name} • {formatDate(request.createdAt, "short")}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={cn(
+                          "rounded-full px-2 py-1 text-xs font-medium",
+                          request.status === "PENDING" ? "bg-orange-100 text-orange-700" :
+                            request.status === "APPROVED" ? "bg-blue-100 text-blue-700" :
+                              request.status === "APPLIED" ? "bg-green-100 text-green-700" :
+                                "bg-red-100 text-red-700"
+                        )}>
+                          {request.status}
+                        </span>
+                      </div>
+                      {request.reason && (
+                        <p className="mt-2 text-xs text-gray-600 pl-11">{request.reason}</p>
+                      )}
+                    </div>
+                  ))}
+                  <Link
+                    href="/price-overrides"
+                    className="block text-center text-sm text-[#E17055] hover:underline py-2"
+                  >
+                    View all price overrides
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="space-y-6">
           <div className="rounded-xl border border-gray-200 bg-white p-6"><h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><CreditCard className="h-5 w-5" />Payment Summary</h3>
@@ -537,6 +755,30 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         <FolioModal
           bookingId={booking.id}
           onClose={() => setFolioModalOpen(false)}
+        />
+      )}
+
+      {discountModalOpen && (
+        <RequestDiscountModal
+          bookingId={booking.id}
+          onClose={() => setDiscountModalOpen(false)}
+          onSuccess={() => {
+            setDiscountModalOpen(false);
+            fetchDiscountApprovals();
+            fetchBooking();
+          }}
+        />
+      )}
+
+      {priceOverrideModalOpen && (
+        <RequestPriceOverrideModal
+          bookingId={booking.id}
+          onClose={() => setPriceOverrideModalOpen(false)}
+          onSuccess={() => {
+            setPriceOverrideModalOpen(false);
+            fetchPriceOverrides();
+            fetchBooking();
+          }}
         />
       )}
     </div>
@@ -1041,6 +1283,262 @@ function StayModificationModal({ bookingId, type, policy, onClose, onSuccess }: 
           <div className="pt-4">
             <button type="submit" disabled={submitting} className="w-full rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Submit Request"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function RequestDiscountModal({ bookingId, onClose, onSuccess }: { bookingId: string; onClose: () => void; onSuccess: () => void }) {
+  const [requestedDiscountPercent, setRequestedDiscountPercent] = useState("");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/discount-approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId,
+          requestedDiscountPercent: parseFloat(requestedDiscountPercent),
+          reason: reason || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to request discount");
+      }
+
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to request discount");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900">Request Discount Approval</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Requested Discount (%) *
+            </label>
+            <input
+              type="number"
+              value={requestedDiscountPercent}
+              onChange={(e) => setRequestedDiscountPercent(e.target.value)}
+              required
+              min="0"
+              max="100"
+              step="0.1"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+              placeholder="e.g. 10 for 10%"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Reason (Optional)
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+              placeholder="Explain why this discount is being requested..."
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Submit Request
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function RequestPriceOverrideModal({ bookingId, onClose, onSuccess }: { bookingId: string; onClose: () => void; onSuccess: () => void }) {
+  const [originalPrice, setOriginalPrice] = useState("");
+  const [overriddenPrice, setOverriddenPrice] = useState("");
+  const [reason, setReason] = useState("");
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+  const [effectiveUntil, setEffectiveUntil] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const body: Record<string, unknown> = {
+        bookingId,
+        originalPrice: parseFloat(originalPrice),
+        overriddenPrice: parseFloat(overriddenPrice),
+        reason,
+      };
+
+      if (effectiveFrom) {
+        body.effectiveFrom = new Date(effectiveFrom).toISOString();
+      }
+      if (effectiveUntil) {
+        body.effectiveUntil = new Date(effectiveUntil).toISOString();
+      }
+
+      const res = await fetch("/api/price-overrides", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to request price override");
+      }
+
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to request price override");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900">Request Price Override</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Original Price (₹) *
+            </label>
+            <input
+              type="number"
+              value={originalPrice}
+              onChange={(e) => setOriginalPrice(e.target.value)}
+              required
+              min="0"
+              step="1"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+              placeholder="e.g. 5000"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Overridden Price (₹) *
+            </label>
+            <input
+              type="number"
+              value={overriddenPrice}
+              onChange={(e) => setOverriddenPrice(e.target.value)}
+              required
+              min="0"
+              step="1"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+              placeholder="e.g. 4500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Reason *
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+              rows={2}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+              placeholder="Explain why this price override is needed..."
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Effective From (Optional)
+              </label>
+              <input
+                type="date"
+                value={effectiveFrom}
+                onChange={(e) => setEffectiveFrom(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Effective Until (Optional)
+              </label>
+              <input
+                type="date"
+                value={effectiveUntil}
+                onChange={(e) => setEffectiveUntil(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#E17055] focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 rounded-lg bg-[#E17055] py-3 text-sm font-medium text-white hover:bg-[#D35B3F] disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Submit Request
             </button>
           </div>
         </form>

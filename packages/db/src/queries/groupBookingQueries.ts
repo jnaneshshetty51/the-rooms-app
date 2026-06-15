@@ -1,35 +1,32 @@
 import prisma from '../index';
-import { GroupBookingStatus, GroupBillingType } from '@prisma/client';
+import { Prisma, RoomType, GroupBillingType, GroupBookingStatus } from '@prisma/client';
 
-/**
- * ─── Group Booking Queries ───────────────────────────────────────────────────
- *
- * Functions for managing group bookings (corporate, weddings, etc.)
- */
-
-// ─── Create ──────────────────────────────────────────────────────────────────
-
-/**
- * Create a new group booking
- */
-export async function createGroupBooking(data: {
+export type CreateGroupBookingData = {
     name: string;
-    propertyId?: string;
     contactPerson?: string;
     contactPhone?: string;
     contactEmail?: string;
     billingType?: GroupBillingType;
     checkInDate: Date;
     checkOutDate: Date;
+    rooms: {
+        roomType: RoomType;
+        count: number;
+    }[];
+    corporateAccountId?: string;
     createdById?: string;
-}) {
-    const { name, propertyId = 'default', contactPerson, contactPhone, contactEmail, billingType = 'INDIVIDUAL', checkInDate, checkOutDate, createdById } = data;
+    propertyId?: string;
+};
 
-    // Generate group code
+/**
+ * Generate a unique group code: GRP-YYYYMMDD-XXX
+ */
+export async function generateGroupCode(): Promise<string> {
     const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
     const prefix = `GRP-${dateStr}-`;
 
+    // Find the highest count for today
     const lastGroup = await prisma.groupBooking.findFirst({
         where: { groupCode: { startsWith: prefix } },
         orderBy: { groupCode: 'desc' },
@@ -42,85 +39,192 @@ export async function createGroupBooking(data: {
         counter = lastCounter + 1;
     }
 
-    const groupCode = `${prefix}${String(counter).padStart(4, '0')}`;
+    return `${prefix}${String(counter).padStart(3, '0')}`;
+}
 
-    return prisma.groupBooking.create({
-        data: {
-            groupCode,
-            name,
-            propertyId,
-            contactPerson,
-            contactPhone,
-            contactEmail,
-            billingType,
-            checkInDate,
-            checkOutDate,
-            createdById,
-            status: 'CONFIRMED',
-        },
-        include: {
-            property: { select: { id: true, name: true } },
-            bookings: {
-                include: {
-                    guest: { select: { name: true, phone: true } },
-                    room: { select: { roomNumber: true, type: true } },
-                },
+/**
+ * Create a group booking with multiple rooms
+ */
+export async function createGroupBooking(data: CreateGroupBookingData) {
+    const groupCode = await generateGroupCode();
+    const propertyId = data.propertyId || 'default';
+
+    return prisma.$transaction(async (tx) => {
+        // 1. Create group booking
+        const group = await tx.groupBooking.create({
+            data: {
+                groupCode,
+                propertyId,
+                name: data.name,
+                contactPerson: data.contactPerson,
+                contactPhone: data.contactPhone,
+                contactEmail: data.contactEmail,
+                billingType: data.billingType || 'INDIVIDUAL',
+                checkInDate: data.checkInDate,
+                checkOutDate: data.checkOutDate,
+                status: 'CONFIRMED',
+                createdById: data.createdById,
             },
-        },
+        });
+
+        const bookings = [];
+        const errors = [];
+
+        // 2. Create bookings for each room type
+        for (const roomReq of data.rooms) {
+            // Find available rooms
+            const availableRooms = await tx.room.findMany({
+                where: {
+                    type: roomReq.roomType,
+                    status: 'VACANT',
+                    propertyId,
+                    bookings: {
+                        none: {
+                            status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+                            AND: [
+                                { checkIn: { lt: data.checkOutDate } },
+                                { checkOut: { gt: data.checkInDate } }
+                            ]
+                        }
+                    }
+                },
+                take: roomReq.count,
+                orderBy: { roomNumber: 'asc' }
+            });
+
+            if (availableRooms.length < roomReq.count) {
+                errors.push({
+                    roomType: roomReq.roomType,
+                    requested: roomReq.count,
+                    available: availableRooms.length
+                });
+            }
+
+            // Create booking for each available room
+            for (const room of availableRooms) {
+                // Create placeholder guest (to be updated later with actual details)
+                const guest = await tx.guest.create({
+                    data: {
+                        name: 'TBD',
+                        phone: 'TBD',
+                    }
+                });
+
+                // Calculate price - we'll use a simplified calculation here
+                // In production, you'd call calculateBookingPrice
+                const nights = Math.ceil(
+                    (data.checkOutDate.getTime() - data.checkInDate.getTime()) / (1000 * 60 * 60 * 24)
+                );
+                const basePrice = room.basePriceDouble.toNumber();
+                const totalAmount = basePrice * nights;
+
+                const bookingNumber = await generateBookingNumberInternal(tx);
+
+                const booking = await tx.booking.create({
+                    data: {
+                        bookingNumber,
+                        guestId: guest.id,
+                        roomId: room.id,
+                        propertyId,
+                        checkIn: data.checkInDate,
+                        checkOut: data.checkOutDate,
+                        guestsCount: 1,
+                        bookingType: 'DAILY',
+                        bookingSource: 'GROUP',
+                        status: 'CONFIRMED',
+                        paymentStatus: 'PENDING',
+                        baseAmount: new Prisma.Decimal(basePrice),
+                        totalAmount: new Prisma.Decimal(totalAmount),
+                        groupBookingId: group.id,
+                        corporateAccountId: data.corporateAccountId,
+                        createdById: data.createdById,
+                    }
+                });
+
+                // Create room hold
+                await tx.roomHold.create({
+                    data: {
+                        roomId: room.id,
+                        holdType: 'BOOKING',
+                        bookingId: booking.id,
+                        checkIn: data.checkInDate,
+                        checkOut: data.checkOutDate,
+                        expiresAt: new Date(data.checkInDate.getTime() - 4 * 60 * 60 * 1000), // 4 hours before check-in
+                        status: 'ACTIVE',
+                    }
+                });
+
+                bookings.push(booking);
+            }
+        }
+
+        // 3. Create audit log
+        await tx.auditLog.create({
+            data: {
+                action: 'CREATE',
+                entity: 'group_booking',
+                entityId: group.id,
+                userId: data.createdById,
+                metadata: {
+                    groupCode,
+                    roomCount: bookings.length,
+                    errors: errors.length > 0 ? errors : undefined
+                }
+            }
+        });
+
+        return {
+            group,
+            bookings,
+            errors: errors.length > 0 ? errors : undefined
+        };
     });
 }
 
 /**
- * Add a booking to an existing group
+ * Internal helper to generate booking number within transaction
  */
-export async function addBookingToGroup(
-    bookingId: string,
-    groupBookingId: string
-) {
-    return prisma.booking.update({
-        where: { id: bookingId },
-        data: { groupBookingId },
-        include: {
-            guest: { select: { name: true } },
-            room: { select: { roomNumber: true } },
-        },
+async function generateBookingNumberInternal(tx: Prisma.TransactionClient): Promise<string> {
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const prefix = `BKN-${dateStr}-`;
+
+    const lastBooking = await tx.booking.findFirst({
+        where: { bookingNumber: { startsWith: prefix } },
+        orderBy: { bookingNumber: 'desc' },
+        select: { bookingNumber: true },
     });
+
+    let counter = 1;
+    if (lastBooking) {
+        const lastCounter = parseInt(lastBooking.bookingNumber.split('-').pop() ?? '0', 10);
+        counter = lastCounter + 1;
+    }
+
+    return `${prefix}${String(counter).padStart(4, '0')}`;
 }
 
 /**
- * Remove a booking from a group
+ * Get group booking by ID with all bookings
  */
-export async function removeBookingFromGroup(bookingId: string) {
-    return prisma.booking.update({
-        where: { id: bookingId },
-        data: { groupBookingId: null },
-    });
-}
-
-// ─── Read ────────────────────────────────────────────────────────────────────
-
-/**
- * Get group booking by ID
- */
-export async function getGroupBookingById(id: string) {
+export async function getGroupBooking(id: string) {
     return prisma.groupBooking.findUnique({
         where: { id },
         include: {
-            property: { select: { id: true, name: true } },
             bookings: {
                 include: {
-                    guest: { select: { id: true, name: true, phone: true } },
-                    room: { select: { id: true, roomNumber: true, type: true } },
-                    payments: { select: { id: true, amount: true, status: true } },
+                    guest: true,
+                    room: true,
+                    payments: true,
                 },
             },
-            createdBy: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true, email: true } },
         },
     });
 }
 
 /**
- * Get group booking by code
+ * Get group booking by group code
  */
 export async function getGroupBookingByCode(groupCode: string) {
     return prisma.groupBooking.findUnique({
@@ -128,8 +232,8 @@ export async function getGroupBookingByCode(groupCode: string) {
         include: {
             bookings: {
                 include: {
-                    guest: { select: { name: true } },
-                    room: { select: { roomNumber: true } },
+                    guest: true,
+                    room: true,
                 },
             },
         },
@@ -137,88 +241,131 @@ export async function getGroupBookingByCode(groupCode: string) {
 }
 
 /**
- * Get all group bookings with filters
+ * Add a room to an existing group booking
  */
-export async function getGroupBookings(options: {
-    propertyId?: string;
-    status?: GroupBookingStatus;
-    startDate?: Date;
-    endDate?: Date;
-    page?: number;
-    perPage?: number;
-} = {}) {
-    const { propertyId, status, startDate, endDate, page = 1, perPage = 20 } = options;
+export async function addRoomToGroup(
+    groupId: string,
+    roomType: RoomType,
+    createdById?: string
+) {
+    return prisma.$transaction(async (tx) => {
+        const group = await tx.groupBooking.findUnique({
+            where: { id: groupId },
+        });
 
-    const where: any = {};
-    if (propertyId) where.propertyId = propertyId;
-    if (status) where.status = status;
-    if (startDate || endDate) {
-        where.checkInDate = {};
-        if (startDate) where.checkInDate.gte = startDate;
-        if (endDate) where.checkInDate.lte = endDate;
-    }
+        if (!group) {
+            throw new Error('GROUP_NOT_FOUND');
+        }
 
-    const [groups, total] = await Promise.all([
-        prisma.groupBooking.findMany({
-            where,
-            include: {
+        // Find an available room
+        const availableRoom = await tx.room.findFirst({
+            where: {
+                type: roomType,
+                status: 'VACANT',
+                propertyId: group.propertyId,
                 bookings: {
-                    select: {
-                        id: true,
-                        bookingNumber: true,
-                        status: true,
-                        guest: { select: { name: true } },
-                    },
-                },
+                    none: {
+                        status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+                        AND: [
+                            { checkIn: { lt: group.checkOutDate } },
+                            { checkOut: { gt: group.checkInDate } }
+                        ]
+                    }
+                }
             },
-            orderBy: { createdAt: 'desc' },
-            skip: (page - 1) * perPage,
-            take: perPage,
-        }),
-        prisma.groupBooking.count({ where }),
-    ]);
+        });
 
-    return { groups, total, pages: Math.ceil(total / perPage), page };
+        if (!availableRoom) {
+            throw new Error('NO_ROOM_AVAILABLE');
+        }
+
+        // Create placeholder guest
+        const guest = await tx.guest.create({
+            data: {
+                name: 'TBD',
+                phone: 'TBD',
+            }
+        });
+
+        // Calculate price
+        const nights = Math.ceil(
+            (group.checkOutDate.getTime() - group.checkInDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const basePrice = availableRoom.basePriceDouble.toNumber();
+        const totalAmount = basePrice * nights;
+
+        const bookingNumber = await generateBookingNumberInternal(tx);
+
+        // Create booking
+        const booking = await tx.booking.create({
+            data: {
+                bookingNumber,
+                guestId: guest.id,
+                roomId: availableRoom.id,
+                propertyId: group.propertyId,
+                checkIn: group.checkInDate,
+                checkOut: group.checkOutDate,
+                guestsCount: 1,
+                bookingType: 'DAILY',
+                bookingSource: 'GROUP',
+                status: 'CONFIRMED',
+                paymentStatus: 'PENDING',
+                baseAmount: new Prisma.Decimal(basePrice),
+                totalAmount: new Prisma.Decimal(totalAmount),
+                groupBookingId: group.id,
+                createdById,
+            }
+        });
+
+        // Create room hold
+        await tx.roomHold.create({
+            data: {
+                roomId: availableRoom.id,
+                holdType: 'BOOKING',
+                bookingId: booking.id,
+                checkIn: group.checkInDate,
+                checkOut: group.checkOutDate,
+                expiresAt: new Date(group.checkInDate.getTime() - 4 * 60 * 60 * 1000),
+                status: 'ACTIVE',
+            }
+        });
+
+        return booking;
+    });
 }
 
 /**
- * Get group booking statistics
+ * Remove a room from a group booking
  */
-export async function getGroupBookingStats(propertyId: string = 'default') {
-    const groups = await prisma.groupBooking.findMany({
-        where: { propertyId },
-        select: {
-            id: true,
-            status: true,
-            checkInDate: true,
-            checkOutDate: true,
-            bookings: {
-                select: {
-                    id: true,
-                    totalAmount: true,
-                    paymentStatus: true,
-                },
-            },
-        },
+export async function removeRoomFromGroup(bookingId: string, reason?: string) {
+    return prisma.$transaction(async (tx) => {
+        const booking = await tx.booking.findUnique({
+            where: { id: bookingId },
+        });
+
+        if (!booking) {
+            throw new Error('BOOKING_NOT_FOUND');
+        }
+
+        if (!booking.groupBookingId) {
+            throw new Error('BOOKING_NOT_IN_GROUP');
+        }
+
+        // Release room hold
+        await tx.roomHold.updateMany({
+            where: { bookingId, status: 'ACTIVE' },
+            data: { status: 'RELEASED', releasedAt: new Date() }
+        });
+
+        // Remove from group
+        const updatedBooking = await tx.booking.update({
+            where: { id: bookingId },
+            data: { groupBookingId: null }
+        });
+
+        return updatedBooking;
     });
-
-    const stats = {
-        total: groups.length,
-        confirmed: groups.filter(g => g.status === 'CONFIRMED').length,
-        inProgress: groups.filter(g => g.status === 'IN_PROGRESS').length,
-        completed: groups.filter(g => g.status === 'COMPLETED').length,
-        cancelled: groups.filter(g => g.status === 'CANCELLED').length,
-        totalBookings: groups.reduce((sum, g) => sum + g.bookings.length, 0),
-        totalRevenue: groups.reduce(
-            (sum, g) => sum + g.bookings.reduce((s, b) => s + b.totalAmount.toNumber(), 0),
-            0
-        ),
-    };
-
-    return stats;
 }
-
-// ─── Update ────────────────────────────────────────────────────────────────────
 
 /**
  * Update group booking status
@@ -230,163 +377,42 @@ export async function updateGroupBookingStatus(
     return prisma.groupBooking.update({
         where: { id },
         data: { status },
-        include: {
-            bookings: {
-                select: { id: true, status: true },
+    });
+}
+
+/**
+ * Get all group bookings
+ */
+export async function getGroupBookings(filters: {
+    status?: GroupBookingStatus;
+    propertyId?: string;
+    page?: number;
+    perPage?: number;
+} = {}) {
+    const {
+        status,
+        propertyId,
+        page = 1,
+        perPage = 20,
+    } = filters;
+
+    const where: Prisma.GroupBookingWhereInput = {};
+    if (status) where.status = status;
+    if (propertyId) where.propertyId = propertyId;
+
+    const [groups, total] = await Promise.all([
+        prisma.groupBooking.findMany({
+            where,
+            include: {
+                _count: { select: { bookings: true } },
+                createdBy: { select: { id: true, name: true, email: true } },
             },
-        },
-    });
-}
+            orderBy: { createdAt: 'desc' },
+            skip: (page - 1) * perPage,
+            take: perPage,
+        }),
+        prisma.groupBooking.count({ where }),
+    ]);
 
-/**
- * Update group booking details
- */
-export async function updateGroupBooking(
-    id: string,
-    data: {
-        name?: string;
-        contactPerson?: string;
-        contactPhone?: string;
-        contactEmail?: string;
-        billingType?: GroupBillingType;
-    }
-) {
-    return prisma.groupBooking.update({
-        where: { id },
-        data,
-    });
-}
-
-/**
- * Cancel entire group (cancels all bookings)
- */
-export async function cancelGroupBooking(id: string, reason: string) {
-    const group = await prisma.groupBooking.findUnique({
-        where: { id },
-        include: { bookings: { select: { id: true, status: true } } },
-    });
-
-    if (!group) throw new Error('Group booking not found');
-
-    // Update group status
-    await prisma.groupBooking.update({
-        where: { id },
-        data: { status: 'CANCELLED' },
-    });
-
-    // Cancel all confirmed bookings
-    const confirmedBookings = group.bookings
-        .filter(b => b.status === 'CONFIRMED')
-        .map(b => b.id);
-
-    await prisma.booking.updateMany({
-        where: { id: { in: confirmedBookings } },
-        data: {
-            status: 'CANCELLED',
-            specialRequests: `Group cancellation: ${reason}`,
-        },
-    });
-
-    return { cancelledBookings: confirmedBookings.length };
-}
-
-// ─── Bulk Operations ─────────────────────────────────────────────────────────
-
-/**
- * Bulk check-in all bookings in a group
- */
-export async function bulkCheckinGroup(groupId: string, initiatedById: string) {
-    const group = await prisma.groupBooking.findUnique({
-        where: { id: groupId },
-        include: {
-            bookings: {
-                where: { status: 'CONFIRMED' },
-                select: { id: true, roomId: true, room: { select: { status: true } } },
-            },
-        },
-    });
-
-    if (!group) throw new Error('Group booking not found');
-
-    const results = [];
-    const errors = [];
-
-    for (const booking of group.bookings) {
-        if (booking.room.status !== 'VACANT') {
-            errors.push(`Room for booking ${booking.id} is not vacant`);
-            continue;
-        }
-
-        try {
-            await prisma.$transaction([
-                prisma.booking.update({
-                    where: { id: booking.id },
-                    data: { status: 'CHECKED_IN', checkInTime: new Date() },
-                }),
-                prisma.room.update({
-                    where: { id: booking.roomId },
-                    data: { status: 'OCCUPIED' },
-                }),
-            ]);
-            results.push(booking.id);
-        } catch (e) {
-            errors.push(`Failed to check-in booking ${booking.id}: ${(e as Error).message}`);
-        }
-    }
-
-    // Update group status if all checked in
-    if (results.length === group.bookings.length) {
-        await prisma.groupBooking.update({
-            where: { id: groupId },
-            data: { status: 'IN_PROGRESS' },
-        });
-    }
-
-    return { checkedIn: results.length, failed: errors.length, errors };
-}
-
-/**
- * Bulk check-out all bookings in a group
- */
-export async function bulkCheckoutGroup(groupId: string, initiatedById: string) {
-    const group = await prisma.groupBooking.findUnique({
-        where: { id: groupId },
-        include: {
-            bookings: {
-                where: { status: 'CHECKED_IN' },
-                select: { id: true, roomId: true },
-            },
-        },
-    });
-
-    if (!group) throw new Error('Group booking not found');
-
-    const results = [];
-    const errors = [];
-
-    for (const booking of group.bookings) {
-        try {
-            await prisma.$transaction([
-                prisma.booking.update({
-                    where: { id: booking.id },
-                    data: { status: 'CHECKED_OUT', checkOutTime: new Date() },
-                }),
-                prisma.room.update({
-                    where: { id: booking.roomId },
-                    data: { status: 'VACANT' },
-                }),
-            ]);
-            results.push(booking.id);
-        } catch (e) {
-            errors.push(`Failed to check-out booking ${booking.id}: ${(e as Error).message}`);
-        }
-    }
-
-    // Update group status
-    await prisma.groupBooking.update({
-        where: { id: groupId },
-        data: { status: 'COMPLETED' },
-    });
-
-    return { checkedOut: results.length, failed: errors.length, errors };
+    return { groups, total, pages: Math.ceil(total / perPage), page };
 }

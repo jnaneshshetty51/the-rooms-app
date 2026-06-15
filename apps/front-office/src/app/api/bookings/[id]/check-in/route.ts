@@ -1,59 +1,105 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@the-rooms/auth";
-import { getBookingById, updateBookingStatus } from "@the-rooms/db";
-import { incrementStayCount } from "@the-rooms/db";
-import prisma from "@the-rooms/db";
+// apps/front-office/src/app/api/bookings/[id]/check-in/route.ts
+// Late Arrival Check-in Processing
+
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@the-rooms/auth';
+import { db } from '@the-rooms/db';
+import { ok, badRequest, serverError, notFound } from '@the-rooms/api';
+import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
+import { z } from 'zod';
+import { processLateArrivalCheckIn } from '@the-rooms/db/queries/lateArrivalQueries';
+
+// ─── Auth Helper ───────────────────────────────────────────────────────────────
+
+async function requireStaff(session: { user?: { role?: string } | null } | null) {
+  if (!session?.user) throw new Error('Unauthorized');
+  const role = session.user.role;
+  if (!['FRONT_OFFICE', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
+    throw new Error('Forbidden');
+  }
+}
+
+// ─── Schemas ───────────────────────────────────────────────────────────────────
+
+const checkInSchema = z.object({
+  actualCheckInTime: z.string().datetime({ message: 'Invalid check-in time' }),
+  skipAutoCheckIn: z.boolean().optional().default(false),
+});
+
+// ─── POST /api/bookings/[id]/check-in ──────────────────────────────────────────
+// Process check-in with late arrival detection
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
   try {
     const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    await requireStaff(session);
+
+    const { id } = await params;
+    const body = await request.json();
+    const parsed = checkInSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return badRequest(
+        parsed.error.errors.map(e => e.message).join(', '),
+        'VALIDATION_ERROR'
+      );
     }
 
-    const booking = await getBookingById(id);
-    if (!booking) {
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
-    }
+    const { actualCheckInTime, skipAutoCheckIn } = parsed.data;
+    const userId = (session.user as { id?: string }).id;
 
-    if (booking.status === "CHECKED_IN") {
-      return NextResponse.json({ error: "Already checked in" }, { status: 400 });
-    }
-
-    if (booking.status !== "CONFIRMED") {
-      return NextResponse.json({ error: "Booking must be confirmed" }, { status: 400 });
-    }
-
-    const body = await request.json().catch(() => ({}));
-    if (body.signatureUrl) {
-      await prisma.booking.update({
-        where: { id },
-        data: { signatureUrl: body.signatureUrl }
-      });
-    }
-
-    const updatedBooking = await updateBookingStatus(id, "CHECKED_IN");
-    await incrementStayCount(booking.guestId);
-
-    await prisma.auditLog.create({
-      data: {
-        userId: (session.user as { id?: string }).id,
-        bookingId: id,
-        action: "CHECK_IN",
-        entity: "booking",
-        entityId: id,
-        metadata: { checkInTime: new Date() },
-      },
+    // Check if booking exists
+    const booking = await db.booking.findUnique({
+      where: { id },
+      include: { room: true },
     });
 
-    return NextResponse.json({ success: true, booking: updatedBooking });
+    if (!booking) {
+      return notFound('Booking', 'BOOKING_NOT_FOUND');
+    }
 
+    if (booking.status !== 'CONFIRMED') {
+      return badRequest(
+        'Booking is not in confirmed status',
+        'INVALID_STATUS'
+      );
+    }
+
+    const result = await processLateArrivalCheckIn(id, {
+      actualCheckInTime: new Date(actualCheckInTime),
+      initiatedById: userId,
+      skipAutoCheckIn,
+    });
+
+    // Audit log
+    await createAuditLog({
+      userId,
+      bookingId: id,
+      action: result.autoCheckIn ? 'AUTO_CHECKIN_LATE' : 'CHECKIN_PROCESSED',
+      entity: 'booking',
+      entityId: id,
+      metadata: {
+        actualCheckInTime,
+        isLateArrival: result.isLateArrival,
+        autoCheckIn: result.autoCheckIn,
+        requiresManualCheckIn: result.requiresManualCheckIn,
+      },
+      ipAddress: getClientIp(request),
+    });
+
+    return ok(result);
   } catch (error) {
-    console.error("Error checking in:", error);
-    return NextResponse.json({ error: "Failed to check in" }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Internal error';
+    if (message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    console.error('[CHECKIN_LATE]', error);
+    return serverError('Internal server error', 'INTERNAL_ERROR');
   }
 }

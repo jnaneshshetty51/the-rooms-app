@@ -96,6 +96,14 @@ model User {
   initiatedRoomMoves    RoomMoveHistory[] @relation("RoomMoveInitiatedBy")
   createdGroupBookings  GroupBooking[]    @relation("GroupBookingCreatedBy")
 
+  // Discount approval back-relations
+  discountApprovalRequests  DiscountApprovalRequest[] @relation("DiscountApprovalRequestedBy")
+  discountApprovalsApproved DiscountApprovalRequest[] @relation("DiscountApprovalApprovedBy")
+
+  // Price override back-relations
+  priceOverrides         PriceOverride[] @relation("PriceOverrideRequestedBy")
+  priceOverridesApproved PriceOverride[] @relation("PriceOverrideApprovedBy")
+
   @@map("users")
 }
 
@@ -165,6 +173,10 @@ model Room {
   monthlyPriceSingle Decimal?   @db.Decimal(10, 2)
   monthlyPriceDouble Decimal?   @db.Decimal(10, 2)
 
+  // Extra bed configuration
+  extraBedsAvailable Int       @default(0)
+  extraBedPrice      Decimal?   @db.Decimal(10, 2)
+
   // Internal notes (admin-only, not guest-visible)
   internalNotes    String?
 
@@ -190,6 +202,12 @@ model Room {
   // Room move history (self-referencing for from/to)
   moveHistoryFrom RoomMoveHistory[] @relation("MoveFromRoom")
   moveHistoryTo   RoomMoveHistory[] @relation("MoveToRoom")
+
+  // Room holds
+  holds           RoomHold[]
+  
+  // Price overrides
+  priceOverrides  PriceOverride[]
 
   @@map("rooms")
 }
@@ -342,6 +360,26 @@ model Booking {
   // Overbooking flag
   isOverbooking  Boolean   @default(false)
 
+  // Room assignment type
+  roomAssignmentType AssignmentType?
+  
+  // Early check-in tracking
+  earlyCheckInRequested Boolean @default(false)
+  earlyCheckInApproved  Boolean @default(false)
+  
+  // Late arrival info (stored as JSON)
+  lateArrivalInfo       Json?
+  
+  // Corporate account billing
+  corporateAccountId    String?
+  
+  // Group booking leadership
+  isGroupLeader         Boolean @default(false)
+  parentBookingId       String?
+
+  // Extra bed tracking
+  extraBedsUsed         Int     @default(0)
+
   createdById   String?
   createdBy     User?        @relation(fields: [createdById], references: [id])
 
@@ -360,6 +398,9 @@ model Booking {
   folio        Folio?
   advanceDeposit AdvanceDeposit?
   roomMoveHistories RoomMoveHistory[]
+  roomAssignment    BookingRoomAssignment?
+  discountApprovalRequests DiscountApprovalRequest[]
+  priceOverrides   PriceOverride[]
 
   @@index([checkIn])
   @@index([checkOut])
@@ -380,14 +421,18 @@ enum BookingSource {
   PHONE
   OTA
   COMPLIMENTARY
+  CORPORATE
+  GROUP
 }
 
 enum BookingStatus {
+  HOLD
   CONFIRMED
   CHECKED_IN
   CHECKED_OUT
   CANCELLED
   NO_SHOW
+  EXPIRED
 }
 
 enum PaymentStatus {
@@ -656,6 +701,9 @@ model DiscountCode {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
+  // Back-relation for discount approval requests
+  discountApprovalRequests DiscountApprovalRequest[]
+
   @@index([code])
   @@index([isActive])
   @@map("discount_codes")
@@ -830,6 +878,10 @@ model StayModificationRequest {
   reason         String?
   notes          String?
   
+  // Extension-specific fields
+  requestedNights Int?
+  newCheckOut     DateTime?
+  
   // Charge calculation
   extraChargeAmount Decimal?                @db.Decimal(10, 2)
   chargeDescription String?
@@ -904,6 +956,7 @@ enum AddonType {
 enum StayModificationType {
   EARLY_CHECKIN
   LATE_CHECKOUT
+  EXTEND_STAY
 }
 
 enum StayModificationStatus {
@@ -1753,4 +1806,427 @@ enum EscalationLevel {
   SECOND     // General manager
   THIRD      // Regional/District manager
   FINAL      // Executive team
+}
+
+// ─── Phase 1: Reservation & Check-in System ──────────────────────────────────
+
+// ── Assignment Type ───────────────────────────────────────────────────────────
+enum AssignmentType {
+  PRE_ASSIGNED    // Room assigned at booking time
+  AUTO_ASSIGN     // Room auto-assigned at check-in
+  ON_DEMAND       // Room assigned on guest request
+}
+
+// ── Waitlist ──────────────────────────────────────────────────────────────────
+model Waitlist {
+  id              String    @id @default(cuid())
+  waitlistNumber  String    @unique  // WTL-YYYYMMDD-XXXX
+  propertyId      String    @default("default")
+  
+  // Guest info
+  guestName       String
+  guestPhone      String
+  guestEmail      String?
+  
+  // Requested booking details
+  roomType        RoomType
+  checkIn         DateTime  @db.Date
+  checkOut        DateTime  @db.Date
+  guestsCount     Int       @default(1)
+  
+  // Priority and status
+  priority        Int       @default(0)  // Higher = more priority
+  status          WaitlistStatus @default(WAITING)
+  
+  // Expiry
+  expiresAt       DateTime?  // When this waitlist entry expires
+  notifiedAt      DateTime?  // When guest was last notified
+  
+  // Resolution
+  resolvedAt      DateTime?
+  resolvedBookingId String?  // Booking created from this waitlist
+  resolvedReason  String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([roomType, checkIn, checkOut, status])
+  @@index([status, priority])
+  @@map("waitlist")
+}
+
+enum WaitlistStatus {
+  WAITING       // Active, waiting for room
+  NOTIFIED      // Guest notified that room is available
+  CONVERTED     // Converted to booking
+  EXPIRED       // Waitlist entry expired
+  CANCELLED     // Guest cancelled waitlist request
+}
+
+// ── Booking Room Assignment ───────────────────────────────────────────────────
+model BookingRoomAssignment {
+  id              String    @id @default(cuid())
+  bookingId       String    @unique
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  
+  // Assignment type
+  assignmentType  AssignmentType
+  
+  // Pre-assigned room (for ASSIGNED type)
+  preAssignedRoomId String?
+  preAssignedAt    DateTime?
+  
+  // Auto-assigned room (for AUTO type, assigned at check-in)
+  autoAssignedRoomId String?
+  autoAssignedAt   DateTime?
+  
+  // Final room (actual room assigned)
+  finalRoomId     String?
+  
+  // Lock on room to prevent double-assignment
+  roomLockId      String?
+  roomLockExpiresAt DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@map("booking_room_assignments")
+}
+
+// ── Room Hold ─────────────────────────────────────────────────────────────────
+model RoomHold {
+  id              String    @id @default(cuid())
+  roomId          String
+  room            Room      @relation(fields: [roomId], references: [id])
+  
+  // Hold context
+  holdType        RoomHoldType
+  bookingId       String?   // If hold is for a specific booking
+  waitlistId      String?   // If hold is for a waitlist entry
+  
+  // Hold period
+  checkIn         DateTime  @db.Date
+  checkOut        DateTime  @db.Date
+  
+  // Expiry
+  expiresAt       DateTime
+  releasedAt      DateTime?
+  
+  // Status
+  status          RoomHoldStatus @default(ACTIVE)
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([roomId, checkIn, checkOut, status])
+  @@map("room_holds")
+}
+
+enum RoomHoldType {
+  BOOKING         // Hold for confirmed booking
+  PRE_ASSIGN      // Hold for pre-assigned room
+  WAITLIST        // Hold for waitlist (priority)
+  HOUSEKEEPING    // Temporary hold for cleaning
+}
+
+enum RoomHoldStatus {
+  ACTIVE
+  RELEASED
+  CONVERTED       // Converted to actual booking
+  EXPIRED
+}
+
+// ── Duplicate Booking Detection ───────────────────────────────────────────────
+model DuplicateBookingCandidate {
+  id              String    @id @default(cuid())
+  
+  // Detection details
+  detectedAt      DateTime  @default(now())
+  status          DuplicateStatus @default(PENDING)
+  
+  // Linked bookings
+  primaryBookingId String
+  duplicateBookingId String
+  
+  // Detection criteria
+  matchType       DuplicateMatchType  // Exact match or fuzzy
+  matchFields     String[]  // Which fields matched
+  
+  // Resolution
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolution      String?   // KEPT_PRIMARY, MERGED, BOTH_KEPT
+  
+  notes           String?
+  
+  @@map("duplicate_booking_candidates")
+}
+
+enum DuplicateMatchType {
+  EXACT_PHONE
+  EXACT_EMAIL
+  EXACT_DATES_ROOM
+  FUZZY_NAME
+  FUZZY_PHONE
+}
+
+enum DuplicateStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+// ── Late Arrival Policy ───────────────────────────────────────────────────────
+model LateArrivalPolicy {
+  id              String    @id @default(cuid())
+  propertyId      String    @default("default")
+  
+  // Late arrival window
+  lateArrivalStartHour Int   @default(0)   // 00:00 (midnight)
+  lateArrivalEndHour   Int   @default(6)   // 06:00
+  
+  // Auto-check-in settings
+  autoCheckInEnabled Boolean @default(false)
+  autoCheckInCutoffHour Int @default(4)    // Auto check-in by 4 AM
+  
+  // Guest notification
+  notifyGuest Boolean @default(true)
+  notificationTemplateId String?
+  
+  // Special handling
+  requireManualCheckIn Boolean @default(true)
+  allowAutoRoomAssignment Boolean @default(false)
+  
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([propertyId])
+  @@map("late_arrival_policies")
+}
+
+// ─── Phase 4: During Stay Features ───────────────────────────────────────
+
+// ── Lost and Found ──────────────────────────────────────────────────────────
+model LostAndFound {
+  id              String           @id @default(cuid())
+  bookingId       String?
+  booking         Booking?        @relation(fields: [bookingId], references: [id])
+  
+  // Location info
+  roomNumber      String?
+  
+  // Item details
+  itemDescription String
+  category        LostAndFoundCategory
+  color           String?
+  
+  // Dates
+  foundDate       DateTime         @db.Date
+  claimedDate     DateTime?
+  
+  // Status
+  status          LostAndFoundStatus @default(UNCLAIMED)
+  
+  // Staff tracking
+  identifiedBy    String           // Staff name who found/recorded
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([category])
+  @@map("lost_and_found")
+}
+
+enum LostAndFoundCategory {
+  ELECTRONICS
+  CLOTHING
+  JEWELRY
+  DOCUMENTS
+  OTHER
+}
+
+enum LostAndFoundStatus {
+  UNCLAIMED
+  CLAIMED
+  DISPOSED
+  RETURNED_TO_GUEST
+}
+
+// ── Wake-up Call ──────────────────────────────────────────────────────────────
+model WakeUpCall {
+  id              String        @id @default(cuid())
+  bookingId       String?
+  booking         Booking?      @relation(fields: [bookingId], references: [id])
+  
+  // Guest info
+  roomNumber      String
+  guestName       String
+  phoneNumber     String?
+  
+  // Call details
+  scheduledTime   DateTime
+  duration        Int           // Duration in seconds
+  status          WakeUpCallStatus @default(PENDING)
+  notes           String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([bookingId])
+  @@index([roomNumber])
+  @@index([scheduledTime])
+  @@index([status])
+  @@map("wake_up_calls")
+}
+
+enum WakeUpCallStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  MISSED
+}
+
+// ── Taxi Booking ──────────────────────────────────────────────────────────────
+model TaxiBooking {
+  id              String          @id @default(cuid())
+  bookingId       String?
+  booking         Booking?        @relation(fields: [bookingId], references: [id])
+  
+  // Guest info
+  roomNumber      String
+  guestName       String
+  phoneNumber     String
+  
+  // Trip details
+  pickupLocation  String
+  dropoffLocation String
+  pickupDateTime  DateTime
+  vehicleType     VehicleType
+  numberOfPassengers Int          @default(1)
+  
+  // Driver info (filled after confirmation)
+  driverName      String?
+  driverPhone     String?
+  vehicleNumber   String?
+  
+  // Fare
+  fare            Decimal?        @db.Decimal(10, 2)
+  
+  // Status
+  status          TaxiBookingStatus @default(REQUESTED)
+  notes           String?
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([bookingId])
+  @@index([roomNumber])
+  @@index([pickupDateTime])
+  @@index([status])
+  @@map("taxi_bookings")
+}
+
+enum VehicleType {
+  SEDAN
+  SUV
+  LUXURY
+  VAN
+  AUTO
+}
+
+enum TaxiBookingStatus {
+  REQUESTED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ── Discount Approval Request ─────────────────────────────────────────────────
+// For feature #33 - Discount approval required flow
+enum DiscountApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model DiscountApprovalRequest {
+  id                       String                  @id @default(cuid())
+  bookingId                String
+  booking                  Booking                @relation(fields: [bookingId], references: [id])
+  
+  // Optional discount code reference
+  discountCodeId           String?
+  discountCode             DiscountCode?          @relation(fields: [discountCodeId], references: [id])
+  
+  // Discount percentages
+  originalDiscountPercent   Decimal?               @db.Decimal(5, 2)
+  requestedDiscountPercent  Decimal                @db.Decimal(5, 2)
+  
+  // Users involved
+  requestedById            String
+  requestedBy              User                   @relation("DiscountApprovalRequestedBy", fields: [requestedById], references: [id])
+  approvedById              String?
+  approvedBy                User?                  @relation("DiscountApprovalApprovedBy", fields: [approvedById], references: [id])
+  
+  // Status and reason
+  status                   DiscountApprovalStatus  @default(PENDING)
+  reason                   String?
+  
+  // Timestamps
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([requestedById])
+  @@map("discount_approval_requests")
+}
+
+// ── Price Override ───────────────────────────────────────────────────────────
+// For feature #34 - Manual price override by receptionist
+enum PriceOverrideStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  APPLIED
+}
+
+model PriceOverride {
+  id               String              @id @default(cuid())
+  bookingId        String?
+  booking          Booking?           @relation(fields: [bookingId], references: [id])
+  
+  roomId           String?
+  room             Room?              @relation(fields: [roomId], references: [id])
+  
+  // Price fields
+  originalPrice    Decimal             @db.Decimal(10, 2)
+  overriddenPrice  Decimal             @db.Decimal(10, 2)
+  
+  // Reason for override
+  reason           String
+  
+  // Users involved
+  requestedById    String
+  requestedBy      User                @relation("PriceOverrideRequestedBy", fields: [requestedById], references: [id])
+  approvedById     String?
+  approvedBy       User?               @relation("PriceOverrideApprovedBy", fields: [approvedById], references: [id])
+  
+  // Status
+  status           PriceOverrideStatus @default(PENDING)
+  
+  // Validity period
+  effectiveFrom    DateTime?
+  effectiveUntil   DateTime?
+  
+  // Timestamps
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([bookingId])
+  @@index([roomId])
+  @@index([status])
+  @@map("price_overrides")
 }
