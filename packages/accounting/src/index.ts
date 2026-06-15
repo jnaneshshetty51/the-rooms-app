@@ -511,7 +511,7 @@ export function generateTallyExcel(transactions: AccountingTransaction[]): Buffe
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Accounting Entries');
 
-    return XLSX.writeBuffer(workbook, { type: 'buffer', bookType: 'xlsx' });
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }
 
 /**
