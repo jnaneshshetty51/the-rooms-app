@@ -401,6 +401,9 @@ model Booking {
   roomAssignment    BookingRoomAssignment?
   discountApprovalRequests DiscountApprovalRequest[]
   priceOverrides   PriceOverride[]
+  lostAndFounds    LostAndFound[]
+  wakeUpCalls      WakeUpCall[]
+  taxiBookings     TaxiBooking[]
 
   @@index([checkIn])
   @@index([checkOut])
