@@ -26,6 +26,9 @@ export { getAddonsByBooking, getAddonsByBookingGrouped, getAddonTotalsByBooking,
 export { addToBlacklist, removeFromBlacklist, getBlacklistEntry, isGuestBlacklisted, getBlacklistEntries, searchBlacklist, updateBlacklistEntry, syncGuestBlacklistFlag } from './queries/blacklistQueries';
 export { createCorporateAccount, getCorporateAccount, getCorporateAccountByName, listCorporateAccounts, updateCorporateAccount, getCorporateCreditUsage, validateCorporateCredit, updateCreditBalance, getCorporateAccountFullDetails, deleteCorporateAccount } from './queries/corporateAccountQueries';
 
+export { createDamageAssessment, getDamageAssessmentById, getDamageAssessmentsByBooking, getDamageAssessmentsByRoom, updateDamageAssessment, deleteDamageAssessment, approveDamageCharge, getAllDamageAssessments } from './queries/damageAssessmentQueries';
+export { calculateLateCheckoutFee, applyLateCheckoutFee, checkLateCheckoutEligibility } from './queries/lateCheckoutQueries';
+
 export { Prisma, ExpenseCategory, RoomType } from '@prisma/client';
 
 export default prisma;
