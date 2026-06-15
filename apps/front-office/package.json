@@ -20,6 +20,8 @@
     "@the-rooms/payments": "workspace:*",
     "@the-rooms/types": "workspace:*",
     "@the-rooms/ui": "workspace:*",
+    "@types/busboy": "^1.5.4",
+    "busboy": "^1.6.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.460.0",
