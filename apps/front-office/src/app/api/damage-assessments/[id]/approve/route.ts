@@ -1,5 +1,5 @@
-// apps/front-office/src/app/api/bookings/[id]/early-check-in/approve/route.ts
-// Approve/Deny Early Check-in Request
+// apps/front-office/src/app/api/damage-assessments/[id]/approve/route.ts
+// Damage Assessment Approval API
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@the-rooms/auth';
@@ -7,7 +7,7 @@ import { db } from '@the-rooms/db';
 import { ok, badRequest, serverError, notFound } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
-import { approveEarlyCheckIn } from '@the-rooms/db/queries/earlyCheckInQueries';
+import { getDamageAssessmentById, approveDamageCharge } from '@the-rooms/db/queries/damageAssessmentQueries';
 
 // ─── Auth Helper ───────────────────────────────────────────────────────────────
 
@@ -21,15 +21,14 @@ async function requireStaff(session: { user?: { role?: string } | null } | null)
 
 // ─── Schemas ───────────────────────────────────────────────────────────────────
 
-const approveEarlyCheckInSchema = z.object({
-    approved: z.boolean(),
-    rejectionReason: z.string().optional(),
+const approveDamageChargeSchema = z.object({
+    notes: z.string().optional(),
 });
 
-// ─── PATCH /api/bookings/[id]/early-check-in/approve ───────────────────────────
-// Approve or deny early check-in request
+// ─── POST /api/damage-assessments/[id]/approve ────────────────────────────────
+// Approve damage charge and add to folio
 
-export async function PATCH(
+export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
@@ -39,7 +38,7 @@ export async function PATCH(
 
         const { id } = await params;
         const body = await request.json();
-        const parsed = approveEarlyCheckInSchema.safeParse(body);
+        const parsed = approveDamageChargeSchema.safeParse(body);
 
         if (!parsed.success) {
             return badRequest(
@@ -48,48 +47,44 @@ export async function PATCH(
             );
         }
 
-        const { approved, rejectionReason } = parsed.data;
         const userId = (session.user as { id?: string }).id;
+        const assessment = await getDamageAssessmentById(id);
 
-        // Check if booking exists
-        const booking = await db.booking.findUnique({
-            where: { id },
-            include: { room: true },
+        if (!assessment) {
+            return notFound('DamageAssessment', 'ASSESSMENT_NOT_FOUND');
+        }
+
+        const result = await approveDamageCharge(id, {
+            approvedById: userId!,
+            notes: parsed.data.notes,
         });
-
-        if (!booking) {
-            return notFound('Booking', 'BOOKING_NOT_FOUND');
-        }
-
-        if (!booking.earlyCheckInRequested) {
-            return badRequest(
-                'No early check-in request found for this booking',
-                'NO_EARLY_CHECKIN_REQUEST'
-            );
-        }
-
-        const result = await approveEarlyCheckIn(
-            id,
-            approved,
-            userId,
-            rejectionReason
-        );
 
         // Audit log
         await createAuditLog({
             userId,
-            bookingId: id,
-            action: approved ? 'EARLY_CHECKIN_APPROVED' : 'EARLY_CHECKIN_DENIED',
-            entity: 'booking',
+            bookingId: assessment.bookingId,
+            action: 'DAMAGE_CHARGE_APPROVED',
+            entity: 'damageAssessment',
             entityId: id,
             metadata: {
-                approved,
-                rejectionReason,
+                amount: assessment.amount.toNumber(),
+                damageType: assessment.damageType,
+                chargeId: result.charge.id,
+                totalWithTax: result.charge.totalAmount.toNumber(),
             },
             ipAddress: getClientIp(request),
         });
 
-        return ok(result);
+        return ok({
+            message: 'Damage charge approved and added to folio',
+            assessment: {
+                id: assessment.id,
+                description: assessment.description,
+                damageType: assessment.damageType,
+                amount: assessment.amount,
+            },
+            charge: result.charge,
+        });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Internal error';
         if (message === 'Unauthorized') {
@@ -98,10 +93,7 @@ export async function PATCH(
         if (message === 'Forbidden') {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
-        if (message === 'NO_EARLY_CHECKIN_REQUEST') {
-            return badRequest('No early check-in request found', 'NO_EARLY_CHECKIN_REQUEST');
-        }
-        console.error('[EARLY_CHECKIN_APPROVE]', error);
+        console.error('[DAMAGE_CHARGE_APPROVE]', error);
         return serverError('Internal server error', 'INTERNAL_ERROR');
     }
 }

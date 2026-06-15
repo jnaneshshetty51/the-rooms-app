@@ -1,5 +1,5 @@
-// apps/front-office/src/app/api/bookings/[id]/extra-bed/route.ts
-// Extra Bed API for a booking
+// apps/front-office/src/app/api/damage-assessments/[id]/route.ts
+// Damage Assessment API - Get, Update, Delete by ID
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@the-rooms/auth';
@@ -7,7 +7,8 @@ import { db } from '@the-rooms/db';
 import { ok, badRequest, serverError, notFound } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
-import { addExtraBed, removeExtraBed, getExtraBedInfo } from '@the-rooms/db/queries/extraBedQueries';
+import { getDamageAssessmentById, updateDamageAssessment, deleteDamageAssessment } from '@the-rooms/db/queries/damageAssessmentQueries';
+import { DamageType } from '@prisma/client';
 
 // ─── Auth Helper ───────────────────────────────────────────────────────────────
 
@@ -19,19 +20,24 @@ async function requireStaff(session: { user?: { role?: string } | null } | null)
     }
 }
 
+async function requireAdmin(session: { user?: { role?: string } | null } | null) {
+    if (!session?.user) throw new Error('Unauthorized');
+    const role = session.user.role;
+    if (!role || !['ADMIN', 'SUPER_ADMIN'].includes(role)) {
+        throw new Error('Forbidden');
+    }
+}
+
 // ─── Schemas ───────────────────────────────────────────────────────────────────
 
-const addExtraBedSchema = z.object({
-    quantity: z.number().int().positive().optional().default(1),
-    notes: z.string().optional(),
+const updateDamageAssessmentSchema = z.object({
+    description: z.string().min(1, 'Description is required').optional(),
+    damageType: z.enum(['MINOR', 'MODERATE', 'SEVERE', 'TOTAL_LOSS']).optional(),
+    amount: z.number().min(0, 'Amount must be non-negative').optional(),
+    images: z.array(z.string()).optional(),
 });
 
-const removeExtraBedSchema = z.object({
-    quantity: z.number().int().positive().optional().default(1),
-});
-
-// ─── GET /api/bookings/[id]/extra-bed ─────────────────────────────────────────────
-// Get extra bed info for a booking
+// ─── GET /api/damage-assessments/[id] ─────────────────────────────────────────
 
 export async function GET(
     request: NextRequest,
@@ -42,19 +48,13 @@ export async function GET(
         await requireStaff(session);
 
         const { id } = await params;
+        const assessment = await getDamageAssessmentById(id);
 
-        // Check if booking exists
-        const booking = await db.booking.findUnique({
-            where: { id },
-        });
-
-        if (!booking) {
-            return notFound('Booking', 'BOOKING_NOT_FOUND');
+        if (!assessment) {
+            return notFound('DamageAssessment', 'ASSESSMENT_NOT_FOUND');
         }
 
-        const extraBedInfo = await getExtraBedInfo(id);
-
-        return ok(extraBedInfo);
+        return ok(assessment);
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Internal error';
         if (message === 'Unauthorized') {
@@ -63,15 +63,14 @@ export async function GET(
         if (message === 'Forbidden') {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
-        console.error('[EXTRA_BED_INFO]', error);
+        console.error('[DAMAGE_ASSESSMENT_GET]', error);
         return serverError('Internal server error', 'INTERNAL_ERROR');
     }
 }
 
-// ─── POST /api/bookings/[id]/extra-bed ─────────────────────────────────────────────
-// Add extra bed(s) to a booking
+// ─── PATCH /api/damage-assessments/[id] ────────────────────────────────────────
 
-export async function POST(
+export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
@@ -81,7 +80,7 @@ export async function POST(
 
         const { id } = await params;
         const body = await request.json();
-        const parsed = addExtraBedSchema.safeParse(body);
+        const parsed = updateDamageAssessmentSchema.safeParse(body);
 
         if (!parsed.success) {
             return badRequest(
@@ -90,39 +89,24 @@ export async function POST(
             );
         }
 
-        const { quantity, notes } = parsed.data;
         const userId = (session.user as { id?: string }).id;
+        const assessment = await getDamageAssessmentById(id);
 
-        // Check if booking exists
-        const booking = await db.booking.findUnique({
-            where: { id },
-        });
-
-        if (!booking) {
-            return notFound('Booking', 'BOOKING_NOT_FOUND');
+        if (!assessment) {
+            return notFound('DamageAssessment', 'ASSESSMENT_NOT_FOUND');
         }
 
-        if (booking.status !== 'CONFIRMED' && booking.status !== 'CHECKED_IN') {
-            return badRequest('Can only add extra beds to confirmed or checked-in bookings', 'INVALID_STATUS');
-        }
-
-        const result = await addExtraBed({
-            bookingId: id,
-            quantity,
-            notes,
-        });
+        const result = await updateDamageAssessment(id, parsed.data);
 
         // Audit log
         await createAuditLog({
             userId,
-            bookingId: id,
-            action: 'EXTRA_BED_ADDED',
-            entity: 'booking',
+            bookingId: assessment.bookingId,
+            action: 'DAMAGE_ASSESSMENT_UPDATED',
+            entity: 'damageAssessment',
             entityId: id,
             metadata: {
-                quantity,
-                chargeAmount: result.chargeAmount,
-                extraBedPrice: result.extraBedPrice,
+                changes: parsed.data,
             },
             ipAddress: getClientIp(request),
         });
@@ -136,16 +120,12 @@ export async function POST(
         if (message === 'Forbidden') {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
-        if (message.includes('Cannot add')) {
-            return badRequest(message, 'EXTRA_BED_LIMIT_EXCEEDED');
-        }
-        console.error('[EXTRA_BED_ADD]', error);
+        console.error('[DAMAGE_ASSESSMENT_UPDATE]', error);
         return serverError('Internal server error', 'INTERNAL_ERROR');
     }
 }
 
-// ─── DELETE /api/bookings/[id]/extra-bed ─────────────────────────────────────────────
-// Remove extra bed(s) from a booking
+// ─── DELETE /api/damage-assessments/[id] ──────────────────────────────────────
 
 export async function DELETE(
     request: NextRequest,
@@ -153,41 +133,33 @@ export async function DELETE(
 ) {
     try {
         const session = await auth();
-        await requireStaff(session);
+        await requireAdmin(session);
 
         const { id } = await params;
-        const body = await request.json().catch(() => ({}));
-        const quantity = body.quantity || 1;
         const userId = (session.user as { id?: string }).id;
+        const assessment = await getDamageAssessmentById(id);
 
-        // Check if booking exists
-        const booking = await db.booking.findUnique({
-            where: { id },
-        });
-
-        if (!booking) {
-            return notFound('Booking', 'BOOKING_NOT_FOUND');
+        if (!assessment) {
+            return notFound('DamageAssessment', 'ASSESSMENT_NOT_FOUND');
         }
 
-        const result = await removeExtraBed({
-            bookingId: id,
-            quantity,
-        });
+        await deleteDamageAssessment(id);
 
         // Audit log
         await createAuditLog({
             userId,
-            bookingId: id,
-            action: 'EXTRA_BED_REMOVED',
-            entity: 'booking',
+            bookingId: assessment.bookingId,
+            action: 'DAMAGE_ASSESSMENT_DELETED',
+            entity: 'damageAssessment',
             entityId: id,
             metadata: {
-                quantity,
+                deletedAmount: assessment.amount.toNumber(),
+                damageType: assessment.damageType,
             },
             ipAddress: getClientIp(request),
         });
 
-        return ok(result);
+        return ok({ message: 'Damage assessment deleted successfully' });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Internal error';
         if (message === 'Unauthorized') {
@@ -196,10 +168,7 @@ export async function DELETE(
         if (message === 'Forbidden') {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
-        if (message.includes('Cannot remove')) {
-            return badRequest(message, 'EXTRA_BED_LIMIT_EXCEEDED');
-        }
-        console.error('[EXTRA_BED_REMOVE]', error);
+        console.error('[DAMAGE_ASSESSMENT_DELETE]', error);
         return serverError('Internal server error', 'INTERNAL_ERROR');
     }
 }

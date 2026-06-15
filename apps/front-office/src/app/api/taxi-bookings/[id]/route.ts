@@ -14,7 +14,7 @@ import { getTaxiBookingById, updateTaxiBooking, confirmTaxiBooking, startTaxiTri
 async function requireStaff(session: { user?: { role?: string } | null } | null) {
     if (!session?.user) throw new Error('Unauthorized');
     const role = session.user.role;
-    if (!['FRONT_OFFICE', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
+    if (!role || !['FRONT_OFFICE', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
         throw new Error('Forbidden');
     }
 }
@@ -169,7 +169,7 @@ export async function DELETE(
         }
 
         const role = session.user.role;
-        if (!['ADMIN', 'SUPER_ADMIN'].includes(role)) {
+        if (!role || !['ADMIN', 'SUPER_ADMIN'].includes(role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

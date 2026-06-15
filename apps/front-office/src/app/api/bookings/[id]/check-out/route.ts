@@ -1,134 +1,305 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@the-rooms/auth";
-import { getBookingById, updateBookingStatus, Prisma, generateInvoice, buildInvoiceLineItems } from "@the-rooms/db";
-import prisma from "@the-rooms/db";
-import { sendInvoice } from "@the-rooms/email";
+// apps/front-office/src/app/api/bookings/[id]/check-out/route.ts
+// Check-out Processing with Late Checkout Fee and Pending Dues
+
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@the-rooms/auth';
+import { db } from '@the-rooms/db';
+import { ok, badRequest, serverError, notFound } from '@the-rooms/api';
+import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
+import { z } from 'zod';
+import { calculateLateCheckoutFee, applyLateCheckoutFee } from '@the-rooms/db/queries/lateCheckoutQueries';
+import { getDamageAssessmentsByBooking } from '@the-rooms/db/queries/damageAssessmentQueries';
+import { Decimal } from '@prisma/client/runtime/library';
+
+// ─── Auth Helper ───────────────────────────────────────────────────────────────
+
+async function requireStaff(session: { user?: { role?: string } | null } | null) {
+  if (!session?.user) throw new Error('Unauthorized');
+  const role = session.user.role;
+  if (!role || !['FRONT_OFFICE', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
+    throw new Error('Forbidden');
+  }
+}
+
+// ─── Schemas ───────────────────────────────────────────────────────────────────
+
+const checkOutSchema = z.object({
+  actualCheckOutTime: z.string().datetime({ message: 'Invalid check-out time' }).optional(),
+  allowWithPendingDues: z.boolean().optional().default(false),
+  skipLateFee: z.boolean().optional().default(false),
+  notes: z.string().optional(),
+});
+
+// ─── GET /api/bookings/[id]/check-out ──────────────────────────────────────────
+// Get checkout details including pending dues and late fee calculation
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+    await requireStaff(session);
+
+    const { id } = await params;
+
+    const booking = await db.booking.findUnique({
+      where: { id },
+      include: {
+        guest: true,
+        room: true,
+        folio: {
+          include: {
+            charges: true,
+            payments: true,
+          },
+        },
+        damageAssessments: true,
+      },
+    });
+
+    if (!booking) {
+      return notFound('Booking', 'BOOKING_NOT_FOUND');
+    }
+
+    if (booking.status !== 'CHECKED_IN') {
+      return badRequest('Booking is not checked in', 'INVALID_STATUS');
+    }
+
+    // Calculate late checkout fee
+    const lateCheckoutFee = await calculateLateCheckoutFee(id);
+
+    // Get damage assessments
+    const damageAssessments = await getDamageAssessmentsByBooking(id);
+
+    // Calculate total charges and payments
+    let totalCharges = booking.baseAmount.toNumber();
+    totalCharges += booking.extrasAmount?.toNumber() || 0;
+    totalCharges += booking.damageChargesTotal?.toNumber() || 0;
+    totalCharges -= booking.discountAmount.toNumber();
+
+    let totalPayments = 0;
+    if (booking.folio) {
+      for (const payment of booking.folio.payments) {
+        totalPayments += payment.amount.toNumber();
+      }
+    }
+
+    const pendingDues = Math.max(0, totalCharges - totalPayments);
+
+    return ok({
+      booking: {
+        id: booking.id,
+        bookingNumber: booking.bookingNumber,
+        checkOut: booking.checkOut,
+        status: booking.status,
+        baseAmount: booking.baseAmount,
+        extrasAmount: booking.extrasAmount,
+        discountAmount: booking.discountAmount,
+        damageChargesTotal: booking.damageChargesTotal,
+      },
+      guest: {
+        id: booking.guest.id,
+        name: booking.guest.name,
+        phone: booking.guest.phone,
+      },
+      room: {
+        id: booking.room.id,
+        roomNumber: booking.room.roomNumber,
+      },
+      folio: booking.folio ? {
+        totalCharges: booking.folio.charges.reduce((sum, c) => sum + c.totalAmount.toNumber(), 0),
+        totalPayments: booking.folio.payments.reduce((sum, p) => sum + p.amount.toNumber(), 0),
+        chargesCount: booking.folio.charges.length,
+        paymentsCount: booking.folio.payments.length,
+      } : null,
+      financialSummary: {
+        totalCharges,
+        totalPayments,
+        pendingDues,
+      },
+      lateCheckoutFee,
+      damageAssessments: damageAssessments.map(d => ({
+        id: d.id,
+        description: d.description,
+        damageType: d.damageType,
+        amount: d.amount,
+        assessedAt: d.assessedAt,
+      })),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal error';
+    if (message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    console.error('[CHECKOUT_GET]', error);
+    return serverError('Internal server error', 'INTERNAL_ERROR');
+  }
+}
+
+// ─── POST /api/bookings/[id]/check-out ────────────────────────────────────────
+// Process check-out
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
   try {
     const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    await requireStaff(session);
 
-    const booking = await getBookingById(id);
-    if (!booking) {
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
-    }
-
-    if (booking.status === "CHECKED_OUT") {
-      return NextResponse.json({ error: "Already checked out" }, { status: 400 });
-    }
-
-    if (booking.status !== "CHECKED_IN") {
-      return NextResponse.json({ error: "Guest must be checked in before checking out" }, { status: 400 });
-    }
-
+    const { id } = await params;
     const body = await request.json();
-    const { finalPayment, paymentMethod, transactionId, notes, sendInvoice: shouldSendInvoice } = body;
+    const parsed = checkOutSchema.safeParse(body);
 
-    let paymentIdForInvoice: string | undefined;
+    if (!parsed.success) {
+      return badRequest(
+        parsed.error.errors.map(e => e.message).join(', '),
+        'VALIDATION_ERROR'
+      );
+    }
 
-    // Wrap entire state mutation in a transaction
-    await prisma.$transaction(async (tx) => {
-      // Handle payments and refunds
-      if (finalPayment && finalPayment !== 0) {
-        const isRefund = finalPayment < 0;
-        const amount = new Prisma.Decimal(Math.abs(finalPayment));
+    const { actualCheckOutTime, allowWithPendingDues, skipLateFee, notes } = parsed.data;
+    const userId = (session.user as { id?: string }).id;
 
-        const newPayment = await tx.payment.create({
-          data: {
-            bookingId: id,
-            amount,
-            method: paymentMethod ?? "CASH",
-            transactionId,
-            status: isRefund ? "REFUNDED" : "PAID",
-            refundAmount: isRefund ? amount : null,
-            refundStatus: isRefund ? "COMPLETED" : null,
-            refundReason: isRefund ? "Overpayment at Check-out" : null,
+    const booking = await db.booking.findUnique({
+      where: { id },
+      include: {
+        guest: true,
+        room: true,
+        folio: {
+          include: {
+            charges: true,
+            payments: true,
           },
-        });
-        paymentIdForInvoice = newPayment.id;
-
-        await tx.booking.update({
-          where: { id },
-          data: { paymentStatus: isRefund ? "REFUNDED" : "PAID" },
-        });
-      }
-
-      // Update booking and sync room to VACANT inside transaction
-      await updateBookingStatus(id, "CHECKED_OUT", tx);
-
-      // Automatically mark the room as dirty for housekeeping
-      await tx.room.update({
-        where: { id: booking.roomId },
-        data: { cleaningStatus: "DIRTY" }
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: (session.user as { id?: string }).id,
-          bookingId: id,
-          action: "CHECK_OUT",
-          entity: "booking",
-          entityId: id,
-          metadata: { checkOutTime: new Date(), finalPayment, paymentMethod, notes },
         },
-      });
+      },
     });
 
-    const updatedBooking = await getBookingById(id);
+    if (!booking) {
+      return notFound('Booking', 'BOOKING_NOT_FOUND');
+    }
 
-    // Invoice Generation and Emailing
-    if (shouldSendInvoice) {
-      // Find latest payment to associate invoice if no new payment was created
-      if (!paymentIdForInvoice) {
-        const latestPayment = await prisma.payment.findFirst({
-          where: { bookingId: id },
-          orderBy: { createdAt: 'desc' }
-        });
-        paymentIdForInvoice = latestPayment?.id;
-      }
+    if (booking.status !== 'CHECKED_IN') {
+      return badRequest('Booking is not checked in', 'INVALID_STATUS');
+    }
 
-      if (paymentIdForInvoice) {
-        const lineItems = await buildInvoiceLineItems(id);
-        const invoiceData = await generateInvoice({ bookingId: id, lineItems });
+    // Calculate total charges and payments
+    let totalCharges = booking.baseAmount.toNumber();
+    totalCharges += booking.extrasAmount?.toNumber() || 0;
+    totalCharges += booking.damageChargesTotal?.toNumber() || 0;
+    totalCharges -= booking.discountAmount.toNumber();
 
-        if (booking.guest.email) {
-          try {
-            await sendInvoice(booking.guest.email, {
-              guestName: booking.guest.name,
-              guestEmail: booking.guest.email,
-              invoiceNumber: invoiceData.invoiceNumber,
-              invoiceDate: invoiceData.issuedAt.toISOString(),
-              bookingNumber: booking.bookingNumber,
-              roomType: booking.room.type,
-              roomNumber: booking.room.roomNumber,
-              checkIn: booking.checkIn.toISOString(),
-              checkOut: new Date().toISOString(),
-              guestsCount: booking.guestsCount,
-              baseAmount: Number(booking.baseAmount),
-              discountAmount: Number(booking.discountAmount),
-              totalAmount: Number(booking.totalAmount),
-              paymentMethod: paymentMethod ?? 'Online',
-              transactionId: transactionId,
-              pdfUrl: invoiceData.pdfUrl ?? undefined,
-            });
-            console.log("Invoice email sent to", booking.guest.email);
-          } catch (e) {
-            console.error("Failed to send invoice email:", e);
-          }
-        }
+    let totalPayments = 0;
+    if (booking.folio) {
+      for (const payment of booking.folio.payments) {
+        totalPayments += payment.amount.toNumber();
       }
     }
 
-    return NextResponse.json({ success: true, booking: updatedBooking });
+    const pendingDues = Math.max(0, totalCharges - totalPayments);
+
+    // Check pending dues
+    if (pendingDues > 0 && !allowWithPendingDues) {
+      return badRequest(
+        `Booking has pending dues of ₹${pendingDues.toFixed(2)}. Authorize checkout with pending dues to proceed.`,
+        'PENDING_DUES'
+      );
+    }
+
+    // Apply late checkout fee if applicable
+    let lateFeeApplied = false;
+    let lateFeeAmount = 0;
+
+    if (!skipLateFee) {
+      const lateCheckoutFee = await calculateLateCheckoutFee(id);
+
+      if (lateCheckoutFee.eligible && lateCheckoutFee.fee > 0) {
+        const feeResult = await applyLateCheckoutFee({
+          bookingId: id,
+          fee: lateCheckoutFee.fee,
+          appliedById: userId!,
+          description: `Late checkout fee (${lateCheckoutFee.chargeType})`,
+        });
+
+        lateFeeApplied = true;
+        lateFeeAmount = feeResult.charge.totalAmount.toNumber();
+      }
+    }
+
+    // Update booking status to CHECKED_OUT
+    const updatedBooking = await db.booking.update({
+      where: { id },
+      data: {
+        status: 'CHECKED_OUT',
+        checkoutType: lateFeeApplied ? 'LATE' : 'STANDARD',
+        checkOutTime: actualCheckOutTime ? new Date(actualCheckOutTime) : new Date(),
+        pendingDues: new Decimal(pendingDues),
+      },
+    });
+
+    // Update room status to VACANT
+    await db.room.update({
+      where: { id: booking.roomId },
+      data: {
+        status: 'VACANT',
+      },
+    });
+
+    // Audit log
+    await createAuditLog({
+      userId,
+      bookingId: id,
+      action: lateFeeApplied ? 'CHECKOUT_PROCESSED_LATE' : 'CHECKOUT_PROCESSED',
+      entity: 'booking',
+      entityId: id,
+      metadata: {
+        totalCharges,
+        totalPayments,
+        pendingDues,
+        lateFeeApplied,
+        lateFeeAmount,
+        allowWithPendingDues,
+        notes,
+      },
+      ipAddress: getClientIp(request),
+    });
+
+    return ok({
+      message: 'Check-out processed successfully',
+      booking: {
+        id: updatedBooking.id,
+        bookingNumber: updatedBooking.bookingNumber,
+        status: updatedBooking.status,
+        checkoutType: updatedBooking.checkoutType,
+        checkOutTime: updatedBooking.checkOutTime,
+        pendingDues: updatedBooking.pendingDues,
+      },
+      room: {
+        id: booking.room.id,
+        roomNumber: booking.room.roomNumber,
+        status: 'VACANT',
+      },
+      financialSummary: {
+        totalCharges,
+        totalPayments,
+        pendingDues,
+      },
+      lateFeeApplied,
+      lateFeeAmount,
+    });
   } catch (error) {
-    console.error("Error checking out:", error);
-    return NextResponse.json({ error: "Failed to check out" }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Internal error';
+    if (message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    console.error('[CHECKOUT_POST]', error);
+    return serverError('Internal server error', 'INTERNAL_ERROR');
   }
 }
