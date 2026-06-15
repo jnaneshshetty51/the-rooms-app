@@ -214,18 +214,15 @@ export async function verifyPropertyAccess(
   propertyId: string,
   userRole: string
 ): Promise<boolean> {
-  // SUPER_ADMIN has access to all properties
-  if (userRole === 'SUPER_ADMIN') {
+  // Hotel staff roles have unconditional access in a single-property setup
+  if (['SUPER_ADMIN', 'ADMIN', 'FRONT_OFFICE', 'HOUSEKEEPING'].includes(userRole)) {
     return true;
   }
 
-  // Check if user has explicit access to this property
+  // For other roles (e.g. GUEST), require an explicit UserPropertyAccess record
   const { db } = await import('@the-rooms/db');
   const access = await db.userPropertyAccess.findFirst({
-    where: {
-      userId,
-      propertyId,
-    },
+    where: { userId, propertyId },
   });
 
   return !!access;
