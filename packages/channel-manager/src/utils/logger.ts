@@ -69,20 +69,44 @@ class Logger {
         }
     }
 
-    debug(message: string, context?: LogContext): void {
-        this.log('debug', message, context);
+    private resolve(
+        contextOrMessage: LogContext | string,
+        second?: string | LogContext
+    ): { msg: string; ctx?: LogContext } {
+        if (typeof contextOrMessage === 'string') {
+            // Old-style: (message, context?) or just (message)
+            const ctx = second !== undefined && typeof second !== 'string' ? second : undefined;
+            return { msg: contextOrMessage, ctx };
+        }
+        // Pino-style: (context, message)
+        return { msg: typeof second === 'string' ? second : '', ctx: contextOrMessage };
     }
 
-    info(message: string, context?: LogContext): void {
-        this.log('info', message, context);
+    debug(contextOrMessage: LogContext | string, second?: string | LogContext): void {
+        const { msg, ctx } = this.resolve(contextOrMessage, second);
+        this.log('debug', msg, ctx);
     }
 
-    warn(message: string, context?: LogContext): void {
-        this.log('warn', message, context);
+    info(contextOrMessage: LogContext | string, second?: string | LogContext): void {
+        const { msg, ctx } = this.resolve(contextOrMessage, second);
+        this.log('info', msg, ctx);
     }
 
-    error(message: string, error?: Error, context?: LogContext): void {
-        this.log('error', message, context, error);
+    warn(contextOrMessage: LogContext | string, second?: string | LogContext): void {
+        const { msg, ctx } = this.resolve(contextOrMessage, second);
+        this.log('warn', msg, ctx);
+    }
+
+    error(contextOrMessage: LogContext | string, messageOrError?: string | Error | LogContext, context?: LogContext): void {
+        if (typeof contextOrMessage === 'string') {
+            const err = messageOrError instanceof Error ? messageOrError : undefined;
+            const ctx = typeof messageOrError === 'object' && !(messageOrError instanceof Error) ? messageOrError as LogContext : context;
+            this.log('error', contextOrMessage, ctx, err);
+        } else {
+            const msg = typeof messageOrError === 'string' ? messageOrError : '';
+            const { error: errField, ...ctx } = contextOrMessage as LogContext & { error?: Error };
+            this.log('error', msg, ctx, errField);
+        }
     }
 
     // Create child logger with persistent context
@@ -97,20 +121,36 @@ class ChildLogger {
         private context: LogContext
     ) { }
 
-    debug(message: string, additionalContext?: LogContext): void {
-        this.parent.debug(message, { ...this.context, ...additionalContext });
+    debug(contextOrMessage: LogContext | string, second?: string | LogContext): void {
+        if (typeof contextOrMessage === 'string') {
+            this.parent.debug({ ...this.context }, contextOrMessage);
+        } else {
+            this.parent.debug({ ...this.context, ...contextOrMessage }, second);
+        }
     }
 
-    info(message: string, additionalContext?: LogContext): void {
-        this.parent.info(message, { ...this.context, ...additionalContext });
+    info(contextOrMessage: LogContext | string, second?: string | LogContext): void {
+        if (typeof contextOrMessage === 'string') {
+            this.parent.info({ ...this.context }, contextOrMessage);
+        } else {
+            this.parent.info({ ...this.context, ...contextOrMessage }, second);
+        }
     }
 
-    warn(message: string, additionalContext?: LogContext): void {
-        this.parent.warn(message, { ...this.context, ...additionalContext });
+    warn(contextOrMessage: LogContext | string, second?: string | LogContext): void {
+        if (typeof contextOrMessage === 'string') {
+            this.parent.warn({ ...this.context }, contextOrMessage);
+        } else {
+            this.parent.warn({ ...this.context, ...contextOrMessage }, second);
+        }
     }
 
-    error(message: string, error?: Error, additionalContext?: LogContext): void {
-        this.parent.error(message, error, { ...this.context, ...additionalContext });
+    error(contextOrMessage: LogContext | string, messageOrError?: string | Error | LogContext, additionalContext?: LogContext): void {
+        if (typeof contextOrMessage === 'string') {
+            this.parent.error(contextOrMessage, messageOrError, { ...this.context, ...additionalContext });
+        } else {
+            this.parent.error({ ...this.context, ...contextOrMessage }, messageOrError, additionalContext);
+        }
     }
 }
 

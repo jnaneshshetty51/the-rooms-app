@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@tanstack/react-table": "^8.20.5",
+    "@the-rooms/api": "workspace:*",
     "@the-rooms/auth": "workspace:*",
+    "@the-rooms/channel-manager": "workspace:*",
     "@the-rooms/db": "workspace:*",
     "@the-rooms/ui": "workspace:*",
     "bcryptjs": "^2.4.3",

@@ -98,17 +98,25 @@ export async function createAuditLog(params: {
   entityId?: string;
   metadata?: Record<string, unknown>;
   ipAddress?: string;
+  // convenience fields merged into metadata
+  bookingId?: string;
+  [key: string]: unknown;
 }) {
   const { db } = await import('@the-rooms/db');
 
+  const { userId, action, entity, entityId, metadata, ipAddress, bookingId, ...rest } = params;
+  const mergedMetadata: Record<string, unknown> = { ...metadata };
+  if (bookingId) mergedMetadata.bookingId = bookingId;
+  Object.assign(mergedMetadata, rest);
+
   return db.auditLog.create({
     data: {
-      userId: params.userId,
-      action: params.action,
-      entity: params.entity,
-      entityId: params.entityId,
-      metadata: params.metadata as Prisma.InputJsonValue,
-      ipAddress: params.ipAddress,
+      userId,
+      action,
+      entity,
+      entityId,
+      metadata: Object.keys(mergedMetadata).length > 0 ? mergedMetadata as Prisma.InputJsonValue : undefined,
+      ipAddress,
     },
   });
 }

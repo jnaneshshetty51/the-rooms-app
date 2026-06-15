@@ -27,7 +27,7 @@ export async function POST(
         // Get the booking to check property access
         const booking = await db.booking.findUnique({
             where: { id: bookingId },
-            include: { property: true },
+            include: { property: true, guest: true, room: true },
         });
 
         if (!booking) {

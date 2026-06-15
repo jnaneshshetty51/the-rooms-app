@@ -15,7 +15,7 @@ import {
     XCircle,
     Clock,
 } from "lucide-react";
-import { PageHeader, Button, Dialog, Input, Select, SelectTrigger, SelectContent, Badge } from "@the-rooms/ui";
+import { PageHeader, Button, Dialog, Input, Select, SelectTrigger, SelectContent, SelectValue, SelectItem, Badge } from "@the-rooms/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@the-rooms/ui";
 
 interface Channel {
@@ -292,10 +292,10 @@ export default function ChannelsPage() {
                                 <Select value={form.name} onValueChange={(v) => setForm({ ...form, name: v })}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
-                                        <option value="BOOKING_COM">Booking.com</option>
-                                        <option value="EXPEDIA">Expedia</option>
-                                        <option value="AIRBNB">Airbnb</option>
-                                        <option value="AGODA">Agoda</option>
+                                        <SelectItem value="BOOKING_COM">Booking.com</SelectItem>
+                                        <SelectItem value="EXPEDIA">Expedia</SelectItem>
+                                        <SelectItem value="AIRBNB">Airbnb</SelectItem>
+                                        <SelectItem value="AGODA">Agoda</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

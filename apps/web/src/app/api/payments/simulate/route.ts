@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { db, updatePaymentStatus, generateInvoice, createPayment, Prisma } from '@the-rooms/db';
+import { db, updatePaymentStatus, generateInvoice, buildInvoiceLineItems, createPayment, Prisma } from '@the-rooms/db';
 import { ok, badRequest, serverError } from '@the-rooms/api';
 import { sendBookingConfirmation, sendPaymentSuccess } from '@the-rooms/email/send';
 import { z } from 'zod';
@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Generate invoice
-    await generateInvoice(payment.id, booking.id);
+    const lineItems = await buildInvoiceLineItems(booking.id);
+    await generateInvoice({ bookingId: booking.id, lineItems });
 
     // Send emails
     const guestEmail = booking.guest?.email;

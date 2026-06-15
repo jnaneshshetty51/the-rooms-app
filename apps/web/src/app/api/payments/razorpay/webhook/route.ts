@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { db, generateInvoice } from "@the-rooms/db";
+import { db, generateInvoice, buildInvoiceLineItems } from "@the-rooms/db";
 import { verifyWebhookSignature, getRazorpayClient } from "@the-rooms/payments/razorpay";
 import { sendPaymentSuccess } from "@the-rooms/email";
 import { getClientIp } from "@the-rooms/api/middleware";
@@ -125,7 +125,8 @@ export async function POST(req: NextRequest) {
 
         if (newPaymentId && shouldGenerateInvoice) {
           try {
-            await generateInvoice(newPaymentId, booking.id);
+            const lineItems = await buildInvoiceLineItems(booking.id);
+            await generateInvoice({ bookingId: booking.id, lineItems });
           } catch (invErr) {
             console.error("[Webhook] Failed to generate invoice:", invErr);
           }

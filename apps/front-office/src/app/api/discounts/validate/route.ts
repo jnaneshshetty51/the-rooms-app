@@ -3,8 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { validateDiscountCode } from "@the-rooms/db";
-import { RoomType } from "@prisma/client";
+import { validateDiscountCode, RoomType } from "@the-rooms/db";
 
 export async function GET(request: NextRequest) {
     try {

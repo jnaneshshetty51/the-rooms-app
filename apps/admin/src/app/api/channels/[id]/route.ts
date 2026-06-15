@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@the-rooms/auth';
-import { db } from '@the-rooms/db';
+import { db, Prisma } from '@the-rooms/db';
 import { ok, badRequest, serverError, notFound } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
@@ -52,7 +52,7 @@ export async function GET(
             where: { id },
             include: {
                 syncSettings: true,
-                roomMappings: { include: { roomType: true } },
+                roomMappings: true,
                 rateMappings: true,
             },
         });
@@ -104,8 +104,8 @@ export async function PATCH(
                 displayName: parsed.data.displayName,
                 logoUrl: parsed.data.logoUrl,
                 isActive: parsed.data.isActive,
-                config: parsed.data.config,
-                metadata: parsed.data.metadata,
+                config: parsed.data.config as Prisma.InputJsonValue,
+                metadata: parsed.data.metadata as Prisma.InputJsonValue,
             },
             include: { syncSettings: true },
         });

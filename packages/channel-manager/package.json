@@ -6,6 +6,7 @@
         "./types": "./src/types/index.ts",
         "./interfaces": "./src/interfaces/index.ts",
         "./utils": "./src/utils/index.ts",
+        "./utils/logger": "./src/utils/logger.ts",
         "./adapters": "./src/adapters/index.ts",
         "./core": "./src/core/index.ts",
         "./channels": "./src/channels/index.ts",

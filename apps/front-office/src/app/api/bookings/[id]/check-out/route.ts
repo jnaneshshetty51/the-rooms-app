@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { getBookingById, updateBookingStatus, Prisma, generateInvoice } from "@the-rooms/db";
+import { getBookingById, updateBookingStatus, Prisma, generateInvoice, buildInvoiceLineItems } from "@the-rooms/db";
 import prisma from "@the-rooms/db";
 import { sendInvoice } from "@the-rooms/email";
 
@@ -95,7 +95,8 @@ export async function POST(
       }
 
       if (paymentIdForInvoice) {
-        const invoiceData = await generateInvoice(paymentIdForInvoice, id);
+        const lineItems = await buildInvoiceLineItems(id);
+        const invoiceData = await generateInvoice({ bookingId: id, lineItems });
 
         if (booking.guest.email) {
           try {
@@ -103,7 +104,7 @@ export async function POST(
               guestName: booking.guest.name,
               guestEmail: booking.guest.email,
               invoiceNumber: invoiceData.invoiceNumber,
-              invoiceDate: invoiceData.createdAt.toISOString(),
+              invoiceDate: invoiceData.issuedAt.toISOString(),
               bookingNumber: booking.bookingNumber,
               roomType: booking.room.type,
               roomNumber: booking.room.roomNumber,

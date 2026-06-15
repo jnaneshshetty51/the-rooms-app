@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         // Verify payments and detect discrepancies
         const discrepancies = [];
         for (const payment of payments) {
-            if (!payment.invoice) {
+            if (!payment.invoiceId) {
                 discrepancies.push({
                     paymentId: payment.id,
                     type: "UNVERIFIED_TRANSACTION" as const,

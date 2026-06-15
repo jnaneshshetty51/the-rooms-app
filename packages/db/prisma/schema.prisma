@@ -28,6 +28,8 @@ model Property {
   bookings      Booking[]
   expenses      Expense[]
   users         UserPropertyAccess[]
+  groupBookings GroupBooking[]
+  overbookingPolicies OverbookingPolicy[]
 
   @@map("properties")
 }
@@ -86,6 +88,12 @@ model User {
 
   // Receipt collection
   collectedReceipts Receipt[]
+
+  // New model back-relations
+  addedBookingAddons    BookingAddon[]    @relation("AddonAddedBy")
+  createdBlacklists     GuestBlacklist[]  @relation("BlacklistCreatedBy")
+  initiatedRoomMoves    RoomMoveHistory[] @relation("RoomMoveInitiatedBy")
+  createdGroupBookings  GroupBooking[]    @relation("GroupBookingCreatedBy")
 
   @@map("users")
 }
@@ -350,6 +358,7 @@ model Booking {
   addons       BookingAddon[]
   folio        Folio?
   advanceDeposit AdvanceDeposit?
+  roomMoveHistories RoomMoveHistory[]
 
   @@index([checkIn])
   @@index([checkOut])
@@ -445,6 +454,8 @@ model Payment {
 
   // Receipt for this payment
   receipt        Receipt?
+  folioPayment   FolioPayment?
+  advanceDeposit AdvanceDeposit?
 
   @@map("payments")
 }
@@ -688,6 +699,8 @@ model Complaint {
   resolvedAt  DateTime?
   createdAt   DateTime       @default(now())
 
+  escalations ComplaintEscalation[]
+
   @@map("complaints")
 }
 
@@ -858,7 +871,7 @@ model BookingAddon {
   
   // User who added this add-on
   addedById     String?
-  addedBy       User?        @relation(fields: [addedById], references: [id])
+  addedBy       User?        @relation("AddonAddedBy", fields: [addedById], references: [id])
   
   // GST calculation
   cgst          Decimal      @db.Decimal(10, 2) @default(0)
@@ -1365,7 +1378,7 @@ model GuestBlacklist {
   description String?
 
   createdById String?
-  createdBy   User?     @relation(fields: [createdById], references: [id])
+  createdBy   User?     @relation("BlacklistCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
 
   // Blacklist is permanent unless explicitly removed
@@ -1430,7 +1443,7 @@ model RoomMoveHistory {
 
   // User who initiated
   initiatedById   String?
-  initiatedBy     User?     @relation(fields: [initiatedById], references: [id])
+  initiatedBy     User?     @relation("RoomMoveInitiatedBy", fields: [initiatedById], references: [id])
 
   notes           String?
 
@@ -1472,7 +1485,7 @@ model GroupBooking {
   status          GroupBookingStatus @default(CONFIRMED)
 
   createdById      String?
-  createdBy        User?     @relation(fields: [createdById], references: [id])
+  createdBy        User?     @relation("GroupBookingCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -1498,7 +1511,7 @@ enum GroupBookingStatus {
 model Folio {
   id            String    @id @default(cuid())
   folioNumber   String    @unique // e.g., "FOL-20240529-001"
-  bookingId     String
+  bookingId     String    @unique
   booking       Booking   @relation(fields: [bookingId], references: [id])
 
   // Folio type
@@ -1631,9 +1644,6 @@ model CorporateAccount {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  bookings        Booking[]
-  folios          Folio[]
-
   @@map("corporate_accounts")
 }
 
@@ -1669,6 +1679,8 @@ model PartnerHotel {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  overbookingPolicies OverbookingPolicy[]
+
   @@map("partner_hotels")
 }
 
@@ -1701,6 +1713,7 @@ model OverbookingPolicy {
 
   updatedAt        DateTime  @updatedAt
 
+  @@unique([propertyId])
   @@map("overbooking_policies")
 }
 

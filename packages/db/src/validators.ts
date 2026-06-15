@@ -698,17 +698,7 @@ export async function validateCancellationAllowed(
                 status: true,
                 totalAmount: true,
                 paymentStatus: true,
-                property: {
-                    select: {
-                        id: true,
-                        settings: {
-                            select: {
-                                cancellationPolicy: true,
-                                cancellationPolicyHours: true,
-                            },
-                        },
-                    },
-                },
+                propertyId: true,
             },
         });
 
@@ -731,8 +721,7 @@ export async function validateCancellationAllowed(
         const hoursUntilCheckIn =
             (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-        const policyHours =
-            booking.property.settings?.cancellationPolicyHours ?? 24;
+        const policyHours = 24; // default cancellation window in hours
 
         if (hoursUntilCheckIn < 0) {
             errors.push('Check-in time has passed - cannot cancel');

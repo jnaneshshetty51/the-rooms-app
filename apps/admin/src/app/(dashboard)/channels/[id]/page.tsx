@@ -15,7 +15,7 @@ import {
     AlertCircle,
     TestTube,
 } from "lucide-react";
-import { PageHeader, Button, Input, Select, SelectTrigger, SelectContent, Badge, Textarea } from "@the-rooms/ui";
+import { PageHeader, Button, Input, Select, SelectTrigger, SelectContent, Badge } from "@the-rooms/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@the-rooms/ui";
 
 interface Channel {

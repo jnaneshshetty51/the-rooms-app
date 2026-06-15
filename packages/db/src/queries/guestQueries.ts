@@ -183,7 +183,7 @@ export async function getGuestInvoices(guestId: string) {
           room: { select: { roomNumber: true, type: true } },
         },
       },
-      payment: {
+      payments: {
         select: {
           id: true,
           amount: true,
@@ -215,7 +215,7 @@ export async function getInvoiceById(id: string) {
           },
         },
       },
-      payment: true,
+      payments: true,
     },
   });
 }

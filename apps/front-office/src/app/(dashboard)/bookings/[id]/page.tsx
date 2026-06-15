@@ -107,7 +107,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [actionType, setActionType] = useState<"CHARGE" | "NOTE" | "REQUEST">("NOTE");
   const [stayModModalOpen, setStayModModalOpen] = useState(false);
-  const [stayModType, setStayModType] = useState<"EARLY_CHECKIN" | "LATE_CHECKOUT">("EARLY_CHECKOUT");
+  const [stayModType, setStayModType] = useState<"EARLY_CHECKIN" | "LATE_CHECKOUT">("LATE_CHECKOUT");
   const [pendingRequest, setPendingRequest] = useState<StayModificationRequest | null>(null);
   const [stayModPolicy, setStayModPolicy] = useState<StayModificationPolicy | null>(null);
   const [addonModalOpen, setAddonModalOpen] = useState(false);

@@ -7,7 +7,7 @@ import { auth } from '@the-rooms/auth';
 import { ok, badRequest, unauthorized, forbidden } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { sendInvoice } from '@the-rooms/email';
-import { generateInvoice } from '@the-rooms/db/queries/invoice';
+import { generateInvoice, buildInvoiceLineItems } from '@the-rooms/db/queries/invoice';
 
 import { db } from '@the-rooms/db';
 type RouteParams = { params: Promise<{ id: string }> };
@@ -123,15 +123,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     if (payment) {
-      const invoice = await generateInvoice(payment.id, id);
+      const lineItems = await buildInvoiceLineItems(id);
+      const invoice = await generateInvoice({ bookingId: id, lineItems }).catch(() => null);
 
       // Send invoice email
-      if (booking.guest.email) {
+      if (invoice && booking.guest.email) {
         await sendInvoice(booking.guest.email, {
           guestName: booking.guest.name ?? 'Guest',
           guestEmail: booking.guest.email,
           invoiceNumber: invoice.invoiceNumber,
-          invoiceDate: invoice.createdAt.toISOString(),
+          invoiceDate: invoice.issuedAt.toISOString(),
           bookingNumber: booking.bookingNumber,
           roomType: booking.room?.type ?? 'STUDIO',
           roomNumber: booking.room?.roomNumber ?? 'N/A',

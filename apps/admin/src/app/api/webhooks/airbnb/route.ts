@@ -1,7 +1,7 @@
 // apps/admin/src/app/api/webhooks/airbnb/route.ts
 // Airbnb webhook handler
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { ok, serverError } from '@the-rooms/api';
 import { db } from '@the-rooms/db';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
@@ -10,7 +10,6 @@ import { logger } from '@the-rooms/channel-manager/utils/logger';
 
 const airbnbLogger = logger.child({ channel: 'AIRBNB', component: 'webhook' });
 
-// Initialize adapter (will be configured per-request based on channel config)
 const adapter = new AirbnbAdapter();
 
 export async function POST(request: NextRequest) {
@@ -19,58 +18,56 @@ export async function POST(request: NextRequest) {
         const body = await request.text();
         const signature = request.headers.get('X-Airbnb-Signature') || '';
 
-        // Log webhook receipt
         airbnbLogger.info({ clientIp, bodyLength: body.length }, 'Airbnb webhook received');
 
-        // Verify signature
         if (!adapter.verifyWebhookSignature(body, signature)) {
             airbnbLogger.warn({ clientIp }, 'Invalid Airbnb webhook signature');
             return ok({ received: true, verified: false });
         }
 
-        // Parse payload
         const payload = adapter.parseWebhookPayload(body);
 
-        // Log webhook event
-        await db.webhookLog.create({
-            data: {
-                channelName: 'AIRBNB',
-                eventType: payload.eventType,
-                eventId: payload.eventId,
-                payload: payload.data as object,
-                status: 'RECEIVED',
-                receivedAt: payload.timestamp,
-            },
-        });
+        const channel = await db.channel.findFirst({ where: { name: 'AIRBNB' } });
 
-        // Handle different event types
+        if (channel) {
+            await db.webhookLog.create({
+                data: {
+                    channelId: channel.id,
+                    channelName: 'AIRBNB',
+                    webhookType: payload.eventType,
+                    eventId: payload.eventId,
+                    rawPayload: payload.data as object,
+                    status: 'RECEIVED',
+                },
+            });
+        }
+
         switch (payload.eventType) {
             case 'RESERVATION_CREATED':
             case 'RESERVATION_UPDATED':
             case 'RESERVATION_CANCELLED':
-                await handleReservationEvent(payload);
+                await handleReservationEvent(payload, channel?.id);
                 break;
-
             case 'LISTING_UPDATED':
                 await handleListingUpdateEvent(payload);
                 break;
-
             default:
                 airbnbLogger.info({ eventType: payload.eventType }, 'Unhandled Airbnb event type');
         }
 
-        // Update webhook log status
-        await db.webhookLog.updateMany({
-            where: { eventId: payload.eventId },
-            data: { status: 'PROCESSED' },
-        });
+        if (payload.eventId && channel) {
+            await db.webhookLog.updateMany({
+                where: { channelId: channel.id, eventId: payload.eventId },
+                data: { status: 'PROCESSED' },
+            });
+        }
 
         await createAuditLog({
             action: 'WEBHOOK_PROCESSED',
-            channel: 'AIRBNB',
-            eventType: payload.eventType,
-            eventId: payload.eventId,
-            ip: clientIp,
+            entity: 'webhook',
+            entityId: payload.eventId,
+            metadata: { channel: 'AIRBNB', eventType: payload.eventType },
+            ipAddress: clientIp,
         });
 
         return ok({ received: true, verified: true, processed: true });
@@ -79,102 +76,77 @@ export async function POST(request: NextRequest) {
 
         await createAuditLog({
             action: 'WEBHOOK_ERROR',
-            channel: 'AIRBNB',
-            error: error instanceof Error ? error.message : 'Unknown error',
-            ip: getClientIp(request),
+            entity: 'webhook',
+            metadata: { channel: 'AIRBNB', error: error instanceof Error ? error.message : 'Unknown error' },
+            ipAddress: getClientIp(request),
         });
 
         return serverError('Webhook processing failed');
     }
 }
 
-async function handleReservationEvent(payload: {
-    eventType: string;
-    eventId: string;
-    data: Record<string, unknown>;
-}) {
+async function handleReservationEvent(
+    payload: { eventType: string; eventId: string; data: Record<string, unknown> },
+    channelId?: string
+) {
     const { data } = payload;
     const reservationId = data.id as string;
     const confirmationCode = data.confirmation_code as string;
-    const status = data.status as string;
 
-    airbnbLogger.info({
-        reservationId,
-        confirmationCode,
-        status,
-        eventType: payload.eventType,
-    }, 'Processing reservation event');
+    airbnbLogger.info({ reservationId, confirmationCode, eventType: payload.eventType }, 'Processing reservation event');
 
-    // Find or create OTA booking mapping
-    const existingMapping = await db.otaBookingMapping.findFirst({
-        where: {
-            otaBookingId: reservationId,
-            channelName: 'AIRBNB',
-        },
-    });
+    const existingMapping = channelId
+        ? await db.otaBookingMapping.findFirst({
+            where: { channelBookingId: reservationId, channelId },
+        })
+        : null;
 
     if (payload.eventType === 'RESERVATION_CANCELLED') {
-        // Handle cancellation
         if (existingMapping) {
             await db.booking.update({
-                where: { id: existingMapping.pmsBookingId },
+                where: { id: existingMapping.bookingId },
                 data: { status: 'CANCELLED' },
             });
         }
     } else {
-        // Handle new/updated booking
-        // Map Airbnb reservation to PMS booking format
-        const guestName = `${(data.guest as Record<string, string>).first_name} ${(data.guest as Record<string, string>).last_name}`;
-        const guestEmail = (data.guest as Record<string, string>).email;
-        const guestPhone = (data.guest as Record<string, string>).phone;
+        const guestData = data.guest as Record<string, string>;
+        const guestName = `${guestData.first_name} ${guestData.last_name}`;
         const checkIn = new Date(data.start_date as string);
         const checkOut = new Date(data.end_date as string);
-        const totalAmount = data.total_price as number;
-        const currency = data.currency as string;
-        const listingId = data.listing_id as string;
 
         if (existingMapping) {
-            // Update existing booking
             await db.booking.update({
-                where: { id: existingMapping.pmsBookingId },
-                data: {
-                    checkIn,
-                    checkOut,
-                    totalAmount,
-                    status: 'CONFIRMED',
-                },
+                where: { id: existingMapping.bookingId },
+                data: { checkIn, checkOut, status: 'CONFIRMED' },
             });
         } else {
-            // Create new booking (would need propertyId lookup in real implementation)
-            // For now, log the event - actual booking creation requires property context
-            airbnbLogger.info({
-                reservationId,
-                confirmationCode,
-                guestName,
-            }, 'New Airbnb booking - requires property context for creation');
+            airbnbLogger.info({ reservationId, confirmationCode, guestName }, 'New Airbnb booking - requires property context for creation');
         }
 
-        // Update or create mapping
-        await db.otaBookingMapping.upsert({
-            where: {
-                otaBookingId_channelName: {
-                    otaBookingId: reservationId,
-                    channelName: 'AIRBNB',
-                },
-            },
-            create: {
-                otaBookingId: reservationId,
-                channelName: 'AIRBNB',
-                otaReference: confirmationCode,
-                pmsBookingId: existingMapping?.pmsBookingId || '',
-                syncStatus: 'SYNCED',
-            },
-            update: {
-                otaReference: confirmationCode,
-                syncStatus: 'SYNCED',
-                lastSyncedAt: new Date(),
-            },
-        });
+        if (channelId) {
+            if (existingMapping) {
+                await db.otaBookingMapping.update({
+                    where: { id: existingMapping.id },
+                    data: {
+                        channelBookingRef: confirmationCode,
+                        syncStatus: 'SYNCED',
+                        lastSyncAt: new Date(),
+                    },
+                });
+            } else {
+                await db.otaBookingMapping.create({
+                    data: {
+                        channelBookingId: reservationId,
+                        channelId,
+                        channelBookingRef: confirmationCode,
+                        bookingId: `OTA-${reservationId}`,
+                        bookingNumber: `OTA-${reservationId}`,
+                        syncStatus: 'PENDING_UPDATE',
+                        lastSyncAt: new Date(),
+                    },
+                });
+            }
+        }
     }
 }
 
@@ -185,12 +157,5 @@ async function handleListingUpdateEvent(payload: {
 }) {
     const { data } = payload;
     const listingId = data.listing_id as string;
-
-    airbnbLogger.info({
-        listingId,
-        eventType: payload.eventType,
-    }, 'Processing listing update event - inventory sync may be needed');
-
-    // Listing updates may affect availability - could trigger a full inventory sync
-    // This would typically enqueue a sync job
+    airbnbLogger.info({ listingId, eventType: payload.eventType }, 'Processing listing update event - inventory sync may be needed');
 }

@@ -3,7 +3,6 @@
 
 import prisma from '../index';
 import { Prisma, AddonType } from '@prisma/client';
-import { Decimal } from 'decimal.js';
 
 // ─── Predefined Add-on Types with Standard Prices ────────────────────────────
 // Prices are in INR (per unit/quantity)
@@ -112,9 +111,9 @@ export type UpdateAddonData = {
  */
 export function calculateAddonGST(amount: number, quantity: number = 1): { cgst: number; sgst: number; total: number } {
     const subtotal = amount * quantity;
-    const cgst = new Decimal(subtotal).times(CGST_RATE).toNumber();
-    const sgst = new Decimal(subtotal).times(SGST_RATE).toNumber();
-    const total = new Decimal(subtotal).plus(cgst).plus(sgst).toNumber();
+    const cgst = subtotal * CGST_RATE;
+    const sgst = subtotal * SGST_RATE;
+    const total = subtotal + cgst + sgst;
     return { cgst, sgst, total };
 }
 

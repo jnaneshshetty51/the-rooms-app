@@ -404,7 +404,7 @@ export async function verifyPayments(propertyId: string, startDate: Date, endDat
 
     for (const payment of payments) {
         // Check if payment has a linked invoice
-        if (!payment.invoice) {
+        if (!payment.booking.invoice) {
             discrepancies.push({
                 paymentId: payment.id,
                 type: 'UNVERIFIED_TRANSACTION' as const,

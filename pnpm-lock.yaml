@@ -26,9 +26,15 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.20.5
         version: 8.21.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@the-rooms/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@the-rooms/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@the-rooms/channel-manager':
+        specifier: workspace:*
+        version: link:../../packages/channel-manager
       '@the-rooms/db':
         specifier: workspace:*
         version: link:../../packages/db

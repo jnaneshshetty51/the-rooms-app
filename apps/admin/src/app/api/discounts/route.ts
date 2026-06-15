@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import prisma from "@the-rooms/db";
 import { Prisma } from "@the-rooms/db";
-import { RoomType } from "@prisma/client";
 
 function requireAdmin(session: { user?: { role?: string } | null } | null) {
   if (!session?.user) throw new Error("Unauthorized");

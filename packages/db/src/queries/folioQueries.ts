@@ -180,20 +180,18 @@ export async function getFolioBalance(folioId: string) {
         where: { id: folioId },
         include: {
             charges: true,
-            payments: {
-                include: { payment: { where: { status: 'PAID' } } },
-            },
+            payments: true,
         },
     });
 
     if (!folio) throw new Error('Folio not found');
 
-    const totalCharges = folio.charges.reduce(
+    const totalCharges = (folio.charges as Array<{ totalAmount: { toNumber: () => number } }>).reduce(
         (sum, c) => sum + c.totalAmount.toNumber(),
         0
     );
 
-    const totalPayments = folio.payments.reduce(
+    const totalPayments = (folio.payments as Array<{ amount: { toNumber: () => number } }>).reduce(
         (sum, p) => sum + p.amount.toNumber(),
         0
     );
