@@ -49,13 +49,17 @@ export async function GET(request: NextRequest) {
         checkInDate >= today &&
         checkInDate < tomorrow
       );
-      // A CONFIRMED booking means the room is reserved — don't show it as VACANT
+      // Room status logic:
+      // - CHECKED_IN booking → OCCUPIED
+      // - CONFIRMED booking arriving today → BOOKED
+      // - CONFIRMED booking for future date → keep room.status (VACANT until check-in)
+      // - No active booking → keep room.status
       const displayStatus =
-        activeBooking?.status === "CONFIRMED"
-          ? "BOOKED"
-          : activeBooking?.status === "CHECKED_IN"
+        activeBooking?.status === "CHECKED_IN"
           ? "OCCUPIED"
-          : room.status;
+          : activeBooking?.status === "CONFIRMED" && arrivingToday
+            ? "BOOKED"
+            : room.status;
       return {
         id: room.id,
         roomNumber: room.roomNumber,
@@ -72,15 +76,15 @@ export async function GET(request: NextRequest) {
         amenities: room.amenities.map((ra) => ra.amenity.name),
         currentBooking: activeBooking
           ? {
-              id: activeBooking.id,
-              bookingNumber: (activeBooking as { bookingNumber?: string }).bookingNumber ?? null,
-              guestName: activeBooking.guest?.name ?? "Unknown",
-              guestPhone: activeBooking.guest?.phone ?? null,
-              checkIn: activeBooking.checkIn,
-              checkOut: activeBooking.checkOut,
-              status: activeBooking.status,
-              arrivingToday,
-            }
+            id: activeBooking.id,
+            bookingNumber: (activeBooking as { bookingNumber?: string }).bookingNumber ?? null,
+            guestName: activeBooking.guest?.name ?? "Unknown",
+            guestPhone: activeBooking.guest?.phone ?? null,
+            checkIn: activeBooking.checkIn,
+            checkOut: activeBooking.checkOut,
+            status: activeBooking.status,
+            arrivingToday,
+          }
           : null,
       };
     });
