@@ -117,6 +117,7 @@ function NewBookingPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [checkedIn, setCheckedIn] = useState(false);
+  const [isFutureBooking, setIsFutureBooking] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState<{ idx: number; side: "front" | "back" } | null>(null);
   const [discountValidation, setDiscountValidation] = useState<DiscountValidation | null>(null);
   const [validatingDiscount, setValidatingDiscount] = useState(false);
@@ -304,11 +305,23 @@ function NewBookingPageContent() {
         await fetch("/api/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingId: bookingData.id, amount: form.paymentAmount, method: form.paymentMethod }) });
       }
 
-      // Walk-in guests are physically present — check in immediately
-      const ciRes = await fetch(`/api/bookings/${bookingData.id}/check-in`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
-      });
-      setCheckedIn(ciRes.ok);
+      // Walk-in guests are physically present — check in immediately only if check-in date is today or past
+      const checkInDate = new Date(form.checkIn);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const canAutoCheckIn = checkInDate <= today;
+
+      if (canAutoCheckIn) {
+        const ciRes = await fetch(`/api/bookings/${bookingData.id}/check-in`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+        });
+        setCheckedIn(ciRes.ok);
+        setIsFutureBooking(false);
+      } else {
+        // Future dated booking - skip auto check-in, booking stays CONFIRMED
+        setCheckedIn(false);
+        setIsFutureBooking(true);
+      }
       setStep(4);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Error submitting booking");
@@ -752,7 +765,9 @@ function NewBookingPageContent() {
               <p className="text-gray-500 mt-2">{form.guestName} — Room {selectedRoom?.roomNumber}</p>
               {checkedIn
                 ? <p className="mt-2 inline-block rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700">Room is now OCCUPIED</p>
-                : <p className="mt-2 text-sm text-yellow-700">Auto check-in failed — check in manually from the booking page.</p>
+                : isFutureBooking
+                  ? <p className="mt-2 inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-700">Booking CONFIRMED — Check-in on {formatDate(form.checkIn, "short")}</p>
+                  : <p className="mt-2 text-sm text-yellow-700">Auto check-in failed — check in manually from the booking page.</p>
               }
             </div>
             {/* Summary */}

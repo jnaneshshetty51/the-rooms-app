@@ -69,9 +69,9 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4"><h3 className="text-lg font-semibold text-gray-900">Today&apos;s Arrivals</h3><span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">{data?.arrivals.length ?? 0} guests</span></div>
+          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4"><h3 className="text-lg font-semibold text-gray-900">Today&apos;s Arrivals</h3><span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">{data?.arrivals?.length ?? 0} guests</span></div>
           <div className="divide-y divide-gray-100">
-            {data?.arrivals.length === 0 ? <div className="px-6 py-12 text-center"><CalendarCheck className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No arrivals scheduled</p></div> : data?.arrivals.map((arrival) => (
+            {data?.arrivals?.length === 0 ? <div className="px-6 py-12 text-center"><CalendarCheck className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No arrivals scheduled</p></div> : data?.arrivals.map((arrival) => (
               <Link key={arrival.id} href={`/bookings/${arrival.id}`} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
                 <div><p className="font-medium text-gray-900">{arrival.guest.name}</p><p className="text-sm text-gray-500">{arrival.guest.phone}</p></div>
                 <div className="text-right"><p className="font-medium text-gray-900">Room {arrival.room.roomNumber}</p><p className="text-sm text-gray-500">{arrival.room.type}</p></div>
@@ -80,9 +80,9 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4"><h3 className="text-lg font-semibold text-gray-900">Today&apos;s Departures</h3><span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">{data?.departures.length ?? 0} guests</span></div>
+          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4"><h3 className="text-lg font-semibold text-gray-900">Today&apos;s Departures</h3><span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">{data?.departures?.length ?? 0} guests</span></div>
           <div className="divide-y divide-gray-100">
-            {data?.departures.length === 0 ? <div className="px-6 py-12 text-center"><CalendarX className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No departures scheduled</p></div> : data?.departures.map((departure) => (
+            {data?.departures?.length === 0 ? <div className="px-6 py-12 text-center"><CalendarX className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No departures scheduled</p></div> : data?.departures.map((departure) => (
               <Link key={departure.id} href={`/bookings/${departure.id}`} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
                 <div><p className="font-medium text-gray-900">{departure.guest.name}</p><p className="text-sm text-gray-500">{departure.guest.phone}</p></div>
                 <div className="text-right"><p className="font-medium text-gray-900">Room {departure.room.roomNumber}</p><p className="text-sm text-gray-500">Check-out: {formatDate(departure.checkOut, "short")}</p></div>

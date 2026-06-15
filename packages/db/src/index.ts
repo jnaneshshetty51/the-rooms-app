@@ -23,6 +23,7 @@ export { isDateClosed, getLatestCloseDate, closeDay, getNightAuditReport, postRo
 export { getAllDiscountCodes, getDiscountCodeByCode, getDiscountCodeById, createDiscountCode, updateDiscountCode, deactivateDiscountCode, incrementDiscountUsage, validateDiscountCode, calculateDiscountAmount } from './queries/discountQueries';
 export { getStayModificationPolicy, calculateStayModificationCharge, createStayModificationRequest, getPendingRequestByBookingId, getStayModificationRequestById, getPendingStayModifications, approveStayModificationRequest, rejectStayModificationRequest, getStayModificationHistory } from './queries/stayModificationQueries';
 export { getAddonsByBooking, getAddonsByBookingGrouped, getAddonTotalsByBooking, getAddonById, createAddon, updateAddon, deleteAddon, getAddonTypes, getAddonTypeInfo, syncBookingExtrasAmount, getFolioSummary, ADDON_TYPES, calculateAddonGST } from './queries/addonQueries';
+export { addToBlacklist, removeFromBlacklist, getBlacklistEntry, isGuestBlacklisted, getBlacklistEntries, searchBlacklist, updateBlacklistEntry, syncGuestBlacklistFlag } from './queries/blacklistQueries';
 
 export { Prisma, ExpenseCategory, RoomType } from '@prisma/client';
 
