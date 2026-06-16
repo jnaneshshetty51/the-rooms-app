@@ -16,7 +16,7 @@ const reassignSchema = z.object({
 // PATCH /api/housekeeping/assignments/[id]
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await auth();
@@ -30,7 +30,7 @@ export async function PATCH(
             return forbidden("You don't have permission to reassign housekeeping tasks");
         }
 
-        const taskId = params.id;
+        const { id } = await params; const taskId = id;
         const body = await request.json();
         const parsed = reassignSchema.safeParse(body);
 

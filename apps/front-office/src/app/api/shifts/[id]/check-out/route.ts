@@ -10,7 +10,7 @@ import { logStaffActivity } from "@the-rooms/db/queries/staffActivityQueries";
 // POST /api/shifts/[id]/check-out
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await auth();
@@ -18,7 +18,7 @@ export async function POST(
             return unauthorized();
         }
 
-        const shiftId = params.id;
+        const { id } = await params; const shiftId = id;
 
         // Get the shift to verify ownership
         const shift = await db.staffShift.findUnique({

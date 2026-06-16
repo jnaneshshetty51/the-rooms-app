@@ -19,7 +19,7 @@ const updateStatusSchema = z.object({
 // PATCH /api/housekeeping/tasks/[id]/status
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await auth();
@@ -33,7 +33,7 @@ export async function PATCH(
             return forbidden("You don't have permission to update housekeeping tasks");
         }
 
-        const taskId = params.id;
+        const { id } = await params; const taskId = id;
         const body = await request.json();
         const parsed = updateStatusSchema.safeParse(body);
 

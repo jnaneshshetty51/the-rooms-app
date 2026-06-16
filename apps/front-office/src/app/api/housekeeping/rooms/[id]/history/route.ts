@@ -8,7 +8,7 @@ import { getHousekeepingTaskHistory } from "@the-rooms/db/queries/staffQueries";
 // GET /api/housekeeping/rooms/[id]/history
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await auth();
@@ -16,7 +16,7 @@ export async function GET(
             return unauthorized();
         }
 
-        const roomId = params.id;
+        const { id } = await params; const roomId = id;
         const { searchParams } = new URL(request.url);
         const limit = parseInt(searchParams.get("limit") || "30");
 

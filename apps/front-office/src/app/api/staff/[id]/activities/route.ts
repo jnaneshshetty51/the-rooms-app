@@ -8,7 +8,7 @@ import { getStaffActivities } from "@the-rooms/db/queries/staffActivityQueries";
 // GET /api/staff/[id]/activities
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await auth();
@@ -16,7 +16,7 @@ export async function GET(
             return unauthorized();
         }
 
-        const staffId = params.id;
+        const { id } = await params; const staffId = id;
         const userRole = session.user.role;
         const currentUserId = session.user.id;
 
