@@ -234,8 +234,10 @@ export async function getGroupBookingByCode(groupCode: string) {
                 include: {
                     guest: true,
                     room: true,
+                    payments: true,
                 },
             },
+            createdBy: { select: { id: true, name: true, email: true } },
         },
     });
 }
