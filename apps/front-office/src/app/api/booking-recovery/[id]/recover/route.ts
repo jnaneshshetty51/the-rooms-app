@@ -21,20 +21,21 @@ export async function POST(
         }
 
         const { id } = await params;
+        const userId = (session.user as { id: string }).id;
         const body = await request.json();
         const data = recoverSchema.parse(body);
 
         const lostBooking = await recoverBooking(
             id,
             data.recoveryAction,
-            (session.user as { id?: string }).id,
+            userId,
             data.linkedBookingId
         );
 
         // Create audit log
         await prisma.auditLog.create({
             data: {
-                userId: (session.user as { id?: string }).id,
+                userId,
                 bookingId: lostBooking.bookingId,
                 action: "LOST_BOOKING_RECOVERED",
                 entity: "lostBooking",
