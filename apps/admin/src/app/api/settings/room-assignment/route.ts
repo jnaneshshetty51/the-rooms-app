@@ -84,8 +84,8 @@ export async function GET(
                 GROUP: 'AUTO_ASSIGN',
                 COMPLIMENTARY: 'AUTO_ASSIGN',
             },
-            preAssignmentCutoffHours: settings?.preAssignmentCutoffHours || 4,
-            autoAssignmentEnabled: settings?.autoAssignmentEnabled ?? true,
+            preAssignmentCutoffHours: 4,
+            autoAssignmentEnabled: true,
         };
 
         return ok(policy);
