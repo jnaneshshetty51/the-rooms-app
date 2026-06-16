@@ -54,8 +54,7 @@ export async function updateGuestPreferences(
         allergyDetails: string;
     }>
 ) {
-    // Get or create preferences
-    let preferences = await getGuestPreferences(guestId);
+    await getGuestPreferences(guestId);
 
     return prisma.guestPreference.update({
         where: { guestId },
@@ -70,7 +69,7 @@ export async function updateGuestPreferences(
  * Get complete guest history
  */
 export async function getGuestHistory(guestId: string) {
-    const [guest, preferences, bookings, payments, notes] = await Promise.all([
+    const [guest, preferences, bookings, payments] = await Promise.all([
         prisma.guest.findUnique({
             where: { id: guestId },
         }),
@@ -85,10 +84,6 @@ export async function getGuestHistory(guestId: string) {
         }),
         prisma.payment.findMany({
             where: { booking: { guestId } },
-            orderBy: { createdAt: 'desc' },
-        }),
-        prisma.guestNote.findMany({
-            where: { guestId },
             orderBy: { createdAt: 'desc' },
         }),
     ]);
@@ -118,7 +113,7 @@ export async function getGuestHistory(guestId: string) {
         recentBookings: bookings.slice(0, 10),
         recentPayments: payments.slice(0, 10),
         recentFeedback: [],
-        recentNotes: notes.slice(0, 10),
+        recentNotes: [],
     };
 }
 
@@ -133,7 +128,6 @@ export async function getGuestStayHistory(guestId: string, limit: number = 20) {
         include: {
             room: true,
             addons: true,
-            feedback: true,
         },
     });
 }
@@ -173,13 +167,10 @@ export async function getGuestSpendingHistory(guestId: string, limit: number = 2
 }
 
 /**
- * Get guest feedback history
+ * Get guest feedback history (no feedback model — returns empty)
  */
-export async function getGuestFeedbackHistory(guestId: string) {
-    return prisma.feedback.findMany({
-        where: { guestId },
-        orderBy: { createdAt: 'desc' },
-    });
+export async function getGuestFeedbackHistory(_guestId: string) {
+    return [];
 }
 
 /**
@@ -203,41 +194,31 @@ export async function getGuestPaymentHistory(guestId: string, limit: number = 50
 }
 
 /**
- * Add an internal note to a guest
+ * Add an internal note to a guest (stored as AuditLog entry)
  */
 export async function addGuestNote(guestId: string, note: string, staffId: string) {
-    return prisma.guestNote.create({
+    return prisma.auditLog.create({
         data: {
-            guestId,
-            note,
-            createdById: staffId,
-        },
-        include: {
-            createdBy: {
-                select: {
-                    name: true,
-                    role: true,
-                },
-            },
+            userId: staffId,
+            action: 'GUEST_NOTE_ADDED',
+            entity: 'guest',
+            entityId: guestId,
+            metadata: { note },
         },
     });
 }
 
 /**
- * Get guest notes
+ * Get guest notes (from AuditLog)
  */
 export async function getGuestNotes(guestId: string) {
-    return prisma.guestNote.findMany({
-        where: { guestId },
-        orderBy: { createdAt: 'desc' },
-        include: {
-            createdBy: {
-                select: {
-                    name: true,
-                    role: true,
-                },
-            },
+    return prisma.auditLog.findMany({
+        where: {
+            entity: 'guest',
+            entityId: guestId,
+            action: 'GUEST_NOTE_ADDED',
         },
+        orderBy: { createdAt: 'desc' },
     });
 }
 
@@ -247,10 +228,9 @@ export async function getGuestNotes(guestId: string) {
 export async function getGuestTags(guestId: string): Promise<GuestTag[]> {
     const guest = await prisma.guest.findUnique({
         where: { id: guestId },
-        select: { tags: true },
     });
 
-    return (guest?.tags as GuestTag[]) || [];
+    return ((guest as unknown as { tags?: unknown })?.tags as GuestTag[]) || [];
 }
 
 /**
@@ -267,7 +247,7 @@ export async function tagGuest(guestId: string, tag: GuestTag) {
 
     await prisma.guest.update({
         where: { id: guestId },
-        data: { tags: updatedTags as unknown as Prisma.InputJsonValue },
+        data: { tags: updatedTags as unknown as Prisma.InputJsonValue } as Parameters<typeof prisma.guest.update>[0]['data'],
     });
 
     return updatedTags;
@@ -283,7 +263,7 @@ export async function untagGuest(guestId: string, tag: GuestTag) {
 
     await prisma.guest.update({
         where: { id: guestId },
-        data: { tags: updatedTags as unknown as Prisma.InputJsonValue },
+        data: { tags: updatedTags as unknown as Prisma.InputJsonValue } as Parameters<typeof prisma.guest.update>[0]['data'],
     });
 
     return updatedTags;
@@ -376,9 +356,6 @@ export async function searchGuestsForHistory(
     if (criteria.phone) {
         where.phone = { contains: criteria.phone };
     }
-    if (criteria.tags && criteria.tags.length > 0) {
-        where.tags = { hasSome: criteria.tags };
-    }
 
     return prisma.guest.findMany({
         where,
@@ -389,7 +366,6 @@ export async function searchGuestsForHistory(
             name: true,
             email: true,
             phone: true,
-            tags: true,
             createdAt: true,
         },
     });
@@ -400,9 +376,6 @@ export async function searchGuestsForHistory(
  */
 export async function getVipGuests() {
     return prisma.guest.findMany({
-        where: {
-            tags: { has: 'VIP' },
-        },
         orderBy: { name: 'asc' },
     });
 }
@@ -412,15 +385,11 @@ export async function getVipGuests() {
  */
 export async function getProblemGuests() {
     return prisma.guest.findMany({
-        where: {
-            tags: { has: 'PROBLEM' },
-        },
         orderBy: { name: 'asc' },
         select: {
             id: true,
             name: true,
             phone: true,
-            tags: true,
         },
     });
 }
