@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
             ipAddress: getClientIp(request),
         });
 
-        return created(booking, 'Taxi booking created successfully');
+        return created(booking);
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Internal error';
         if (message === 'Unauthorized') {

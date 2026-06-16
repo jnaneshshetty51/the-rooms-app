@@ -111,7 +111,7 @@ export async function POST(
             ipAddress: getClientIp(request),
         });
 
-        return created(extensionRequest, 'Stay extension request created successfully');
+        return created(extensionRequest);
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Internal error';
         if (message === 'Unauthorized') {

@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
             ipAddress: getClientIp(request),
         });
 
-        return created(call, 'Wake-up call scheduled successfully');
+        return created(call);
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Internal error';
         if (message === 'Unauthorized') {

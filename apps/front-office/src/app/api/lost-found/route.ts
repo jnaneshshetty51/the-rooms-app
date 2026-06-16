@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
             ipAddress: getClientIp(request),
         });
 
-        return created(item, 'Lost and found item created successfully');
+        return created(item);
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Internal error';
         if (message === 'Unauthorized') {
