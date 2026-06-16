@@ -151,6 +151,7 @@ model Guest {
   guestPreference GuestPreference?
   loyaltyPoints   LoyaltyPoint?
   loyaltyTransactions LoyaltyTransaction[]
+  disputes        Dispute[]
 
   @@index([phone])
   @@index([email])
@@ -224,6 +225,7 @@ model Room {
 
   // Room maintenance back-relation
   roomMaintenances  RoomMaintenance[]
+  roomConflicts     RoomConflict[]
 
   @@map("rooms")
 }
@@ -427,6 +429,11 @@ model Booking {
   taxiBookings     TaxiBooking[]
   checkoutSessions CheckoutSession[]
   damageAssessments DamageAssessment[]
+  disputes          Dispute[]
+  fraudFlags        FraudFlag[]
+  lostBooking       LostBooking?
+  roomConflicts1    RoomConflict[] @relation("ConflictBooking1")
+  roomConflicts2    RoomConflict[] @relation("ConflictBooking2")
 
   @@index([checkIn])
   @@index([checkOut])
@@ -3165,7 +3172,7 @@ model RoomConflict {
 }
 
 // ── Offline Entry (Scenario 73: System offline → manual entry → later sync) ─────
-enum SyncStatus {
+enum OfflineSyncStatus {
   PENDING
   SYNCING
   SYNCED
@@ -3183,7 +3190,7 @@ model OfflineEntry {
   entryData       Json      // Full copy of what was submitted
 
   // Sync tracking
-  syncStatus      SyncStatus @default(PENDING)
+  syncStatus      OfflineSyncStatus @default(PENDING)
   clientTimestamp DateTime  // When it was created on client
   syncedAt        DateTime?
   syncError       String?
