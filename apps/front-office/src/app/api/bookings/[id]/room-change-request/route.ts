@@ -8,7 +8,7 @@ import { Prisma } from '@the-rooms/db';
 import { ok, badRequest, serverError, notFound } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
-import { RoomMoveReason } from '@prisma/client';
+import { RoomMoveReason } from '@the-rooms/db';
 
 // ─── Auth Helper ───────────────────────────────────────────────────────────────
 

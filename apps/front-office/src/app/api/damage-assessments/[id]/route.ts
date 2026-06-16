@@ -8,7 +8,7 @@ import { ok, badRequest, serverError, notFound } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
 import { getDamageAssessmentById, updateDamageAssessment, deleteDamageAssessment } from '@the-rooms/db/queries/damageAssessmentQueries';
-import { DamageType } from '@prisma/client';
+import { DamageType } from '@the-rooms/db';
 
 // ─── Auth Helper ───────────────────────────────────────────────────────────────
 
