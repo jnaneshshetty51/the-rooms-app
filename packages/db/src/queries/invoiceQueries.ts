@@ -550,6 +550,7 @@ const AddonType = {
   TRANSPORT: 'Transportation',
   ROOM_SERVICE: 'Room Service',
   OTHER: 'Other',
+  DAMAGE: 'Damage Charge',
 } as const;
 
 // Alias for backward compatibility
