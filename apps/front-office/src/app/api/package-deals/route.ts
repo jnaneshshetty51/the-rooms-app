@@ -46,7 +46,12 @@ export async function POST(request: NextRequest) {
         }
 
         const { createPackageDeal } = await import('@the-rooms/db/queries/packageDealQueries');
-        const packageDeal = await createPackageDeal(parsed.data);
+        const packageData = {
+            ...parsed.data,
+            validFrom: parsed.data.validFrom ? new Date(parsed.data.validFrom) : undefined,
+            validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : undefined,
+        };
+        const packageDeal = await createPackageDeal(packageData);
 
         const userId = (session.user as { id: string }).id;
         await createAuditLog({
