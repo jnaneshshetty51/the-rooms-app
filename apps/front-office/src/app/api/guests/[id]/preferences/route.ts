@@ -9,7 +9,7 @@ import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
 
 const updatePreferencesSchema = z.object({
-    preferredRoomType: z.enum(['STUDIO', 'PREMIUM', 'SUITE']).optional(),
+    preferredRoomType: z.enum(['STUDIO', 'PREMIUM']).optional(),
     preferredFloor: z.number().int().min(1).optional(),
     preferredRoomNumbers: z.array(z.string()).optional(),
     avoidRoomNumbers: z.array(z.string()).optional(),

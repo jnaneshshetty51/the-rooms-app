@@ -17,7 +17,7 @@ const updatePackageSchema = z.object({
     validUntil: z.string().datetime().optional(),
     minNights: z.number().int().min(1).optional(),
     maxNights: z.number().int().positive().optional(),
-    roomType: z.enum(['STUDIO', 'PREMIUM', 'SUITE']).optional(),
+    roomType: z.enum(['STUDIO', 'PREMIUM']).optional(),
     components: z.object({
         room: z.boolean(),
         breakfast: z.boolean(),
