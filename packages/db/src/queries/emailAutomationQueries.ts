@@ -350,7 +350,7 @@ export async function cancelScheduledEmails(bookingId: string) {
             status: 'PENDING',
         },
         data: {
-            status: 'CANCELLED',
+            status: 'FAILED',
         },
     });
 
