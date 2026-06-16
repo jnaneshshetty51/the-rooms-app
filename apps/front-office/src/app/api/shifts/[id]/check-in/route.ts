@@ -52,7 +52,7 @@ export async function POST(
                 action: 'SHIFT_CHECK_IN',
                 entityType: 'shift',
                 entityId: shiftId,
-                notes: `Checked in to ${shift.shiftType?.name || 'shift'}`,
+                notes: `Checked in to shift`,
                 propertyId: shift.propertyId,
             });
         }
