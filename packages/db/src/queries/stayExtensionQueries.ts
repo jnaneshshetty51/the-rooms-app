@@ -127,12 +127,14 @@ export async function approveStayExtension(
     });
 
     // Update booking with new check-out date
-    await prisma.booking.update({
-        where: { id: request.bookingId },
-        data: {
-            checkOut: request.newCheckOut,
-        },
-    });
+    if (request.newCheckOut) {
+        await prisma.booking.update({
+            where: { id: request.bookingId },
+            data: {
+                checkOut: request.newCheckOut,
+            },
+        });
+    }
 
     // Add extra charge to booking if amount > 0
     if (request.extraChargeAmount && request.extraChargeAmount.toNumber() > 0) {
