@@ -56,8 +56,7 @@ const UpdateRoomAssignmentSchema = z.object({
 // Get room assignment policy settings
 
 export async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ propertyId: string }> }
+    request: NextRequest
 ) {
     try {
         const session = await auth();
