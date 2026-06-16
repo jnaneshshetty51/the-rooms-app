@@ -81,6 +81,14 @@ export const ADDON_TYPES: Record<AddonType, AddonTypeInfo> = {
         unit: 'item',
         taxable: true,
     },
+    DAMAGE: {
+        type: AddonType.DAMAGE,
+        name: 'Damage Charge',
+        description: 'Charges for property damage',
+        defaultPrice: 0,
+        unit: 'item',
+        taxable: true,
+    },
 };
 
 // GST rate (currently 18% - 9% CGST + 9% SGST)
