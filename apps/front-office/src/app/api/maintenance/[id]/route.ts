@@ -49,7 +49,7 @@ export async function PATCH(
         }
 
         const { status, resolution } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check maintenance exists
         const maintenance = await db.roomMaintenance.findUnique({

@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // ─── Transaction: Create Walk-in Booking ─────────────────────────────────
         const booking = await prisma.$transaction(async (tx) => {

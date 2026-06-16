@@ -69,7 +69,7 @@ export async function POST(
         }
 
         const data = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const checkInDate = new Date(data.checkInDate);
         const checkOutDate = new Date(data.checkOutDate);

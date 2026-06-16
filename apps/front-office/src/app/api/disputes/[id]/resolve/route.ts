@@ -35,7 +35,7 @@ export async function POST(
         // Create audit log
         await prisma.auditLog.create({
             data: {
-                userId: (session.user as { id?: string }).id,
+                userId: (session.user as { id: string }).id,
                 bookingId: dispute.bookingId,
                 action: "DISPUTE_RESOLVED",
                 entity: "dispute",

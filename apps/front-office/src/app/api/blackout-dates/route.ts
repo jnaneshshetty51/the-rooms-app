@@ -89,7 +89,7 @@ export async function POST(
             );
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const result = await createBlackoutDate({
             ...parsed.data,

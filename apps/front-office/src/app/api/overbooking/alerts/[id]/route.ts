@@ -51,7 +51,7 @@ export async function PATCH(
         }
 
         const { resolution, actionTaken, alternativeRoomId, partnerHotelId, refundAmount } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const result = await resolveOverbooking({
             alertId,

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
         }
 
         const userRole = (session.user as { role?: string }).role;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Only FRONT_OFFICE, ADMIN, SUPER_ADMIN can generate receipts
         if (!['FRONT_OFFICE', 'ADMIN', 'SUPER_ADMIN'].includes(userRole ?? '')) {

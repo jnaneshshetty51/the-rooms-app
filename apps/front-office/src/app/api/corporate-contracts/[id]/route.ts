@@ -101,7 +101,7 @@ export async function PATCH(
         const contract = await updateCorporateContract(id, updateData as Parameters<typeof updateCorporateContract>[1]);
 
         // Audit log
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'CONTRACT_UPDATED',

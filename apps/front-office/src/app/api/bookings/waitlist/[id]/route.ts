@@ -87,7 +87,7 @@ export async function PATCH(
         });
 
         // Create audit log
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await prisma.auditLog.create({
             data: {
                 userId,
@@ -137,7 +137,7 @@ export async function DELETE(
         const { searchParams } = new URL(request.url);
         const reason = searchParams.get("reason") ?? "Cancelled by staff";
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const entry = await prisma.waitlist.update({
             where: { id },

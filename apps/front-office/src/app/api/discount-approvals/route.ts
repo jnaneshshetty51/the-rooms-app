@@ -102,7 +102,7 @@ export async function POST(
         }
 
         const { bookingId, discountCodeId, originalDiscountAmount, requestedDiscountPercent, reason } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if booking exists
         const booking = await db.booking.findUnique({

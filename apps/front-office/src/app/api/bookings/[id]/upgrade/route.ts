@@ -48,7 +48,7 @@ export async function POST(
         }
 
         const { newRoomId, reason } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Get booking with current room
         const booking = await db.booking.findUnique({

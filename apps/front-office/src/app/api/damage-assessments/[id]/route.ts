@@ -89,7 +89,7 @@ export async function PATCH(
             );
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         const assessment = await getDamageAssessmentById(id);
 
         if (!assessment) {
@@ -136,7 +136,7 @@ export async function DELETE(
         await requireAdmin(session);
 
         const { id } = await params;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         const assessment = await getDamageAssessmentById(id);
 
         if (!assessment) {

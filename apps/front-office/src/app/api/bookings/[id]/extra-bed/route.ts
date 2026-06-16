@@ -91,7 +91,7 @@ export async function POST(
         }
 
         const { quantity, notes } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if booking exists
         const booking = await db.booking.findUnique({
@@ -158,7 +158,7 @@ export async function DELETE(
         const { id } = await params;
         const body = await request.json().catch(() => ({}));
         const quantity = body.quantity || 1;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if booking exists
         const booking = await db.booking.findUnique({

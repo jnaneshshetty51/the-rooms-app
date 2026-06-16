@@ -45,7 +45,7 @@ export async function POST(
 
         const contract = await renewContract(id, new Date(newEndDate));
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'CONTRACT_RENEWED',

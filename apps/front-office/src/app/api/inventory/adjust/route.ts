@@ -50,7 +50,7 @@ export async function POST(
         }
 
         const { roomType, date, adjustment, reason, notes, propertyId } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const result = await adjustRoomTypeInventory({
             propertyId,

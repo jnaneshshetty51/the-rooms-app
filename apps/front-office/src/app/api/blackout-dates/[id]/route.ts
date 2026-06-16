@@ -28,7 +28,7 @@ export async function DELETE(
         await requireAdmin(session);
 
         const { id } = await params;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const result = await removeBlackoutDate({
             id,

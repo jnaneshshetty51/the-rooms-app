@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { bookingId, roomNumber, itemDescription, category, color, foundDate, identifiedBy } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // If bookingId is provided, verify the booking exists
         if (bookingId) {

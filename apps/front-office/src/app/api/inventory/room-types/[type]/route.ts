@@ -54,7 +54,7 @@ export async function PUT(
         }
 
         const { date, count, reason, propertyId } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const result = await setRoomTypeInventory({
             propertyId,

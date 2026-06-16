@@ -50,7 +50,7 @@ export async function POST(
         }
 
         const { bookingId, roomType, date, alternatives, suggestedAction, notes } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const result = await createOverbookingAlert({
             bookingId,

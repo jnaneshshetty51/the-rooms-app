@@ -50,7 +50,7 @@ export async function POST(
         }
 
         const { checkoutBookingId, notes, priority } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check room exists
         const room = await db.room.findUnique({

@@ -69,7 +69,7 @@ export async function POST(
 
       await tx.auditLog.create({
         data: {
-          userId: (session.user as { id?: string }).id,
+          userId: (session.user as { id: string }).id,
           bookingId: id,
           action: "UPDATE",
           entity: "booking",

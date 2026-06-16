@@ -47,7 +47,7 @@ export async function POST(
             );
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         const assessment = await getDamageAssessmentById(id);
 
         if (!assessment) {

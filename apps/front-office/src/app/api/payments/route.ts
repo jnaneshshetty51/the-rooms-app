@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.auditLog.create({
       data: {
-        userId: (session.user as { id?: string }).id,
+        userId: (session.user as { id: string }).id,
         bookingId,
         action: "PAYMENT",
         entity: "payment",

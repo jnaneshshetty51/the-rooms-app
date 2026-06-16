@@ -107,7 +107,7 @@ export async function PATCH(
         }
 
         const { assignmentType, roomId } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Get booking
         const booking = await db.booking.findUnique({

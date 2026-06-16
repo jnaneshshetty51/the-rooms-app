@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const document = await uploadGuestDocument({
       guestId,
       bookingId: bookingId || undefined,
-      uploadedById: (session.user as { id?: string }).id,
+      uploadedById: (session.user as { id: string }).id,
       documentType,
       frontUrl,
       backUrl: backUrl || undefined,

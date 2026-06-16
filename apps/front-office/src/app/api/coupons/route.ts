@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         const { createCoupon } = await import('@the-rooms/db/queries/couponQueries');
         const coupon = await createCoupon(parsed.data);
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'COUPON_CREATED',

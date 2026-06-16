@@ -55,7 +55,7 @@ export async function POST(
             );
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         const { tagGuest } = await import('@the-rooms/db/queries/guestHistoryQueries');
         const tags = await tagGuest(id, parsed.data.tag);
 
@@ -91,7 +91,7 @@ export async function DELETE(
         const { untagGuest } = await import('@the-rooms/db/queries/guestHistoryQueries');
         const tags = await untagGuest(id, tag as 'VIP' | 'REGULAR' | 'PROBLEM' | 'LONG_STAY' | 'CORPORATE' | 'HONEYMOON' | 'BIRTHDAY' | 'TRAVEL_AGENT' | 'OTA_GUEST');
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'GUEST_TAG_REMOVED',

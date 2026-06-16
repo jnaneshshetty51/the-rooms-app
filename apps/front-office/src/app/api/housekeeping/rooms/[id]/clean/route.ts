@@ -52,7 +52,7 @@ export async function POST(
         }
 
         const { taskId, notes, checklistResults, photos, issues } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check room exists
         const room = await db.room.findUnique({

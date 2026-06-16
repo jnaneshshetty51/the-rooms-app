@@ -124,7 +124,7 @@ export async function PATCH(
         }
 
         const data = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if reservation exists
         const existing = await db.booking.findUnique({

@@ -54,7 +54,7 @@ export async function POST(
             );
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         const { addGuestNote } = await import('@the-rooms/db/queries/guestHistoryQueries');
         const note = await addGuestNote(id, parsed.data.note, userId);
 

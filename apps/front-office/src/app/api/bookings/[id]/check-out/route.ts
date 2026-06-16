@@ -161,7 +161,7 @@ export async function POST(
     }
 
     const { actualCheckOutTime, allowWithPendingDues, skipLateFee, notes } = parsed.data;
-    const userId = (session.user as { id?: string }).id;
+    const userId = (session.user as { id: string }).id;
 
     const booking = await db.booking.findUnique({
       where: { id },

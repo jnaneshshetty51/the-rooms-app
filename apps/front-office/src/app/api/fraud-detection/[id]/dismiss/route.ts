@@ -28,7 +28,7 @@ export async function POST(
         // Create audit log
         await prisma.auditLog.create({
             data: {
-                userId: (session.user as { id?: string }).id,
+                userId: (session.user as { id: string }).id,
                 bookingId: flag.bookingId,
                 action: "FRAUD_FLAG_DISMISSED",
                 entity: "fraudFlag",

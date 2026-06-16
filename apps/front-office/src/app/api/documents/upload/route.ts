@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
           }
 
           const uploaderId =
-            guestId || (session.user as { id?: string }).id || "unknown";
+            guestId || (session.user as { id: string }).id || "unknown";
           const url = await uploadGuestDoc(uploaderId, fileName, fileBuffer);
           resolve(NextResponse.json({ url }));
         } catch (error) {

@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
         const result = await generateMonthlyInvoicesBatch(propertyId, month, year);
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'MONTHLY_INVOICES_BATCH_GENERATED',

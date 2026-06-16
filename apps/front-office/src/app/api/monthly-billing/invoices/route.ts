@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         const { createMonthlyInvoice } = await import('@the-rooms/db/queries/monthlyBillingQueries');
         const invoice = await createMonthlyInvoice(bookingId, month, year, { notes });
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'MONTHLY_INVOICE_CREATED',

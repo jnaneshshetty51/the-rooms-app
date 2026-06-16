@@ -100,7 +100,7 @@ export async function PATCH(
 
         const packageDeal = await updatePackageDeal(id, updateData as Parameters<typeof updatePackageDeal>[1]);
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'PACKAGE_DEAL_UPDATED',

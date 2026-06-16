@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
             return badRequest('Check-in date must be in the future for reservations', 'INVALID_CHECKIN');
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // ─── Transaction: Create Advance Reservation ─────────────────────────
         const booking = await db.$transaction(async (tx) => {

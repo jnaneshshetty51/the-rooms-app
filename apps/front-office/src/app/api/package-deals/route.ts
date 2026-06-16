@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         const { createPackageDeal } = await import('@the-rooms/db/queries/packageDealQueries');
         const packageDeal = await createPackageDeal(parsed.data);
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'PACKAGE_DEAL_CREATED',

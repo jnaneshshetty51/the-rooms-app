@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
           paymentStatus: isComplimentary ? "PAID" : "PENDING", // Complimentary bookings are considered paid
           complimentaryReason: isComplimentary ? complimentaryReason : null,
           discountCode: discountCode || null,
-          createdById: (session.user as { id?: string }).id,
+          createdById: (session.user as { id: string }).id,
         },
       });
 
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       // Create audit log for booking creation
       await tx.auditLog.create({
         data: {
-          userId: (session.user as { id?: string }).id,
+          userId: (session.user as { id: string }).id,
           bookingId: newBooking.id,
           action: "BOOKING_CREATED",
           entity: "booking",
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
 
       // Create guest documents (one per guest)
       if (Array.isArray(docs) && docs.length > 0) {
-        const uploaderId = (session.user as { id?: string }).id;
+        const uploaderId = (session.user as { id: string }).id;
         for (const doc of docs as Array<{ docType: string; frontId?: string; backId?: string }>) {
           if (!doc.frontId) continue;
           await tx.guestDocument.create({

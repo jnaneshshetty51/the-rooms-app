@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { bookingId, roomNumber, guestName, phoneNumber, pickupLocation, dropoffLocation, pickupDateTime, vehicleType, numberOfPassengers, fare, notes } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // If bookingId is provided, verify the booking exists and is active
         if (bookingId) {

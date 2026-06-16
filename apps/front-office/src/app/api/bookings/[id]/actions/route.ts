@@ -42,7 +42,7 @@ export async function POST(
         // Log the charge
         await tx.auditLog.create({
           data: {
-            userId: (session.user as { id?: string }).id,
+            userId: (session.user as { id: string }).id,
             bookingId: id,
             action: "CHARGE_ADDED",
             entity: "booking",
@@ -62,7 +62,7 @@ export async function POST(
 
       await prisma.auditLog.create({
         data: {
-          userId: (session.user as { id?: string }).id,
+          userId: (session.user as { id: string }).id,
           bookingId: id,
           action: actionType === "NOTE" ? "BOOKING_NOTE" : "GUEST_REQUEST",
           entity: "booking",

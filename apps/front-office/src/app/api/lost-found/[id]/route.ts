@@ -85,7 +85,7 @@ export async function PATCH(
             );
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if item exists
         const existing = await getLostAndFoundById(id);
@@ -164,7 +164,7 @@ export async function DELETE(
         }
 
         const { id } = await params;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if item exists
         const existing = await getLostAndFoundById(id);

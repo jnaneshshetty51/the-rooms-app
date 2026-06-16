@@ -54,7 +54,7 @@ export async function PATCH(
         }
 
         const { operations } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if group exists
         const group = await db.groupBooking.findUnique({

@@ -106,7 +106,7 @@ export async function POST(
         }
 
         const { bookingId, roomId, originalPrice, overriddenPrice, reason, effectiveFrom, effectiveUntil } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Validate booking exists if provided
         if (bookingId) {

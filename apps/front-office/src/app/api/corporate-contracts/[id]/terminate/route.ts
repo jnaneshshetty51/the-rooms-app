@@ -38,7 +38,7 @@ export async function POST(
 
         const contract = await terminateContract(id, reason);
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'CONTRACT_TERMINATED',

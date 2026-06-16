@@ -83,7 +83,7 @@ export async function PATCH(
             );
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if call exists
         const existing = await getWakeUpCallById(id);
@@ -150,7 +150,7 @@ export async function DELETE(
         await requireStaff(session);
 
         const { id } = await params;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if call exists
         const existing = await getWakeUpCallById(id);

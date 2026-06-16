@@ -29,7 +29,7 @@ export async function POST(
             id,
             data.resolution,
             data.notes,
-            (session.user as { id?: string }).id,
+            (session.user as { id: string }).id,
             data.alternativeRoomId
         );
 

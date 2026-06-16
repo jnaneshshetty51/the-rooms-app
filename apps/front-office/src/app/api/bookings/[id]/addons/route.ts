@@ -84,7 +84,7 @@ export async function POST(
         }
 
         const { type, description, amount, quantity, serviceDate } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const addon = await createAddon({
             bookingId: id,

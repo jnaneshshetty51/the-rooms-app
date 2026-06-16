@@ -25,13 +25,13 @@ export async function POST(request: NextRequest) {
             data.bookingId1,
             data.bookingId2,
             data.primaryBookingId,
-            (session.user as { id?: string }).id
+            (session.user as { id: string }).id
         );
 
         // Create audit log
         await prisma.auditLog.create({
             data: {
-                userId: (session.user as { id?: string }).id,
+                userId: (session.user as { id: string }).id,
                 bookingId: data.primaryBookingId,
                 action: "BOOKINGS_MERGED",
                 entity: "booking",

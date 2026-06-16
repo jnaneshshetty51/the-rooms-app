@@ -52,7 +52,7 @@ export async function POST(
         }
 
         const { roomId, type, issue, description, priority, estimatedCost, scheduledDate } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check room exists
         const room = await db.room.findUnique({

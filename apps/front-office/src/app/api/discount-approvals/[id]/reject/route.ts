@@ -48,7 +48,7 @@ export async function POST(
         }
 
         const { rejectionReason } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check if the discount request exists
         const existingRequest = await getDiscountRequestById(id);

@@ -49,7 +49,7 @@ export async function POST(
         }
 
         const { resolution, actualCost } = parsed.data;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Check maintenance exists
         const maintenance = await db.roomMaintenance.findUnique({

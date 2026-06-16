@@ -113,7 +113,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
 
         const userRole = (session.user as { role?: string }).role;
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Only ADMIN and SUPER_ADMIN can cancel invoices
         if (!['ADMIN', 'SUPER_ADMIN'].includes(userRole ?? '')) {

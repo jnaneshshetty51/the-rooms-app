@@ -31,7 +31,7 @@ export async function DELETE(
             return NextResponse.json({ error: "Addon does not belong to this booking" }, { status: 400 });
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         // Store addon info for audit log before deletion
         const addonInfo = {

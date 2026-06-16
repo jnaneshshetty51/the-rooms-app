@@ -69,7 +69,7 @@ export async function PATCH(
         const { updateGuestPreferences } = await import('@the-rooms/db/queries/guestHistoryQueries');
         const preferences = await updateGuestPreferences(id, parsed.data);
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
         await createAuditLog({
             userId,
             action: 'GUEST_PREFERENCES_UPDATED',

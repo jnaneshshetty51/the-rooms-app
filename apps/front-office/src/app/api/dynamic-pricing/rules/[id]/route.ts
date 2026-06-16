@@ -64,7 +64,7 @@ export async function PATCH(
             );
         }
 
-        const userId = (session.user as { id?: string }).id;
+        const userId = (session.user as { id: string }).id;
 
         const updateData: any = { ...parsed.data };
         if (updateData.validFrom) updateData.validFrom = new Date(updateData.validFrom);

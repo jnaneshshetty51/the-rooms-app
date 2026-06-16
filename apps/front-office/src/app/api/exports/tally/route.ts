@@ -328,7 +328,7 @@ export async function POST(request: NextRequest) {
 
             // Create audit log
             await createAuditLog({
-                userId: (session.user as { id?: string }).id,
+                userId: (session.user as { id: string }).id,
                 action: 'EXPORT',
                 entity: 'accounting',
                 entityId: 'tally-xml',
@@ -353,7 +353,7 @@ export async function POST(request: NextRequest) {
 
             // Create audit log
             await createAuditLog({
-                userId: (session.user as { id?: string }).id,
+                userId: (session.user as { id: string }).id,
                 action: 'EXPORT',
                 entity: 'accounting',
                 entityId: 'tally-excel',
