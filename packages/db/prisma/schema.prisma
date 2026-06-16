@@ -391,6 +391,8 @@ model Booking {
   // Corporate account billing
   corporateAccountId    String?
   corporateAccount      CorporateAccount? @relation(fields: [corporateAccountId], references: [id])
+  corporateBillingType  String?
+  corporateBillingNotes String?
 
   // Group booking leadership
   isGroupLeader         Boolean @default(false)
