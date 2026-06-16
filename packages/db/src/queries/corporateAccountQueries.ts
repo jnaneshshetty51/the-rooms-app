@@ -38,10 +38,10 @@ export interface UpdateCorporateAccountData {
     billingPincode?: string;
 }
 
-export interface CorporateAccountWithUsage extends Awaited<ReturnType<typeof getCorporateAccount>> {
+export type CorporateAccountWithUsage = Awaited<ReturnType<typeof getCorporateAccount>> & {
     currentUsage: number;
     availableCredit: number;
-}
+};
 
 // ─── Create Corporate Account ─────────────────────────────────────────────────
 
