@@ -332,6 +332,7 @@ export async function getCouponUsageStats(couponId: string) {
         select: {
             id: true,
             totalAmount: true,
+            discountAmount: true,
             checkIn: true,
             checkOut: true,
             status: true,
