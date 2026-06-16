@@ -62,10 +62,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    // Structured debug log - no sensitive data
-    if (process.env.NODE_ENV !== 'production') {
-      console.log("[BOOKING_CREATE] Creating booking for guestId:", guestId, "roomId:", roomId);
-    }
     const {
       guestId,
       roomId,
