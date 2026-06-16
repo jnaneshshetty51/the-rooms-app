@@ -390,7 +390,8 @@ model Booking {
   
   // Corporate account billing
   corporateAccountId    String?
-  
+  corporateAccount      CorporateAccount? @relation(fields: [corporateAccountId], references: [id])
+
   // Group booking leadership
   isGroupLeader         Boolean @default(false)
   parentBookingId       String?
@@ -1736,6 +1737,7 @@ model CorporateAccount {
   // Relations to new models
   contracts       CorporateContract[]
   billingCycles   CorporateBillingCycle[]
+  bookings        Booking[]
 
   @@map("corporate_accounts")
 }
