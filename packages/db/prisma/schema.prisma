@@ -104,6 +104,12 @@ model User {
   priceOverrides         PriceOverride[] @relation("PriceOverrideRequestedBy")
   priceOverridesApproved PriceOverride[] @relation("PriceOverrideApprovedBy")
 
+  // Damage assessment back-relation
+  damageAssessments      DamageAssessment[]
+
+  // Staff profile back-relation
+  staffProfile          StaffProfile?
+
   @@map("users")
 }
 
@@ -142,6 +148,9 @@ model Guest {
   bookings        Booking[]
   documents      GuestDocument[]
   blacklistEntry GuestBlacklist?
+  guestPreference GuestPreference?
+  loyaltyPoints   LoyaltyPoint?
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@index([phone])
   @@index([email])
@@ -152,6 +161,7 @@ enum LoyaltyTier {
   BRONZE
   SILVER
   GOLD
+  PLATINUM
 }
 
 // ── Rooms ────────────────────────────────────────────────────────────────────
@@ -208,6 +218,12 @@ model Room {
   
   // Price overrides
   priceOverrides  PriceOverride[]
+
+  // Damage assessments
+  damageAssessments DamageAssessment[]
+
+  // Room maintenance back-relation
+  roomMaintenances  RoomMaintenance[]
 
   @@map("rooms")
 }
@@ -380,6 +396,11 @@ model Booking {
   // Extra bed tracking
   extraBedsUsed         Int     @default(0)
 
+  // Checkout-related fields
+  pendingDues          Decimal?  @db.Decimal(10, 2)
+  checkoutType        CheckoutType?
+  damageChargesTotal   Decimal?  @db.Decimal(10, 2)
+
   createdById   String?
   createdBy     User?        @relation(fields: [createdById], references: [id])
 
@@ -404,6 +425,8 @@ model Booking {
   lostAndFounds    LostAndFound[]
   wakeUpCalls      WakeUpCall[]
   taxiBookings     TaxiBooking[]
+  checkoutSessions CheckoutSession[]
+  damageAssessments DamageAssessment[]
 
   @@index([checkIn])
   @@index([checkOut])
@@ -850,6 +873,7 @@ model HotelSettings {
   lateCheckoutCutoffHour  Int?    @default(12)           // Hour after which late checkout incurs charge (0-23)
   lateCheckoutChargeType String? @default("HALF_DAY")   // "HOURLY" | "HALF_DAY" | "FULL_DAY"
   lateCheckoutMaxHour     Int?    @default(16)            // Latest checkout time (0-23)
+  lateCheckoutFee         Decimal? @db.Decimal(10, 2)    // Explicit fee amount
   
   emailOnBooking     Boolean  @default(true)
   emailOnCancel      Boolean  @default(true)
@@ -953,6 +977,7 @@ enum AddonType {
   RESTAURANT      // Restaurant
   TRANSPORT       // Transportation
   ROOM_SERVICE    // Room Service
+  DAMAGE          // Damage charges
   OTHER           // Other charges
 }
 
@@ -1701,6 +1726,10 @@ model CorporateAccount {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  // Relations to new models
+  contracts       CorporateContract[]
+  billingCycles   CorporateBillingCycle[]
+
   @@map("corporate_accounts")
 }
 
@@ -2232,4 +2261,981 @@ model PriceOverride {
   @@index([roomId])
   @@index([status])
   @@map("price_overrides")
+}
+
+// ─── Checkout Features ───────────────────────────────────────────────────────
+
+// ── Checkout Session Status ──────────────────────────────────────────────────
+enum CheckoutSessionStatus {
+  INITIATED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+// ── Checkout Session ──────────────────────────────────────────────────────────
+// Tracks express checkout flow for guests
+model CheckoutSession {
+  id              String                @id @default(cuid())
+  bookingId       String                @unique
+  booking         Booking              @relation(fields: [bookingId], references: [id])
+
+  // Timing
+  initiatedAt     DateTime             @default(now())
+  completedAt     DateTime?
+
+  // Status
+  status          CheckoutSessionStatus @default(INITIATED)
+
+  // Financial summary
+  totalCharges    Decimal?             @db.Decimal(10, 2)
+  totalPayments   Decimal?             @db.Decimal(10, 2)
+  pendingDues     Decimal?             @db.Decimal(10, 2)
+
+  // Generated invoice reference
+  invoiceId       String?
+
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([bookingId])
+  @@index([status])
+  @@map("checkout_sessions")
+}
+
+// ── Damage Type ───────────────────────────────────────────────────────────────
+enum DamageType {
+  MINOR
+  MODERATE
+  SEVERE
+  TOTAL_LOSS
+}
+
+// ── Checkout Type ─────────────────────────────────────────────────────────────
+enum CheckoutType {
+  STANDARD
+  EXPRESS
+  LATE
+}
+
+// ── Damage Assessment ─────────────────────────────────────────────────────────
+// Records damage found during checkout inspection
+model DamageAssessment {
+  id              String       @id @default(cuid())
+  bookingId       String
+  booking         Booking      @relation(fields: [bookingId], references: [id])
+  roomId          String
+  room            Room         @relation(fields: [roomId], references: [id])
+
+  // Damage details
+  description     String
+  damageType      DamageType
+
+  // Charge amount
+  amount          Decimal      @db.Decimal(10, 2)
+
+  // Evidence
+  images          String[]     @default([])
+
+  // Staff who assessed
+  assessedById    String
+  assessedBy      User         @relation(fields: [assessedById], references: [id])
+  assessedAt      DateTime     @default(now())
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([bookingId])
+  @@index([roomId])
+  @@map("damage_assessments")
+}
+
+// ─── Phase 1 Schema Additions ──────────────────────────────────────────────────
+
+// ── P0: Critical - Room Maintenance & Staff Management ─────────────────────────
+
+// ── Maintenance Enums ───────────────────────────────────────────────────────────
+enum MaintenanceType {
+  PLUMBING
+  ELECTRICAL
+  FURNITURE
+  HVAC
+  OTHER
+}
+
+enum MaintenanceStatus {
+  REPORTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ── Staff Management Enums ──────────────────────────────────────────────────────
+enum Department {
+  FRONT_OFFICE
+  HOUSEKEEPING
+  MAINTENANCE
+  FOOD_BEVERAGE
+  ADMIN
+}
+
+enum ShiftStatus {
+  SCHEDULED
+  CHECKED_IN
+  CHECKED_OUT
+  ABSENT
+  ON_LEAVE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  ON_LEAVE
+  HOLIDAY
+}
+
+// ── Room Maintenance ─────────────────────────────────────────────────────────────
+model RoomMaintenance {
+  id              String   @id @default(cuid())
+  roomId          String
+  room            Room     @relation(fields: [roomId], references: [id])
+  
+  type            MaintenanceType
+  priority        Priority         @default(MEDIUM)
+  status          MaintenanceStatus @default(REPORTED)
+  issue           String
+  description     String?
+  
+  reportedAt      DateTime  @default(now())
+  scheduledDate   DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  resolution      String?
+  resolvedBy      String?
+  
+  estimatedCost   Decimal?  @db.Decimal(10, 2)
+  actualCost      Decimal?  @db.Decimal(10, 2)
+  roomStatusOverride RoomStatus?
+  
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([roomId, status])
+  @@map("room_maintenance")
+}
+
+// ── Staff Profile ────────────────────────────────────────────────────────────────
+model StaffProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  
+  employeeId      String?  @unique
+  department      Department @default(FRONT_OFFICE)
+  designation     String?
+  hireDate        DateTime?
+  terminationDate DateTime?
+  personalPhone   String?
+  emergencyContact String?
+  emergencyPhone  String?
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  shifts          StaffShift[]
+  attendances     StaffAttendance[]
+  housekeepingStaff HousekeepingStaff?
+  activityLogs    StaffActivityLog[]
+  
+  @@map("staff_profiles")
+}
+
+// ── Shift Type ─────────────────────────────────────────────────────────────────
+model ShiftType {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  code            String   @unique
+  startTime       String
+  endTime         String
+  durationHours   Int
+  gracePeriodMins Int      @default(15)
+  isNightShift    Boolean  @default(false)
+  defaultFor      Department?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  shifts          StaffShift[]
+  
+  @@map("shift_types")
+}
+
+// ── Staff Shift ─────────────────────────────────────────────────────────────────
+model StaffShift {
+  id              String   @id @default(cuid())
+  staffId         String
+  staff           StaffProfile @relation(fields: [staffId], references: [id])
+  shiftTypeId     String
+  shiftType       ShiftType @relation(fields: [shiftTypeId], references: [id])
+  shiftDate       DateTime @db.Date
+  checkInTime     DateTime?
+  checkOutTime    DateTime?
+  status          ShiftStatus @default(SCHEDULED)
+  overtimeHours   Decimal?  @db.Decimal(4, 2)
+  propertyId      String   @default("default")
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([staffId, shiftDate])
+  @@map("staff_shifts")
+}
+
+// ── Staff Attendance ─────────────────────────────────────────────────────────────
+model StaffAttendance {
+  id              String   @id @default(cuid())
+  staffId         String
+  staff           StaffProfile @relation(fields: [staffId], references: [id])
+  attendanceDate  DateTime @db.Date
+  shiftTypeId     String?
+  hoursWorked     Decimal  @db.Decimal(4, 2)
+  status          AttendanceStatus
+  lateMinutes     Int      @default(0)
+  earlyLeaveMinutes Int    @default(0)
+  notes           String?
+  propertyId      String   @default("default")
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([staffId, attendanceDate])
+  @@map("staff_attendance")
+}
+
+// ── P1: High - Housekeeping Enhancement & Pricing ───────────────────────────────
+
+// ── Housekeeping Staff ──────────────────────────────────────────────────────────
+model HousekeepingStaff {
+  id              String   @id @default(cuid())
+  staffProfileId  String   @unique
+  staffProfile    StaffProfile @relation(fields: [staffProfileId], references: [id])
+  specializations String[] @default([])
+  avgCleanTimeMins Int     @default(30)
+  roomsCleanedToday Int     @default(0)
+  roomsCleanedMonth Int     @default(0)
+  qualityScore     Decimal? @db.Decimal(3, 2)
+  lastEvaluatedAt  DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("housekeeping_staff")
+}
+
+// ── Staff Activity Log ──────────────────────────────────────────────────────────
+model StaffActivityLog {
+  id              String   @id @default(cuid())
+  staffId         String
+  staffProfile    StaffProfile @relation(fields: [staffId], references: [id])
+  
+  // Activity details
+  action          String   // LOGIN, LOGOUT, TASK_START, TASK_COMPLETE, STATUS_CHANGE, SHIFT_CHECK_IN, SHIFT_CHECK_OUT
+  entityType      String?  // "booking" | "room" | "task" | "shift" | "attendance" | "system"
+  entityId        String?
+  
+  // Value tracking
+  oldValue        Json?
+  newValue        Json?
+  
+  // Notes
+  notes           String?
+  
+  // Location/IP for security tracking
+  ipAddress       String?
+  userAgent       String?
+  
+  propertyId      String   @default("default")
+  
+  createdAt       DateTime  @default(now())
+
+  @@index([staffId, createdAt])
+  @@index([entityType, entityId])
+  @@index([propertyId, createdAt])
+  @@index([action])
+  @@map("staff_activity_logs")
+}
+
+// ── Housekeeping Task Template ───────────────────────────────────────────────────
+model HousekeepingTaskTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  roomType        RoomType?
+  condition       RoomCondition?
+  frequency       TaskFrequency
+  checklistItems  Json
+  estimatedMinutes Int     @default(30)
+  priority        Int      @default(0)
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("housekeeping_task_templates")
+}
+
+// ── Room Inspection Enums ────────────────────────────────────────────────────────
+enum InspectionType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  PRE_CHECKOUT
+  POST_CHECKOUT
+}
+
+enum InspectionResult {
+  PASS
+  FAIL
+  CONDITIONAL_PASS
+}
+
+enum RoomCondition {
+  VACANT_CLEAN
+  VACANT_DIRTY
+  OCCUPIED
+  OUT_OF_ORDER
+  OUT_OF_SERVICE
+}
+
+enum TaskFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  ON_DEMAND
+}
+
+// ── Room Inspection ─────────────────────────────────────────────────────────────
+model RoomInspection {
+  id              String   @id @default(cuid())
+  roomId          String
+  type            InspectionType
+  date            DateTime @db.Date
+  inspectorId     String
+  checklistResults Json
+  overallStatus   InspectionResult
+  issues          String?
+  photos          String[] @default([])
+  taskId          String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([roomId, date])
+  @@map("room_inspections")
+}
+
+// ── Seasonal Pricing Enums ──────────────────────────────────────────────────────
+enum SeasonType {
+  PEAK
+  OFF_PEAK
+  FESTIVE
+  MONSOON
+}
+
+enum AdjustmentType {
+  PERCENTAGE
+  FIXED
+}
+
+// ── Seasonal Rate ───────────────────────────────────────────────────────────────
+model SeasonalRate {
+  id              String   @id @default(cuid())
+  propertyId      String   @default("default")
+  name            String
+  seasonType      SeasonType
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  adjustmentType  AdjustmentType
+  adjustmentValue Decimal   @db.Decimal(10, 2)
+  roomTypes       RoomType[]
+  minNights       Int      @default(1)
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("seasonal_rates")
+}
+
+// ── Dynamic Pricing Rule ─────────────────────────────────────────────────────────
+model DynamicPricingRule {
+  id              String   @id @default(cuid())
+  propertyId      String   @default("default")
+  name            String
+  description     String?
+  conditions      Json
+  adjustmentType  AdjustmentType
+  adjustmentValue Decimal   @db.Decimal(10, 2)
+  priority        Int      @default(0)
+  roomTypes       RoomType[]
+  validFrom       DateTime?
+  validUntil      DateTime?
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("dynamic_pricing_rules")
+}
+
+// ── Blackout Date Enums ──────────────────────────────────────────────────────────
+enum BlackoutReason {
+  MAINTENANCE
+  PRIVATE_EVENT
+  FORCED_CLOSURE
+  OTHER
+}
+
+// ── Blackout Date ────────────────────────────────────────────────────────────────
+model BlackoutDate {
+  id              String   @id @default(cuid())
+  propertyId      String   @default("default")
+  date            DateTime @db.Date
+  endDate         DateTime? @db.Date
+  reason          BlackoutReason
+  description     String?
+  roomType        RoomType?
+  bookingSource   BookingSource?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([propertyId, date])
+  @@map("blackout_dates")
+}
+
+// ── P2: Medium - Notifications, Preferences, Corporate ───────────────────────────
+
+// ── Notification Enums ───────────────────────────────────────────────────────────
+enum NotificationChannel {
+  SMS
+  WHATSAPP
+  EMAIL
+  PUSH
+}
+
+enum NotificationTrigger {
+  BOOKING_CONFIRMED
+  CHECK_IN_REMINDER
+  CHECK_OUT_REMINDER
+  PAYMENT_RECEIVED
+  CANCELLATION
+  MODIFICATION
+  CUSTOM
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+// ── Notification Template ────────────────────────────────────────────────────────
+model NotificationTemplate {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  channel         NotificationChannel
+  subject         String?
+  body            String
+  triggerType     NotificationTrigger
+  isActive        Boolean  @default(true)
+  delayMinutes    Int      @default(0)
+  propertyId      String   @default("default")
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("notification_templates")
+}
+
+// ── Notification Log ─────────────────────────────────────────────────────────────
+model NotificationLog {
+  id              String   @id @default(cuid())
+  channel         NotificationChannel
+  recipient       String
+  templateId      String?
+  subject         String?
+  body            String
+  entityType      String?
+  entityId        String?
+  status          NotificationStatus @default(PENDING)
+  providerMessageId String?
+  errorMessage    String?
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  
+  createdAt       DateTime  @default(now())
+
+  @@index([entityType, entityId])
+  @@map("notification_logs")
+}
+
+// ── Guest Preference ────────────────────────────────────────────────────────────
+model GuestPreference {
+  id              String   @id @default(cuid())
+  guestId         String   @unique
+  guest           Guest    @relation(fields: [guestId], references: [id])
+  preferredRoomType    RoomType?
+  preferredFloor       Int?
+  preferredRoomNumbers  String[] @default([])
+  avoidRoomNumbers      String[] @default([])
+  preferredBedding      String?
+  preferredAmenities    String[] @default([])
+  dislikedAmenities     String[] @default([])
+  dietaryRestrictions   String[] @default([])
+  preferredChannel      NotificationChannel?
+  notes                 String?
+  isVegetarian          Boolean  @default(false)
+  hasAllergies          Boolean  @default(false)
+  allergyDetails        String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("guest_preferences")
+}
+
+// ── Corporate Contract Enums ─────────────────────────────────────────────────────
+enum ContractStatus {
+  DRAFT
+  PENDING
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+enum BillingCycleStatus {
+  PENDING
+  INVOICED
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+// ── Corporate Contract ────────────────────────────────────────────────────────────
+model CorporateContract {
+  id              String   @id @default(cuid())
+  corporateAccountId String
+  corporateAccount CorporateAccount @relation(fields: [corporateAccountId], references: [id])
+  contractNumber  String   @unique
+  name            String
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  isAutoRenew     Boolean  @default(false)
+  discountPercent Decimal   @db.Decimal(5, 2) @default(0)
+  paymentTermsDays Int     @default(30)
+  creditLimit      Decimal? @db.Decimal(12, 2)
+  guaranteedRooms  Int      @default(0)
+  status           ContractStatus @default(ACTIVE)
+  contractDocUrl   String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("corporate_contracts")
+}
+
+// ── Corporate Billing Cycle ──────────────────────────────────────────────────────
+model CorporateBillingCycle {
+  id              String   @id @default(cuid())
+  corporateAccountId String
+  corporateAccount CorporateAccount @relation(fields: [corporateAccountId], references: [id])
+  billingMonth    Int
+  billingYear     Int
+  invoiceNumber   String?  @unique
+  invoiceUrl      String?
+  totalAmount     Decimal  @db.Decimal(12, 2)
+  taxAmount       Decimal  @db.Decimal(12, 2)
+  paidAmount      Decimal  @db.Decimal(12, 2) @default(0)
+  status          BillingCycleStatus @default(PENDING)
+  dueDate         DateTime
+  paidAt          DateTime?
+  paymentReference String?
+  bookingIds      String[] @default([])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([corporateAccountId, billingMonth, billingYear])
+  @@map("corporate_billing_cycles")
+}
+
+// ── P3: Standard - Loyalty, Packages, Reports ─────────────────────────────────────
+
+// ── Loyalty Enums ────────────────────────────────────────────────────────────────
+enum LoyaltyTransactionType {
+  EARNED
+  REDEEMED
+  EXPIRED
+  ADJUSTED
+  BONUS
+}
+
+// ── Loyalty Point ────────────────────────────────────────────────────────────────
+model LoyaltyPoint {
+  id              String   @id @default(cuid())
+  guestId         String   @unique
+  guest           Guest    @relation(fields: [guestId], references: [id])
+  currentBalance  Int      @default(0)
+  lifetimeEarned   Int      @default(0)
+  lifetimeRedeemed Int     @default(0)
+  currentTier     LoyaltyTier
+  tierUpdatedAt   DateTime?
+  pointsToNextTier Int?
+  
+  updatedAt       DateTime  @updatedAt
+
+  @@map("loyalty_points")
+}
+
+// ── Loyalty Transaction ──────────────────────────────────────────────────────────
+model LoyaltyTransaction {
+  id              String   @id @default(cuid())
+  guestId         String
+  guest           Guest    @relation(fields: [guestId], references: [id])
+  type            LoyaltyTransactionType
+  points          Int
+  bookingId       String?
+  description     String
+  balanceAfter    Int
+  expiresAt       DateTime?
+  expiredAt       DateTime?
+  referenceId     String?
+  
+  createdAt       DateTime  @default(now())
+
+  @@index([guestId, createdAt])
+  @@map("loyalty_transactions")
+}
+
+// ── Package Deal ────────────────────────────────────────────────────────────────
+model PackageDeal {
+  id              String   @id @default(cuid())
+  propertyId      String   @default("default")
+  name            String
+  description     String?
+  singleOccupancyRate Decimal @db.Decimal(10, 2)
+  doubleOccupancyRate Decimal @db.Decimal(10, 2)
+  validFrom       DateTime?
+  validUntil      DateTime?
+  minNights       Int      @default(1)
+  maxNights       Int?
+  roomType        RoomType?
+  isActive        Boolean  @default(true)
+  components      Json
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("package_deals")
+}
+
+// ── Daily Occupancy Report ────────────────────────────────────────────────────────
+model DailyOccupancyReport {
+  id              String   @id @default(cuid())
+  propertyId      String   @default("default")
+  reportDate      DateTime @db.Date
+  totalRooms      Int
+  availableRooms  Int
+  occupiedRooms   Int
+  outOfOrderRooms Int
+  outOfServiceRooms Int
+  studioOccupied  Int      @default(0)
+  studioTotal     Int      @default(0)
+  premiumOccupied Int      @default(0)
+  premiumTotal    Int      @default(0)
+  occupancyPercent Decimal  @db.Decimal(5, 2)
+  arrivals        Int      @default(0)
+  departures      Int      @default(0)
+  noShows         Int      @default(0)
+  
+  createdAt       DateTime  @default(now())
+
+  @@unique([propertyId, reportDate])
+  @@map("daily_occupancy_reports")
+}
+
+// ── Monthly Financial Report ─────────────────────────────────────────────────────
+model MonthlyFinancialReport {
+  id              String   @id @default(cuid())
+  propertyId      String   @default("default")
+  month           Int
+  year            Int
+  roomRevenue     Decimal  @db.Decimal(12, 2)
+  addonRevenue    Decimal  @db.Decimal(12, 2)
+  fbRevenue       Decimal  @db.Decimal(12, 2)
+  totalRevenue    Decimal  @db.Decimal(12, 2)
+  adr             Decimal  @db.Decimal(10, 2)
+  revpar          Decimal  @db.Decimal(10, 2)
+  avgOccupancy    Decimal  @db.Decimal(5, 2)
+  vsPreviousMonth Decimal? @db.Decimal(5, 2)
+  vsPreviousYear  Decimal? @db.Decimal(5, 2)
+  totalBookings   Int
+  cancellations   Int
+  noShows         Int
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([propertyId, month, year])
+  @@map("monthly_financial_reports")
+}
+
+// ─── Phase 6: Exception Handling ─────────────────────────────────────────────────
+
+// ── Dispute (Scenario 70: Guest dispute on bill) ─────────────────────────────────
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  PENDING_APPROVAL
+  RESOLVED
+  REJECTED
+}
+
+enum DisputeResolutionType {
+  FULL_REFUND
+  PARTIAL_REFUND
+  ADJUSTMENT
+  NO_ADJUSTMENT
+  WAIVED
+}
+
+model Dispute {
+  id              String    @id @default(cuid())
+  bookingId       String
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  guestId         String
+  guest           Guest     @relation(fields: [guestId], references: [id])
+
+  // Dispute details
+  reason          String
+  disputedItems   Json      // Array of { item: string, amount: number, expectedAmount: number }
+  expectedAmount  Decimal   @db.Decimal(10, 2)
+  disputedAmount  Decimal   @db.Decimal(10, 2)
+
+  // Status
+  status          DisputeStatus @default(OPEN)
+
+  // Resolution
+  resolution     String?
+  adjustmentAmount Decimal?  @db.Decimal(10, 2)
+  resolutionType  DisputeResolutionType?
+
+  // Attachments (urls to images/documents)
+  attachments     String[]  @default([])
+
+  // Staff response trail
+  responses       DisputeResponse[]
+
+  // Property
+  propertyId      String    @default("default")
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([bookingId])
+  @@index([guestId])
+  @@index([status])
+  @@index([propertyId, status])
+  @@map("disputes")
+}
+
+model DisputeResponse {
+  id          String    @id @default(cuid())
+  disputeId   String
+  dispute     Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  response    String
+  attachments String[]  @default([])
+
+  respondedById String?
+  createdAt   DateTime  @default(now())
+
+  @@map("dispute_responses")
+}
+
+// ── Fraud Flag (Scenario 71: Fraudulent booking detection) ───────────────────────
+enum FraudStatus {
+  PENDING_REVIEW
+  UNDER_INVESTIGATION
+  CONFIRMED_FRAUD
+  FALSE_POSITIVE
+  ACTION_TAKEN
+}
+
+model FraudFlag {
+  id              String    @id @default(cuid())
+  bookingId       String
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+
+  // Flag details
+  reason          String
+  riskScore       Int       // 0-100
+  riskFactors     Json      // Array of { factor: string, score: number, description: string }
+
+  // Status
+  status          FraudStatus @default(PENDING_REVIEW)
+
+  // Investigation
+  investigationNotes String?
+  actionTaken     String?
+  dismissedReason String?
+
+  // Property
+  propertyId      String    @default("default")
+
+  // Timestamps
+  flaggedAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+
+  createdById     String?
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([propertyId, status])
+  @@map("fraud_flags")
+}
+
+// ── Room Conflict (Scenario 72: Double room allocation conflict) ──────────────────
+enum ConflictResolution {
+  MOVE_GUEST
+  UPGRADE
+  DOWNGRADE
+  CANCEL
+  RELOCATE
+}
+
+model RoomConflict {
+  id              String    @id @default(cuid())
+  roomId          String
+  room            Room      @relation(fields: [roomId], references: [id])
+
+  // Conflict dates
+  conflictDate    DateTime  @db.Date
+
+  // Conflicting bookings
+  bookingId1      String
+  booking1        Booking   @relation("ConflictBooking1", fields: [bookingId1], references: [id])
+  bookingId2      String
+  booking2        Booking   @relation("ConflictBooking2", fields: [bookingId2], references: [id])
+
+  // Resolution
+  resolution      ConflictResolution?
+  resolvedAt      DateTime?
+  resolvedById    String?
+  notes           String?
+
+  // Alternative room if resolved by moving
+  alternativeRoomId String?
+
+  // Property
+  propertyId      String    @default("default")
+
+  createdAt       DateTime  @default(now())
+
+  @@index([roomId, conflictDate])
+  @@index([propertyId])
+  @@map("room_conflicts")
+}
+
+// ── Offline Entry (Scenario 73: System offline → manual entry → later sync) ─────
+enum SyncStatus {
+  PENDING
+  SYNCING
+  SYNCED
+  CONFLICT
+  FAILED
+}
+
+model OfflineEntry {
+  id              String    @id @default(cuid())
+  localId         String    // Client-generated ID for deduplication
+  bookingId       String?   // Created booking after sync
+
+  // Entry data snapshot
+  entryType       String    // "BOOKING" | "PAYMENT" | "GUEST"
+  entryData       Json      // Full copy of what was submitted
+
+  // Sync tracking
+  syncStatus      SyncStatus @default(PENDING)
+  clientTimestamp DateTime  // When it was created on client
+  syncedAt        DateTime?
+  syncError       String?
+
+  // Conflict info
+  conflictInfo    Json?     // Details about any sync conflicts
+  resolvedAt      DateTime?
+
+  // Property
+  propertyId      String    @default("default")
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([localId, propertyId])
+  @@index([propertyId, syncStatus])
+  @@map("offline_entries")
+}
+
+// ── Lost Booking (Scenario 74: Lost booking recovery) ───────────────────────────
+enum RecoveryAction {
+  REACTIVATED
+  REFUNDED
+  REBOOKED
+  MERGED
+  CANCELLED
+}
+
+model LostBooking {
+  id              String    @id @default(cuid())
+  bookingId       String    @unique
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+
+  // Loss details
+  reason          String    // "GUEST_NOT_FOUND" | "PAYMENT_NOT_FOUND" | "BOOKING_MISFILED" | "SYSTEM_ERROR" | "OTHER"
+  description     String?
+
+  // Recovery
+  recoveryAction  RecoveryAction?
+  recoveredAt     DateTime?
+  recoveredById    String?
+
+  // Linking to found booking
+  linkedBookingId String?
+
+  // Property
+  propertyId      String    @default("default")
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([bookingId])
+  @@index([propertyId])
+  @@map("lost_bookings")
 }
