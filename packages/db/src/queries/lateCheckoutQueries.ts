@@ -32,11 +32,7 @@ export async function calculateLateCheckoutFee(bookingId: string): Promise<LateC
     const booking = await prisma.booking.findUnique({
         where: { id: bookingId },
         include: {
-            room: {
-                include: {
-                    roomType: true,
-                },
-            },
+            room: true,
         },
     });
 
@@ -115,7 +111,7 @@ export async function calculateLateCheckoutFee(bookingId: string): Promise<LateC
 
     // Calculate fee based on charge type
     let fee = 0;
-    const baseRate = booking.room.roomType?.basePrice?.toNumber() || booking.baseAmount.toNumber();
+    const baseRate = booking.baseAmount.toNumber();
 
     switch (chargeType) {
         case 'FLAT_FEE':
