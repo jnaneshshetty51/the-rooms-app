@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import prisma from "@the-rooms/db";
+import prisma, { Prisma } from "@the-rooms/db";
 import { z } from "zod";
 
 // ─── Get/Update/Delete Waitlist Entry ─────────────────────────────────────────
