@@ -3,11 +3,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@the-rooms/auth';
-import { db } from '@the-rooms/db';
+import { db, Prisma } from '@the-rooms/db';
 import { ok, badRequest, serverError, notFound } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
-import { Decimal } from 'decimal.js';
 
 // ─── Auth Helper ───────────────────────────────────────────────────────────────
 
@@ -125,8 +124,8 @@ export async function POST(
                     fromRoomId: booking.roomId,
                     toRoomId: newRoomId,
                     reason: 'DOWNGRADE',
-                    priceDiff: new Decimal(priceDiff),
-                    refundAmount: new Decimal(refundAmount),
+                    priceDiff: new Prisma.Decimal(priceDiff),
+                    refundAmount: new Prisma.Decimal(refundAmount),
                     effectiveFrom: new Date(),
                     initiatedById: userId,
                     notes: reason,
@@ -148,7 +147,7 @@ export async function POST(
                     await tx.payment.create({
                         data: {
                             bookingId,
-                            amount: new Decimal(refundAmount),
+                            amount: new Prisma.Decimal(refundAmount),
                             method: originalPayment.method,
                             status: 'PENDING',
                             refundReason: `Room downgrade refund: ${reason}`,

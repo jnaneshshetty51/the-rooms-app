@@ -28,6 +28,7 @@ export { createCorporateAccount, getCorporateAccount, getCorporateAccountByName,
 
 export { createDamageAssessment, getDamageAssessmentById, getDamageAssessmentsByBooking, getDamageAssessmentsByRoom, updateDamageAssessment, deleteDamageAssessment, approveDamageCharge, getAllDamageAssessments } from './queries/damageAssessmentQueries';
 export { calculateLateCheckoutFee, applyLateCheckoutFee, checkLateCheckoutEligibility } from './queries/lateCheckoutQueries';
+export { recordRoomMove } from './queries/roomMoveQueries';
 
 export { Prisma, ExpenseCategory, RoomType, DamageType, RoomMoveReason } from '@prisma/client';
 

@@ -3,12 +3,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@the-rooms/auth';
-import { db } from '@the-rooms/db';
+import { db, Prisma } from '@the-rooms/db';
 import { ok, badRequest, serverError, notFound } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
-import { recordRoomMove } from '@the-rooms/db/queries/roomMoveQueries';
-import { Decimal } from 'decimal.js';
 
 // ─── Auth Helper ───────────────────────────────────────────────────────────────
 
@@ -125,7 +123,7 @@ export async function POST(
                     fromRoomId: booking.roomId,
                     toRoomId: newRoomId,
                     reason: 'UPGRADE',
-                    priceDiff: new Decimal(priceDiff),
+                    priceDiff: new Prisma.Decimal(priceDiff),
                     effectiveFrom: new Date(),
                     initiatedById: userId,
                     notes: reason,
