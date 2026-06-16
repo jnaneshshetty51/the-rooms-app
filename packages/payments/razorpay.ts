@@ -10,7 +10,11 @@ export function getRazorpayClient(): Razorpay {
   const key_secret = process.env.RAZORPAY_KEY_SECRET ?? '';
 
   if (!key_id || !key_secret) {
-    console.warn('RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET not configured.');
+    const message = 'RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be configured';
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(message);
+    }
+    console.warn(`[Razorpay] ${message} - using test credentials`);
   }
 
   razorpayClientInstance = new Razorpay({
@@ -26,12 +30,19 @@ export function verifyPaymentSignature(
   paymentId: string,
   signature: string
 ): boolean {
-  const secret = process.env.RAZORPAY_KEY_SECRET ?? 'test_secret';
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!secret) {
+    console.error('[Razorpay] RAZORPAY_KEY_SECRET not configured');
+    return false;
+  }
   const generatedSignature = crypto
     .createHmac('sha256', secret)
     .update(orderId + '|' + paymentId)
     .digest('hex');
-  return generatedSignature === signature;
+  return crypto.timingSafeEqual(
+    Buffer.from(generatedSignature, 'utf-8'),
+    Buffer.from(signature, 'utf-8')
+  );
 }
 
 export function verifyWebhookSignature(

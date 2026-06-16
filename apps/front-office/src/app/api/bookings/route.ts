@@ -62,7 +62,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    console.log("[BOOKING_CREATE] Request body:", JSON.stringify(body, null, 2));
+    // Structured debug log - no sensitive data
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("[BOOKING_CREATE] Creating booking for guestId:", guestId, "roomId:", roomId);
+    }
     const {
       guestId,
       roomId,
@@ -82,10 +85,11 @@ export async function POST(request: NextRequest) {
       discountCode,
     } = body;
 
-    console.log("[BOOKING_CREATE] Parsed fields - guestId:", guestId, "roomId:", roomId, "bookingSource:", bookingSource);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("[BOOKING_CREATE] Parsed fields - guestId:", guestId, "roomId:", roomId, "bookingSource:", bookingSource);
+    }
 
     if (!guestId || !roomId || !checkIn || !checkOut || !totalAmount) {
-      console.log("[BOOKING_CREATE] Missing required fields");
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 

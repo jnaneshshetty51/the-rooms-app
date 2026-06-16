@@ -6,20 +6,19 @@ import { db } from "@the-rooms/db"
 
 const schema = z.object({ email: z.string().email() })
 
-// H3: Simple in-memory rate limiter (5 requests per minute per IP)
+// In-memory rate limiter (5 requests per minute per IP)
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 1000 }
 
 function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now()
   const record = rateLimitStore.get(ip)
 
   if (!record || now > record.resetAt) {
-    rateLimitStore.set(ip, { count: 1, resetAt: now + RATE_LIMIT.windowMs })
+    rateLimitStore.set(ip, { count: 1, resetAt: now + 60 * 1000 })
     return { allowed: true }
   }
 
-  if (record.count >= RATE_LIMIT.maxRequests) {
+  if (record.count >= 5) {
     return { allowed: false, retryAfter: Math.ceil((record.resetAt - now) / 1000) }
   }
 
@@ -39,7 +38,7 @@ function generateToken(email: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    // H3: Rate limiting to prevent brute force attacks
+    // Rate limiting to prevent brute force attacks
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       ?? request.headers.get('x-real-ip')
       ?? 'unknown'
@@ -82,8 +81,10 @@ export async function POST(request: NextRequest) {
 
     const resendKey = process.env.RESEND_API_KEY
     if (!resendKey) {
-      // Dev mode: log link to console so devs can test without Resend
-      console.log(`[magic-link] ${user.name ?? email} → ${magicUrl}`)
+      // Dev mode: only log in non-production
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[magic-link] ${user.name ?? email} → ${magicUrl}`)
+      }
       return NextResponse.json({ success: true })
     }
 
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
               Sign In to Guest Portal
             </a>
           </div>
-          <p style="color:#636E72;font-size:13px;text-align:center;">Link expires in 15 minutes. If you didn&apos;t request this, ignore this email.</p>
+          <p style="color:#636E72;font-size:13px;text-align:center;">Link expires in 15 minutes. If you didn't request this, ignore this email.</p>
           <p style="color:#B2BEC3;font-size:12px;text-align:center;margin-top:24px;">&copy; ${new Date().getFullYear()} The Rooms. All rights reserved.</p>
         </div>
       `,

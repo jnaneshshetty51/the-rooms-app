@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Bed, CalendarPlus, ClipboardList, Users, FileText, CreditCard, MessageSquare, BarChart3, LogOut, Menu, X, Bell, Shield, AlertTriangle, Clock } from "lucide-react";
+import { LayoutDashboard, Bed, CalendarPlus, ClipboardList, Users, FileText, CreditCard, MessageSquare, BarChart3, LogOut, Menu, X, Bell, Shield, AlertTriangle, Clock, Search, Car, Percent, DollarSign } from "lucide-react";
 import { cn } from "@the-rooms/ui";
 import { useState } from "react";
 
@@ -19,6 +19,12 @@ const navigation = [
   { name: "Night Audit", href: "/night-audit", icon: Shield },
   { name: "No-Shows", href: "/bookings/no-shows", icon: AlertTriangle },
   { name: "Stay Modifications", href: "/bookings/stay-modifications", icon: Clock },
+  // ─── Operations ─────────────────────────────────────────────────────────
+  { name: "Lost & Found", href: "/lost-found", icon: Search },
+  { name: "Wake-up Calls", href: "/wakeup-calls", icon: Bell },
+  { name: "Taxi Bookings", href: "/taxi-bookings", icon: Car },
+  { name: "Discount Approvals", href: "/discount-approvals", icon: Percent },
+  { name: "Price Overrides", href: "/price-overrides", icon: DollarSign },
   { name: "Daily Report", href: "/reports/daily", icon: BarChart3 },
 ];
 

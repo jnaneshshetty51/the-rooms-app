@@ -3,10 +3,25 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { cn } from "@the-rooms/ui";
-import { Loader2, ArrowLeft, CheckCircle, AlertCircle, Receipt, Mail, Download } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle, AlertCircle, Receipt, Mail, Download, Clock, AlertTriangle, DollarSign } from "lucide-react";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
 
-interface Booking { id: string; bookingNumber: string; status: string; paymentStatus: string; checkIn: string; checkOut: string; totalAmount: string; guest: { name: string; phone: string; email?: string }; room: { roomNumber: string; type: string }; payments: Array<{ id: string; amount: string; method: string; status: string }> }
+interface Booking {
+  id: string;
+  bookingNumber: string;
+  status: string;
+  paymentStatus: string;
+  checkIn: string;
+  checkOut: string;
+  totalAmount: string;
+  guest: { name: string; phone: string; email?: string };
+  room: { roomNumber: string; type: string };
+  payments: Array<{ id: string; amount: string; method: string; status: string }>;
+  damageAssessments?: Array<{ id: string; amount: string; status: string; type: string; description: string }>;
+  lateCheckoutFee?: { amount: string; reason: string };
+  expressCheckoutEligible?: boolean;
+  expressCheckoutSession?: { id: string; status: string };
+}
 
 export default function CheckOutPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -22,14 +37,14 @@ export default function CheckOutPage({ params }: { params: Promise<{ id: string 
 
   useEffect(() => {
     async function fetchBooking() {
-      try { 
-        const res = await fetch(`/api/bookings/${id}`); 
-        if (!res.ok) throw new Error("Not found"); 
+      try {
+        const res = await fetch(`/api/bookings/${id}`);
+        if (!res.ok) throw new Error("Not found");
         const data = await res.json();
         if (data.status === "CHECKED_OUT") setError("Already checked out");
-        setBooking(data); 
-        
-        const paid = data.payments.filter((p: { status: string }) => p.status === "PAID").reduce((s: number, p: { amount: string }) => s + Number(p.amount), 0); 
+        setBooking(data);
+
+        const paid = data.payments.filter((p: { status: string }) => p.status === "PAID").reduce((s: number, p: { amount: string }) => s + Number(p.amount), 0);
         const balance = Number(data.totalAmount) - paid;
         if (balance > 0) {
           setFinalPayment(balance);
@@ -103,7 +118,7 @@ export default function CheckOutPage({ params }: { params: Promise<{ id: string 
           <p className="text-gray-500 mt-2">{booking?.guest.name} checked out of Room {booking?.room.roomNumber}</p>
         </div>
         <p className="text-sm text-green-600">Room {booking?.room.roomNumber} is now Vacant</p>
-        
+
         {invoiceReady && (
           <button onClick={handleDownloadInvoice} className="mx-auto flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
             <Download className="h-4 w-4" /> Download Invoice
@@ -144,11 +159,83 @@ export default function CheckOutPage({ params }: { params: Promise<{ id: string 
         </div>
       </div>
 
+      {/* Late Checkout Fee Section */}
+      {booking?.lateCheckoutFee && Number(booking.lateCheckoutFee.amount) > 0 && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-6 space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2 text-orange-800">
+            <Clock className="h-5 w-5" /> Late Checkout Fee
+          </h3>
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-sm text-orange-700">{booking.lateCheckoutFee.reason || "Late checkout charges applied"}</p>
+            </div>
+            <p className="text-xl font-bold text-orange-600">{formatCurrency(Number(booking.lateCheckoutFee.amount))}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Damage Charges Section */}
+      {booking?.damageAssessments && booking.damageAssessments.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2 text-red-800">
+            <AlertTriangle className="h-5 w-5" /> Damage Charges
+          </h3>
+          {booking.damageAssessments
+            .filter((d) => d.status === "APPROVED" || d.status === "ADDED_TO_FOLIO")
+            .map((damage) => (
+              <div key={damage.id} className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-medium text-red-700">{damage.type.replace("_", " ")}</p>
+                  <p className="text-xs text-red-600">{damage.description}</p>
+                </div>
+                <p className="font-semibold text-red-600">{formatCurrency(Number(damage.amount))}</p>
+              </div>
+            ))}
+          <div className="flex justify-between font-semibold border-t border-red-200 pt-2">
+            <span>Total Damage Charges</span>
+            <span className="text-red-600">
+              {formatCurrency(
+                booking.damageAssessments
+                  .filter((d) => d.status === "APPROVED" || d.status === "ADDED_TO_FOLIO")
+                  .reduce((sum, d) => sum + Number(d.amount), 0)
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Dues Warning */}
+      {balanceDue > 0 && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-orange-800">Pending Dues</p>
+              <p className="text-sm text-orange-700 mt-1">
+                Guest has pending dues of {formatCurrency(balanceDue)}. Please collect payment before check-out.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border bg-white p-6 space-y-4">
         <h3 className="text-lg font-semibold flex items-center gap-2"><Receipt className="h-5 w-5" />Payment Summary</h3>
         <div className="space-y-2">
           <div className="flex justify-between text-sm"><span className="text-gray-600">Total</span><span>{formatCurrency(totalAmount)}</span></div>
           <div className="flex justify-between text-sm text-green-600"><span>Paid</span><span>-{formatCurrency(totalPaid)}</span></div>
+          {booking?.lateCheckoutFee && Number(booking.lateCheckoutFee.amount) > 0 && (
+            <div className="flex justify-between text-sm text-orange-600">
+              <span>Late Checkout Fee</span>
+              <span>+{formatCurrency(Number(booking.lateCheckoutFee.amount))}</span>
+            </div>
+          )}
+          {booking?.damageAssessments && booking.damageAssessments.filter((d) => d.status === "APPROVED" || d.status === "ADDED_TO_FOLIO").length > 0 && (
+            <div className="flex justify-between text-sm text-red-600">
+              <span>Damage Charges</span>
+              <span>+{formatCurrency(booking.damageAssessments.filter((d) => d.status === "APPROVED" || d.status === "ADDED_TO_FOLIO").reduce((sum, d) => sum + Number(d.amount), 0))}</span>
+            </div>
+          )}
           <div className="flex justify-between font-semibold text-lg border-t pt-2">
             <span>Balance</span>
             <span className={balanceDue > 0 ? "text-orange-600" : (balanceDue < 0 ? "text-blue-600" : "text-green-600")}>
@@ -208,6 +295,39 @@ export default function CheckOutPage({ params }: { params: Promise<{ id: string 
           </button>
         </div>
       </div>
+
+      {/* Express Checkout Option */}
+      {booking?.expressCheckoutEligible && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                <DollarSign className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium text-blue-900">Express Checkout Available</p>
+                <p className="text-sm text-blue-700">Guest can complete check-out via guest portal</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {booking.expressCheckoutSession ? (
+                <span className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium",
+                  booking.expressCheckoutSession.status === "COMPLETED"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-orange-100 text-orange-700"
+                )}>
+                  {booking.expressCheckoutSession.status.replace("_", " ")}
+                </span>
+              ) : (
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                  Eligible
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <button onClick={handleCheckOut} className="w-full rounded-lg bg-[#E17055] py-4 text-white hover:bg-[#D35B3F] flex items-center justify-center gap-2">
         <CheckCircle className="h-5 w-5" />Complete Check-Out

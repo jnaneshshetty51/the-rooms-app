@@ -53,7 +53,6 @@ export async function GET(
             payments: true,
           },
         },
-        damageAssessments: true,
       },
     });
 

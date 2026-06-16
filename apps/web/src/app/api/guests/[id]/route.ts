@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@the-rooms/auth';
-import { ok, notFound, badRequest, unauthorized, forbidden } from '@the-rooms/api';
+import { ok, notFound, badRequest, unauthorized, forbidden, serverError } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 
 import { db } from '@the-rooms/db';
@@ -31,6 +31,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    const userRole = session.user.role;
+
+    // Staff roles can access any guest record
+    const isStaff = ['SUPER_ADMIN', 'ADMIN', 'FRONT_OFFICE'].includes(userRole);
+
+    if (!isStaff) {
+      // GUEST role can only access their own guest record
+      // Find guest by matching email to the authenticated user's email
+      const guestByEmail = await db.guest.findFirst({
+        where: { email: session.user.email ?? '' },
+      });
+
+      if (!guestByEmail || guestByEmail.id !== id) {
+        return forbidden();
+      }
+    }
 
     const guest = await db.guest.findUnique({
       where: { id },
@@ -56,7 +72,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return ok(guest);
   } catch (error) {
     console.error('[Get Guest] Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return serverError();
   }
 }
 
@@ -139,6 +155,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return badRequest(error.errors.map((e) => e.message).join(', '));
     }
     console.error('[Update Guest] Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return serverError();
   }
 }

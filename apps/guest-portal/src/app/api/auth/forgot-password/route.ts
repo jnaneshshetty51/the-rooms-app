@@ -10,6 +10,26 @@ const forgotPasswordSchema = z.object({
   email: z.string().email(),
 })
 
+// In-memory rate limiter (5 requests per minute per IP)
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now()
+  const record = rateLimitStore.get(ip)
+
+  if (!record || now > record.resetAt) {
+    rateLimitStore.set(ip, { count: 1, resetAt: now + 60 * 1000 })
+    return { allowed: true }
+  }
+
+  if (record.count >= 5) {
+    return { allowed: false, retryAfter: Math.ceil((record.resetAt - now) / 1000) }
+  }
+
+  record.count++
+  return { allowed: true }
+}
+
 // ─── Signed Token ─────────────────────────────────────────────────────────────
 // Token format: base64url(JSON({email, exp})).hmac-sha256(payload, NEXTAUTH_SECRET)
 // No DB storage needed — the signature proves authenticity; exp proves freshness.
@@ -28,6 +48,24 @@ function generateResetToken(email: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 requests per minute per IP
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      ?? request.headers.get('x-real-ip')
+      ?? 'unknown'
+    const rateLimitResult = checkRateLimit(clientIp)
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many password reset attempts. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimitResult.retryAfter ?? 60),
+          }
+        }
+      )
+    }
+
     const body = await request.json()
     const parsed = forgotPasswordSchema.safeParse(body)
 
@@ -58,7 +96,9 @@ export async function POST(request: NextRequest) {
 
     const resendApiKey = process.env.RESEND_API_KEY
     if (!resendApiKey) {
-      console.warn("[forgot-password] RESEND_API_KEY not configured — skipping email")
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn("[forgot-password] RESEND_API_KEY not configured")
+      }
       return NextResponse.json({
         success: true,
         message: "If an account exists with this email, you will receive a password reset link.",

@@ -1,331 +1,267 @@
 "use client";
 
 // apps/admin/src/app/(dashboard)/housekeeping/page.tsx
-// Housekeeping Management - Room cleaning queue, staff assignment, status tracking
-
 import { useEffect, useState, useCallback } from "react";
-import {
-    RefreshCw,
-    Sparkles,
-    Trash2,
-    Clock,
-    CheckCircle,
-    Users,
-    Filter,
-    BedDouble,
-} from "lucide-react";
+import { Calendar, User, CheckCircle, Clock, Filter, Plus } from "lucide-react";
 import {
     PageHeader,
     Button,
-    Select,
-    SelectTrigger,
-    SelectContent,
-    SelectValue,
     Card,
     CardContent,
     CardHeader,
     CardTitle,
+    Select,
+    SelectTrigger,
+    SelectContent,
+    SelectValue,
+    Input,
     Badge,
+    Progress,
+    StatCard,
 } from "@the-rooms/ui";
 import { formatDate } from "@the-rooms/ui";
-import { cn } from "@the-rooms/ui";
+import {
+    fetchHousekeepingTasks,
+    fetchHousekeepingAssignments,
+    fetchHousekeepingProgress,
+    assignHousekeepingTask,
+    updateHousekeepingTaskStatus,
+    type HousekeepingTask,
+} from "@/lib/api";
 
-interface HousekeepingRoom {
-    id: string;
-    roomNumber: string;
-    type: string;
-    floor: number;
-    status: "CLEAN" | "DIRTY" | "CLEANING";
-    currentBooking: { guestName: string; checkOut: string } | null;
-    assignedTo: { id: string; name: string } | null;
-    updatedAt: string;
-    notes: string | null;
+interface StaffProgress {
+    staffId: string;
+    staffName: string;
+    totalTasks: number;
+    completedTasks: number;
+    inProgressTasks: number;
 }
-
-interface HousekeepingStats {
-    totalRooms: number;
-    clean: number;
-    dirty: number;
-    cleaning: number;
-    assignedToday: number;
-}
-
-interface Staff {
-    id: string;
-    name: string;
-    roomsAssigned: number;
-    status: "AVAILABLE" | "BUSY" | "OFF";
-}
-
-interface HousekeepingResponse {
-    rooms: HousekeepingRoom[];
-    stats: HousekeepingStats;
-    staff: Staff[];
-}
-
-const STATUS_CONFIG = {
-    CLEAN: { label: "Clean", bg: "bg-green-100", text: "text-green-700", icon: Sparkles },
-    DIRTY: { label: "Dirty", bg: "bg-red-100", text: "text-red-700", icon: Trash2 },
-    CLEANING: { label: "Cleaning", bg: "bg-blue-100", text: "text-blue-700", icon: Clock },
-};
 
 export default function HousekeepingPage() {
-    const [data, setData] = useState<HousekeepingResponse | null>(null);
+    const [tasks, setTasks] = useState<{ tasks: HousekeepingTask[]; total: number } | null>(null);
+    const [assignments, setAssignments] = useState<Record<string, unknown>[]>([]);
+    const [progress, setProgress] = useState<StaffProgress[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState<string>("all");
-    const [staffFilter, setStaffFilter] = useState<string>("all");
+    const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+    const [statusFilter, setStatusFilter] = useState("ALL");
 
-    const fetchHousekeeping = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch("/api/housekeeping/rooms");
-            if (res.ok) {
-                setData(await res.json());
-            }
+            const [tasksData, assignmentsData, progressData] = await Promise.all([
+                fetchHousekeepingTasks({ date }),
+                fetchHousekeepingAssignments(date),
+                fetchHousekeepingProgress(date),
+            ]);
+            setTasks(tasksData);
+            setAssignments(assignmentsData.assignments || []);
+            setProgress(progressData.progress || []);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [date]);
 
-    useEffect(() => { fetchHousekeeping(); }, [fetchHousekeeping]);
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
-    const updateRoomStatus = async (roomId: string, status: string, staffId?: string) => {
-        await fetch(`/api/housekeeping/rooms/${roomId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status, staffId }),
-        });
-        fetchHousekeeping();
+    const handleStatusUpdate = async (taskId: string, status: string) => {
+        await updateHousekeepingTaskStatus(taskId, status);
+        fetchData();
     };
 
-    const filteredRooms = data?.rooms.filter((room) => {
-        if (filter !== "all" && room.status !== filter.toUpperCase()) return false;
-        if (staffFilter !== "all" && room.assignedTo?.id !== staffFilter) return false;
-        return true;
-    }) ?? [];
+    const filteredTasks = tasks?.tasks.filter((t) =>
+        statusFilter === "ALL" ? true : t.status === statusFilter
+    ) ?? [];
 
-    const roomsByFloor = filteredRooms.reduce((acc, room) => {
-        if (!acc[room.floor]) acc[room.floor] = [];
-        acc[room.floor].push(room);
-        return acc;
-    }, {} as Record<number, HousekeepingRoom[]>);
-
-    const floors = Object.keys(roomsByFloor).map(Number).sort((a, b) => a - b);
-
-    if (loading && !data) {
-        return (
-            <div className="flex h-[60vh] items-center justify-center">
-                <RefreshCw className="h-8 w-8 animate-spin text-[#E17055]" />
-            </div>
-        );
-    }
+    const stats = tasks ? {
+        total: tasks.total,
+        pending: tasks.tasks.filter((t) => t.status === "PENDING").length,
+        inProgress: tasks.tasks.filter((t) => t.status === "IN_PROGRESS").length,
+        completed: tasks.tasks.filter((t) => t.status === "COMPLETED").length,
+    } : { total: 0, pending: 0, inProgress: 0, completed: 0 };
 
     return (
         <div className="space-y-6">
-            {/* Header */}
             <PageHeader
-                title="Housekeeping"
-                description="Room cleaning queue, staff assignment, and status tracking"
+                title="Housekeeping Management"
+                description="Manage daily housekeeping tasks and staff assignments"
                 actions={
-                    <div className="flex items-center gap-3">
-                        <Button variant="outline" size="sm" onClick={fetchHousekeeping} disabled={loading}>
-                            <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-                            Refresh
-                        </Button>
-                    </div>
+                    <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Task
+                    </Button>
                 }
             />
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="text-center">
-                            <p className="text-3xl font-bold">{data?.stats.totalRooms ?? 0}</p>
-                            <p className="text-xs text-muted-foreground">Total Rooms</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-green-200">
-                    <CardContent className="pt-6">
-                        <div className="text-center">
-                            <p className="text-3xl font-bold text-green-600">{data?.stats.clean ?? 0}</p>
-                            <p className="text-xs text-muted-foreground">Clean</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-red-200">
-                    <CardContent className="pt-6">
-                        <div className="text-center">
-                            <p className="text-3xl font-bold text-red-600">{data?.stats.dirty ?? 0}</p>
-                            <p className="text-xs text-muted-foreground">Dirty</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-blue-200">
-                    <CardContent className="pt-6">
-                        <div className="text-center">
-                            <p className="text-3xl font-bold text-blue-600">{data?.stats.cleaning ?? 0}</p>
-                            <p className="text-xs text-muted-foreground">Cleaning</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="text-center">
-                            <p className="text-3xl font-bold">{data?.stats.assignedToday ?? 0}</p>
-                            <p className="text-xs text-muted-foreground">Assigned Today</p>
-                        </div>
-                    </CardContent>
-                </Card>
+            {/* Stats */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard label="Total Tasks" value={stats.total} icon={Calendar} />
+                <StatCard
+                    label="Pending"
+                    value={stats.pending}
+                    icon={Clock}
+                    className={stats.pending > 0 ? "border-l-4 border-l-warning" : ""}
+                />
+                <StatCard label="In Progress" value={stats.inProgress} icon={User} />
+                <StatCard label="Completed" value={stats.completed} icon={CheckCircle} />
             </div>
 
             {/* Filters */}
             <div className="flex flex-wrap gap-3">
-                <Select value={filter} onValueChange={setFilter}>
+                <Input
+                    type="date"
+                    className="w-[160px]"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-[150px]">
                         <Filter className="h-4 w-4 mr-1.5 text-muted-foreground" />
-                        <SelectValue />
+                        <span>{statusFilter === "ALL" ? "All Status" : statusFilter.replace("_", " ")}</span>
                     </SelectTrigger>
                     <SelectContent>
-                        <option value="all">All Status</option>
-                        <option value="clean">Clean</option>
-                        <option value="dirty">Dirty</option>
-                        <option value="cleaning">Cleaning</option>
-                    </SelectContent>
-                </Select>
-                <Select value={staffFilter} onValueChange={setStaffFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <Users className="h-4 w-4 mr-1.5 text-muted-foreground" />
-                        <SelectValue placeholder="All Staff" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <option value="all">All Staff</option>
-                        {data?.staff.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name} ({s.roomsAssigned})</option>
-                        ))}
+                        <option value="ALL">All Status</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="COMPLETED">Completed</option>
                     </SelectContent>
                 </Select>
             </div>
 
-            {/* Room Grid by Floor */}
-            <div className="space-y-6">
-                {floors.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-300 py-16 text-center">
-                        <p className="text-gray-400">No rooms match this filter.</p>
-                    </div>
-                ) : floors.map((floor) => (
-                    <div key={floor}>
-                        <h3 className="mb-3 text-sm font-semibold uppercase tracking-widest text-gray-500">
-                            Floor {floor}
-                        </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                            {roomsByFloor[floor].map((room) => {
-                                const config = STATUS_CONFIG[room.status];
-                                const StatusIcon = config.icon;
-
-                                return (
-                                    <Card
-                                        key={room.id}
-                                        className={cn(
-                                            "transition-all hover:shadow-md",
-                                            room.status === "DIRTY" && "border-red-300 bg-red-50",
-                                            room.status === "CLEANING" && "border-blue-300 bg-blue-50",
-                                            room.status === "CLEAN" && "border-green-300 bg-green-50"
-                                        )}
-                                    >
-                                        <CardContent className="p-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-lg font-bold">{room.roomNumber}</span>
-                                                <StatusIcon className={cn("h-4 w-4", config.text)} />
+            <div className="grid gap-6 lg:grid-cols-3">
+                {/* Tasks List */}
+                <div className="lg:col-span-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="font-heading text-lg">Housekeeping Tasks - {formatDate(date, "long")}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {loading ? (
+                                <div className="space-y-3">
+                                    {[...Array(5)].map((_, i) => (
+                                        <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
+                                    ))}
+                                </div>
+                            ) : filteredTasks.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <Calendar className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                                    <p className="text-sm text-muted-foreground">No tasks found</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {filteredTasks.map((task) => (
+                                        <div
+                                            key={task.id}
+                                            className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-2 h-2 rounded-full ${task.status === "COMPLETED" ? "bg-success" :
+                                                    task.status === "IN_PROGRESS" ? "bg-warning" :
+                                                        "bg-muted-foreground"
+                                                    }`} />
+                                                <div>
+                                                    <p className="font-semibold">Room {task.room.roomNumber}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {task.room.type} · {task.type.replace("_", " ")}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <p className={cn("text-xs font-medium", config.text)}>{config.label}</p>
-                                            <p className="text-[10px] text-gray-500 mt-1">{room.type}</p>
-
-                                            {room.assignedTo && (
-                                                <p className="text-[10px] text-blue-600 mt-1 truncate">
-                                                    Assigned: {room.assignedTo.name}
-                                                </p>
-                                            )}
-
-                                            {room.currentBooking && room.status !== "CLEAN" && (
-                                                <p className="text-[10px] text-gray-400 mt-1 truncate">
-                                                    Guest: {room.currentBooking.guestName}
-                                                </p>
-                                            )}
-
-                                            {/* Quick Actions */}
-                                            <div className="flex gap-1 mt-2">
-                                                {room.status === "DIRTY" && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 w-7 p-0"
-                                                        onClick={() => updateRoomStatus(room.id, "CLEANING")}
-                                                        title="Start Cleaning"
-                                                    >
-                                                        <Clock className="h-3 w-3" />
-                                                    </Button>
-                                                )}
-                                                {room.status === "CLEANING" && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 w-7 p-0 text-green-600"
-                                                        onClick={() => updateRoomStatus(room.id, "CLEAN")}
-                                                        title="Mark Clean"
-                                                    >
-                                                        <CheckCircle className="h-3 w-3" />
-                                                    </Button>
-                                                )}
-                                                {room.status === "CLEAN" && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 w-7 p-0 text-red-600"
-                                                        onClick={() => updateRoomStatus(room.id, "DIRTY")}
-                                                        title="Mark Dirty"
-                                                    >
-                                                        <Trash2 className="h-3 w-3" />
-                                                    </Button>
-                                                )}
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-right">
+                                                    {task.assignedTo ? (
+                                                        <>
+                                                            <p className="text-sm font-medium">{task.assignedTo.name}</p>
+                                                            <p className="text-xs text-muted-foreground">Assigned</p>
+                                                        </>
+                                                    ) : (
+                                                        <p className="text-sm text-muted-foreground">Unassigned</p>
+                                                    )}
+                                                </div>
+                                                <Badge variant={
+                                                    task.status === "COMPLETED" ? "success" :
+                                                        task.status === "IN_PROGRESS" ? "warning" :
+                                                            "secondary"
+                                                }>
+                                                    {task.status.replace("_", " ")}
+                                                </Badge>
+                                                <div className="flex items-center gap-1">
+                                                    {task.status === "PENDING" && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleStatusUpdate(task.id, "IN_PROGRESS")}
+                                                        >
+                                                            Start
+                                                        </Button>
+                                                    )}
+                                                    {task.status === "IN_PROGRESS" && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleStatusUpdate(task.id, "COMPLETED")}
+                                                        >
+                                                            Complete
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            })}
-                        </div>
-                    </div>
-                ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Staff Progress */}
+                <div>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="font-heading text-lg">Staff Progress</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {loading ? (
+                                <div className="space-y-3">
+                                    {[...Array(3)].map((_, i) => (
+                                        <div key={i} className="h-20 animate-pulse rounded-lg bg-muted" />
+                                    ))}
+                                </div>
+                            ) : progress.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <User className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                                    <p className="text-sm text-muted-foreground">No staff assigned</p>
+                                </div>
+                            ) : (
+                                progress.map((staff) => {
+                                    const percent = staff.totalTasks > 0
+                                        ? Math.round((staff.completedTasks / staff.totalTasks) * 100)
+                                        : 0;
+                                    return (
+                                        <div key={staff.staffId} className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                                                        <User className="h-4 w-4" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-medium">{staff.staffName}</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {staff.completedTasks}/{staff.totalTasks} tasks
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-sm font-semibold">{percent}%</span>
+                                            </div>
+                                            <Progress value={percent} className="h-2" />
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
-
-            {/* Staff Overview */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                        <Users className="h-5 w-5" />
-                        Staff Overview
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {data?.staff.map((member) => (
-                            <div key={member.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
-                                        {member.name.charAt(0)}
-                                    </div>
-                                    <span className="text-sm font-medium">{member.name}</span>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-bold">{member.roomsAssigned}</p>
-                                    <p className="text-[10px] text-muted-foreground">rooms</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     );
 }
