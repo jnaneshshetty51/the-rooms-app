@@ -17,7 +17,7 @@ const updatePreferencesSchema = z.object({
     preferredAmenities: z.array(z.string()).optional(),
     dislikedAmenities: z.array(z.string()).optional(),
     dietaryRestrictions: z.array(z.string()).optional(),
-    preferredChannel: z.enum(['EMAIL', 'SMS', 'WHATSAPP', 'CALL']).optional(),
+    preferredChannel: z.enum(['EMAIL', 'SMS', 'WHATSAPP', 'PUSH']).optional(),
     notes: z.string().optional(),
     isVegetarian: z.boolean().optional(),
     hasAllergies: z.boolean().optional(),
