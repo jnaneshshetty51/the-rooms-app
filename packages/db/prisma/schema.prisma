@@ -138,6 +138,8 @@ model Guest {
   loyaltyTier     LoyaltyTier @default(BRONZE)
   notes           String?
   
+  tags            Json      @default("[]")
+
   // Blacklist flags (quick access - actual blacklist is in GuestBlacklist table)
   isBlacklisted   Boolean   @default(false)
   blacklistReason String?

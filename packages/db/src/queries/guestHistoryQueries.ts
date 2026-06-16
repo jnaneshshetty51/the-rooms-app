@@ -70,7 +70,7 @@ export async function updateGuestPreferences(
  * Get complete guest history
  */
 export async function getGuestHistory(guestId: string) {
-    const [guest, preferences, bookings, payments, feedback, notes] = await Promise.all([
+    const [guest, preferences, bookings, payments, notes] = await Promise.all([
         prisma.guest.findUnique({
             where: { id: guestId },
         }),
@@ -85,10 +85,6 @@ export async function getGuestHistory(guestId: string) {
         }),
         prisma.payment.findMany({
             where: { booking: { guestId } },
-            orderBy: { createdAt: 'desc' },
-        }),
-        prisma.feedback.findMany({
-            where: { guestId },
             orderBy: { createdAt: 'desc' },
         }),
         prisma.guestNote.findMany({
@@ -121,7 +117,7 @@ export async function getGuestHistory(guestId: string) {
         },
         recentBookings: bookings.slice(0, 10),
         recentPayments: payments.slice(0, 10),
-        recentFeedback: feedback.slice(0, 5),
+        recentFeedback: [],
         recentNotes: notes.slice(0, 10),
     };
 }
