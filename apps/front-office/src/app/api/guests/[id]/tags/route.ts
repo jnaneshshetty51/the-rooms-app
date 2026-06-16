@@ -78,7 +78,7 @@ export async function POST(
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string; tag: string }> }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await auth();
@@ -86,7 +86,8 @@ export async function DELETE(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id, tag } = await params;
+        const { id } = await params;
+        const tag = new URL(request.url).searchParams.get('tag') ?? '';
         const { untagGuest } = await import('@the-rooms/db/queries/guestHistoryQueries');
         const tags = await untagGuest(id, tag as 'VIP' | 'REGULAR' | 'PROBLEM' | 'LONG_STAY' | 'CORPORATE' | 'HONEYMOON' | 'BIRTHDAY' | 'TRAVEL_AGENT' | 'OTA_GUEST');
 
