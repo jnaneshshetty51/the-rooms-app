@@ -163,7 +163,6 @@ export async function updateLostAndFoundItem(id: string, data: UpdateLostAndFoun
     if (data.color !== undefined) updateData.color = data.color;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.claimedDate !== undefined) updateData.claimedDate = data.claimedDate;
-    if (data.notes !== undefined) updateData.notes = data.notes;
 
     return prisma.lostAndFound.update({
         where: { id },
