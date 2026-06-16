@@ -154,7 +154,7 @@ export async function approveDiscountRequest(
         where: { id: request.bookingId },
         data: {
             discountAmount: new Decimal(newDiscountAmount),
-            totalAmount: new Decimal(roomAmount - newDiscountAmount + (booking.taxesAmount?.toNumber() || 0) + (booking.extrasAmount?.toNumber() || 0)),
+            totalAmount: new Decimal(roomAmount - newDiscountAmount + (booking.extrasAmount?.toNumber() || 0)),
         },
     });
 
