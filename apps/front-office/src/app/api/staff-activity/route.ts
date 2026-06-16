@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
         }
 
         const { searchParams } = new URL(request.url);
-        const query = searchParams.get("query") || undefined;
+        const query = searchParams.get("query") || '';
         const staffId = searchParams.get("staffId") || undefined;
         const startDateParam = searchParams.get("startDate");
         const endDateParam = searchParams.get("endDate");
