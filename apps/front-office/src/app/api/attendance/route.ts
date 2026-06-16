@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
         // Verify staff exists
         const staff = await db.staffProfile.findUnique({
             where: { id: data.staffId },
+            include: { user: true },
         });
 
         if (!staff) {
