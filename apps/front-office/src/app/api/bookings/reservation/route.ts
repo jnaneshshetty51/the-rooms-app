@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         };
 
         if (status) {
-            where.status = status as Prisma.BookingStatusFilter;
+            where.status = status as Prisma.EnumBookingStatusFilter;
         }
 
         if (checkInFrom || checkInTo) {
