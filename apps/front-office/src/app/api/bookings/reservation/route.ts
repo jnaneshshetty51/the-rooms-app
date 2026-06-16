@@ -446,9 +446,8 @@ export async function POST(request: NextRequest) {
 
         if (error instanceof z.ZodError) {
             return badRequest(
-                'Validation error',
-                'VALIDATION_ERROR',
-                error.errors as unknown as Record<string, string[]>
+                error.errors.map(e => e.message).join(', '),
+                'VALIDATION_ERROR'
             );
         }
 
