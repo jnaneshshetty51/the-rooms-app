@@ -60,7 +60,7 @@ export async function requestEarlyCheckIn(
 
         if (!isEarly) {
             // Not early check-in, just regular check-in
-            return { type: 'REGULAR', noCharge: true, canCheckIn: true };
+            return { success: true, type: 'REGULAR', noCharge: true, canCheckIn: true };
         }
 
         // 4. Check room status
@@ -80,6 +80,7 @@ export async function requestEarlyCheckIn(
             // Room ready
             if (requestedHour < freeEarlyHour) {
                 return {
+                    success: true,
                     type: 'EARLY',
                     noCharge: true,
                     canCheckIn: true,
@@ -88,6 +89,7 @@ export async function requestEarlyCheckIn(
             }
 
             return {
+                success: true,
                 type: 'EARLY',
                 noCharge: false,
                 fee,
@@ -131,6 +133,7 @@ export async function requestEarlyCheckIn(
         });
 
         return {
+            success: true,
             type: 'EARLY',
             noCharge: fee === 0,
             fee,
