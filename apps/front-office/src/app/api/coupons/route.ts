@@ -22,7 +22,7 @@ const createCouponSchema = z.object({
     maxNights: z.number().int().positive().optional(),
     minBookingValue: z.number().positive().optional(),
     maxBookingValue: z.number().positive().optional(),
-    applicableRoomTypes: z.array(z.enum(['STUDIO', 'PREMIUM', 'SUITE'])).optional(),
+    applicableRoomTypes: z.array(z.enum(['STUDIO', 'PREMIUM'])).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -43,7 +43,12 @@ export async function POST(request: NextRequest) {
         }
 
         const { createCoupon } = await import('@the-rooms/db/queries/couponQueries');
-        const coupon = await createCoupon(parsed.data);
+        const couponData = {
+            ...parsed.data,
+            validFrom: parsed.data.validFrom ? new Date(parsed.data.validFrom) : undefined,
+            validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : undefined,
+        };
+        const coupon = await createCoupon(couponData);
 
         const userId = (session.user as { id: string }).id;
         await createAuditLog({
