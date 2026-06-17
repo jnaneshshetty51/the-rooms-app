@@ -305,7 +305,6 @@ export async function createRoomHold(
             bookingId,
             waitlistId,
             expiresAt,
-            priority,
         },
         include: {
             room: { select: { roomNumber: true, type: true } },
@@ -342,6 +341,6 @@ export async function getRoomHolds(roomId: string) {
         include: {
             room: { select: { roomNumber: true } },
         },
-        orderBy: { priority: 'desc' },
+        orderBy: { createdAt: 'desc' },
     });
 }

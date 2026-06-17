@@ -219,7 +219,8 @@ export async function getOfflineEntryConflicts(entryId: string) {
                 where: { phone: data.guestPhone },
             });
 
-            if (existingGuest && entry.entryData.guestId && existingGuest.id !== entry.entryData.guestId) {
+            const entryDataObj = entry.entryData as Record<string, unknown> | null;
+            if (existingGuest && entryDataObj?.guestId && existingGuest.id !== entryDataObj.guestId) {
                 conflicts.push({
                     type: 'DUPLICATE_GUEST',
                     description: `A guest with phone ${data.guestPhone} already exists: ${existingGuest.name}`,
