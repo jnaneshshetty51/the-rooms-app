@@ -2,6 +2,7 @@
 // SMS/WhatsApp/Email Notification Queries
 
 import prisma from '../index';
+import { NotificationChannel, NotificationStatus, NotificationTrigger } from '@prisma/client';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
