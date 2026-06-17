@@ -79,7 +79,6 @@ export async function reportMaintenance(params: ReportMaintenanceParams) {
             where: { id: roomId },
             data: {
                 status: 'MAINTENANCE',
-                roomStatusOverride: 'MAINTENANCE',
             },
         });
 
