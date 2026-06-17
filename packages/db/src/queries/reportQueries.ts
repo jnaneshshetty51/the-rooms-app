@@ -125,7 +125,7 @@ export async function generateDailyOccupancyReport(
         };
 
         // Upsert the report
-        const report = await tx.dailyOccupancyReport.upsert({
+        await tx.dailyOccupancyReport.upsert({
             where: {
                 propertyId_reportDate: {
                     propertyId,
@@ -136,7 +136,7 @@ export async function generateDailyOccupancyReport(
             update: reportData,
         });
 
-        return report;
+        return reportData;
     });
 }
 
