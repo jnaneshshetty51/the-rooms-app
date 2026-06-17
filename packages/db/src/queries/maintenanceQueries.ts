@@ -1,6 +1,5 @@
 import prisma from '../index';
-import { Decimal } from '@prisma/client/runtime/library';
-import { MaintenanceType, MaintenanceStatus, Priority, RoomStatus } from '@prisma/client';
+import { Prisma, MaintenanceType, MaintenanceStatus, Priority, RoomStatus } from '@prisma/client';
 
 /**
  * ─── Room Maintenance Queries (Scenarios 43-44) ───────────────────────────
@@ -67,7 +66,7 @@ export async function reportMaintenance(params: ReportMaintenanceParams) {
                 priority,
                 issue,
                 description,
-                estimatedCost: estimatedCost ? new Decimal(estimatedCost) : undefined,
+                estimatedCost: estimatedCost ? new Prisma.Decimal(estimatedCost) : undefined,
                 scheduledDate,
                 status: 'REPORTED',
                 createdById: reportedById,
@@ -171,7 +170,6 @@ export async function updateMaintenanceStatus(params: UpdateMaintenanceStatusPar
                 where: { id: existing.roomId },
                 data: {
                     status: 'VACANT',
-                    roomStatusOverride: null,
                 },
             });
         }
@@ -248,7 +246,7 @@ export async function completeMaintenance(params: CompleteMaintenanceParams) {
                 resolution,
                 resolvedBy,
                 completedAt: new Date(),
-                actualCost: actualCost ? new Decimal(actualCost) : undefined,
+                actualCost: actualCost ? new Prisma.Decimal(actualCost) : undefined,
             },
         });
 
@@ -257,7 +255,6 @@ export async function completeMaintenance(params: CompleteMaintenanceParams) {
             where: { id: existing.roomId },
             data: {
                 status: 'VACANT',
-                roomStatusOverride: null,
             },
         });
 
@@ -434,7 +431,6 @@ export async function cancelMaintenance(params: CancelMaintenanceParams) {
             where: { id: existing.roomId },
             data: {
                 status: 'VACANT',
-                roomStatusOverride: null,
             },
         });
 
