@@ -242,7 +242,6 @@ export async function getSeasonalRates(params: GetSeasonalRatesParams) {
         where,
         orderBy: [
             { startDate: 'asc' },
-            { priority: 'desc' },
         ],
     });
 
