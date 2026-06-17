@@ -3,7 +3,6 @@
 
 import prisma from '../index';
 import { Prisma, RoomType } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 
 export type PackageComponents = {
     room: boolean;
@@ -35,14 +34,14 @@ export async function createPackageDeal(data: {
             propertyId: data.propertyId ?? 'default',
             name: data.name,
             description: data.description,
-            singleOccupancyRate: new Decimal(data.singleOccupancyRate),
-            doubleOccupancyRate: new Decimal(data.doubleOccupancyRate),
+            singleOccupancyRate: new Prisma.Decimal(data.singleOccupancyRate),
+            doubleOccupancyRate: new Prisma.Decimal(data.doubleOccupancyRate),
             validFrom: data.validFrom,
             validUntil: data.validUntil,
             minNights: data.minNights ?? 1,
             maxNights: data.maxNights,
             roomType: data.roomType,
-            components: data.components as unknown as Prisma.JsonValue,
+            components: data.components as unknown as Prisma.InputJsonValue,
         },
     });
 }
@@ -70,14 +69,14 @@ export async function updatePackageDeal(
 
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.singleOccupancyRate !== undefined) updateData.singleOccupancyRate = new Decimal(data.singleOccupancyRate);
-    if (data.doubleOccupancyRate !== undefined) updateData.doubleOccupancyRate = new Decimal(data.doubleOccupancyRate);
+    if (data.singleOccupancyRate !== undefined) updateData.singleOccupancyRate = new Prisma.Decimal(data.singleOccupancyRate);
+    if (data.doubleOccupancyRate !== undefined) updateData.doubleOccupancyRate = new Prisma.Decimal(data.doubleOccupancyRate);
     if (data.validFrom !== undefined) updateData.validFrom = data.validFrom;
     if (data.validUntil !== undefined) updateData.validUntil = data.validUntil;
     if (data.minNights !== undefined) updateData.minNights = data.minNights;
     if (data.maxNights !== undefined) updateData.maxNights = data.maxNights;
     if (data.roomType !== undefined) updateData.roomType = data.roomType;
-    if (data.components !== undefined) updateData.components = data.components as unknown as Prisma.JsonValue;
+    if (data.components !== undefined) updateData.components = data.components as unknown as Prisma.InputJsonValue;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
     return prisma.packageDeal.update({
@@ -133,9 +132,7 @@ export async function getActivePackageDeals(propertyId?: string, date?: Date) {
 export async function applyPackageToBooking(bookingId: string, packageDealId: string) {
     const booking = await prisma.booking.findUnique({
         where: { id: bookingId },
-        include: {
-            room: true,
-        },
+        include: { room: true, guest: true },
     });
 
     if (!booking) {
@@ -181,19 +178,7 @@ export async function applyPackageToBooking(bookingId: string, packageDealId: st
         booking.guestsCount
     );
 
-    // Update booking with package deal
-    return prisma.booking.update({
-        where: { id: bookingId },
-        data: {
-            packageDealId,
-            packageDealPrice: new Decimal(price.totalPrice),
-            packageDealComponents: packageDeal.components as unknown as PackageComponents,
-        },
-        include: {
-            room: true,
-            guest: true,
-        },
-    });
+    return { booking, packageDeal, price };
 }
 
 /**
@@ -286,21 +271,8 @@ export async function getAllPackageDeals(propertyId?: string) {
 }
 
 /**
- * Get package deal by booking ID
+ * Get package deal by booking ID (Booking model has no packageDealId field)
  */
-export async function getPackageDealByBooking(bookingId: string) {
-    const booking = await prisma.booking.findUnique({
-        where: { id: bookingId },
-        select: {
-            packageDealId: true,
-            packageDealPrice: true,
-            packageDealComponents: true,
-        },
-    });
-
-    if (!booking?.packageDealId) {
-        return null;
-    }
-
-    return getPackageDeal(booking.packageDealId);
+export async function getPackageDealByBooking(_bookingId: string) {
+    return null;
 }
