@@ -1334,3 +1334,135 @@ export async function removeGuestTag(guestId: string, tagId: string) {
     });
     return res.json();
 }
+
+// ─── Automation Rules ──────────────────────────────────────────────────────────
+
+export interface AutomationRule {
+    id: string;
+    name: string;
+    description: string;
+    trigger: "BOOKING_CREATED" | "CHECK_IN" | "CHECK_OUT" | "NO_SHOW" | "PAYMENT_RECEIVED" | "SCHEDULE" | "COMPLAINT_LOGGED";
+    action: "SEND_SMS" | "SEND_EMAIL" | "UPDATE_STATUS" | "CREATE_INVOICE" | "NOTIFY_STAFF" | "BLOCK_ROOM";
+    condition: string | null;
+    config: Record<string, unknown>;
+    status: "ACTIVE" | "PAUSED" | "DISABLED";
+    lastTriggered: string | null;
+    triggerCount: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export async function fetchAutomationRules(filters?: { status?: string }): Promise<{ rules: AutomationRule[] }> {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set("status", filters.status);
+    const res = await fetch(`${API_BASE}/automation/rules?${params}`);
+    return res.json();
+}
+
+export async function createAutomationRule(data: Partial<AutomationRule>) {
+    const res = await fetch(`${API_BASE}/automation/rules`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return res.json();
+}
+
+export async function updateAutomationRule(id: string, data: Partial<AutomationRule>) {
+    const res = await fetch(`${API_BASE}/automation/rules/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return res.json();
+}
+
+export async function deleteAutomationRule(id: string) {
+    const res = await fetch(`${API_BASE}/automation/rules/${id}`, {
+        method: "DELETE",
+    });
+    return res.json();
+}
+
+export async function toggleAutomationRule(id: string, status: "ACTIVE" | "PAUSED") {
+    return updateAutomationRule(id, { status });
+}
+
+// ─── Exceptions ────────────────────────────────────────────────────────────────
+
+export type ExceptionType = "OVERBOOKING" | "PAYMENT_MISMATCH" | "MISSING_DOCUMENT" | "PRICING_ERROR" | "DOUBLE_BOOKING";
+export type ExceptionSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type ExceptionStatus = "OPEN" | "RESOLVED" | "ESCALATED" | "DISMISSED";
+
+export interface Exception {
+    id: string;
+    type: ExceptionType;
+    severity: ExceptionSeverity;
+    status: ExceptionStatus;
+    title: string;
+    description: string;
+    entityType: "BOOKING" | "ROOM" | "PAYMENT" | "GUEST";
+    entityId: string;
+    relatedEntities: { type: string; id: string; label: string }[];
+    resolution: string | null;
+    resolvedBy: string | null;
+    resolvedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export async function fetchExceptions(filters?: {
+    status?: ExceptionStatus;
+    type?: ExceptionType;
+}): Promise<{ exceptions: Exception[] }> {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set("status", filters.status);
+    if (filters?.type) params.set("type", filters.type);
+    const res = await fetch(`${API_BASE}/exceptions?${params}`);
+    return res.json();
+}
+
+export async function createException(data: Partial<Exception>) {
+    const res = await fetch(`${API_BASE}/exceptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return res.json();
+}
+
+export async function updateException(id: string, data: Partial<Exception>) {
+    const res = await fetch(`${API_BASE}/exceptions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return res.json();
+}
+
+export async function resolveException(id: string, resolution: string) {
+    return updateException(id, { status: "RESOLVED", resolution });
+}
+
+export async function escalateException(id: string) {
+    return updateException(id, { status: "ESCALATED" });
+}
+
+// ─── Quick Actions Stats ───────────────────────────────────────────────────────
+
+export interface QuickActionsStats {
+    todayCheckIns: number;
+    todayCheckOuts: number;
+    pendingHousekeeping: number;
+    openComplaints: number;
+    maintenanceIssues: number;
+    pendingPayments: number;
+    pendingDocuments: number;
+    openExceptions: number;
+    activeRules: number;
+}
+
+export async function fetchQuickActionsStats(): Promise<{ stats: QuickActionsStats }> {
+    const res = await fetch(`${API_BASE}/quick-actions/stats`);
+    return res.json();
+}

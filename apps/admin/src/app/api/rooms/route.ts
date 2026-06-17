@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import prisma from "@the-rooms/db";
 import { Prisma } from "@the-rooms/db";
+import { getPropertyIdFromSession } from "@the-rooms/api/middleware";
 
 function requireAdmin(session: { user?: { role?: string } | null } | null) {
   if (!session?.user) throw new Error("Unauthorized");
@@ -19,7 +20,22 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get("type");
     const status = searchParams.get("status");
 
+    // Get propertyId from session for filtering
+    const propertyId = await getPropertyIdFromSession(session);
+    const userRole = (session?.user as { role?: string }).role;
+
     const where: Prisma.RoomWhereInput = {};
+
+    // SUPER_ADMIN sees all properties, others filter by propertyId
+    if (userRole !== "SUPER_ADMIN") {
+      if (propertyId) {
+        where.propertyId = propertyId;
+      } else {
+        // User has no property access
+        return NextResponse.json({ rooms: [] });
+      }
+    }
+
     if (type) where.type = type as "STUDIO" | "PREMIUM";
     if (status) where.status = status as "VACANT" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED";
 
@@ -60,10 +76,23 @@ export async function POST(request: NextRequest) {
     const session = await auth();
     requireAdmin(session);
 
+    // Get propertyId from session for filtering
+    const propertyId = await getPropertyIdFromSession(session);
+    const userRole = (session?.user as { role?: string }).role;
+
+    if (userRole !== "SUPER_ADMIN" && !propertyId) {
+      return NextResponse.json({ error: "No property access found" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { roomNumber, type, floor, description, maxOccupancy, sizeSqft, basePriceSingle, basePriceDouble, monthlyPriceSingle, monthlyPriceDouble, internalNotes } = body;
 
-    const existing = await prisma.room.findUnique({ where: { roomNumber } });
+    // Check for existing room with same room number in the same property
+    const existingWhere: Prisma.RoomWhereInput = { roomNumber };
+    if (userRole !== "SUPER_ADMIN" && propertyId) {
+      existingWhere.propertyId = propertyId;
+    }
+    const existing = await prisma.room.findFirst({ where: existingWhere });
     if (existing) {
       return NextResponse.json({ error: "Room number already exists" }, { status: 409 });
     }
@@ -71,6 +100,7 @@ export async function POST(request: NextRequest) {
     const room = await prisma.room.create({
       data: {
         roomNumber,
+        propertyId: propertyId || "default",
         type: type ?? "STUDIO",
         floor: floor ?? 1,
         description,
@@ -103,10 +133,24 @@ export async function PATCH(request: NextRequest) {
     const session = await auth();
     requireAdmin(session);
 
+    // Get propertyId from session for filtering
+    const propertyId = await getPropertyIdFromSession(session);
+    const userRole = (session?.user as { role?: string }).role;
+
     const body = await request.json();
     const { id, roomNumber, type, floor, description, maxOccupancy, sizeSqft, basePriceSingle, basePriceDouble, monthlyPriceSingle, monthlyPriceDouble, internalNotes, status } = body;
 
     if (!id) return NextResponse.json({ error: "Room ID required" }, { status: 400 });
+
+    // If not SUPER_ADMIN, verify the room belongs to user's property
+    if (userRole !== "SUPER_ADMIN" && propertyId) {
+      const roomToUpdate = await prisma.room.findFirst({
+        where: { id, propertyId },
+      });
+      if (!roomToUpdate) {
+        return NextResponse.json({ error: "Room not found or access denied" }, { status: 404 });
+      }
+    }
 
     const updateData: Prisma.RoomUpdateInput = {};
     if (roomNumber !== undefined) updateData.roomNumber = roomNumber;

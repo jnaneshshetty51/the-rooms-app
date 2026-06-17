@@ -31,6 +31,7 @@ model Property {
   users         UserPropertyAccess[]
   groupBookings GroupBooking[]
   overbookingPolicies OverbookingPolicy[]
+  settings      HotelSettings?
 
   @@map("properties")
 }
@@ -853,7 +854,10 @@ model Expense {
 
 // ── Hotel Settings ───────────────────────────────────────────────────────
 model HotelSettings {
-  id                 String   @id @default("default")
+  id                 String   @id @default(cuid())
+  propertyId         String   @unique
+  property           Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
   hotelName          String   @default("The Rooms")
   address            String?
   phone              String?
@@ -892,6 +896,7 @@ model HotelSettings {
   dailyReport        Boolean  @default(true)
   maintenanceAlerts  Boolean  @default(true)
   
+  createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   @@map("hotel_settings")

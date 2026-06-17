@@ -3,7 +3,7 @@
 // apps/admin/src/app/(dashboard)/exceptions/page.tsx
 // Exception Handling - Overbooking resolution, payment mismatch, missing documents
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
     RefreshCw,
     AlertTriangle,
@@ -32,29 +32,22 @@ import {
     SelectTrigger,
     SelectContent,
     SelectValue,
+    Input,
+    useToast,
 } from "@the-rooms/ui";
 import { formatDate } from "@the-rooms/ui";
 import { cn } from "@the-rooms/ui";
+import {
+    fetchExceptions,
+    updateException,
+    resolveException,
+    escalateException,
+    Exception,
+    ExceptionType,
+    ExceptionStatus,
+} from "@/lib/api";
 
-type ExceptionType = "OVERBOOKING" | "PAYMENT_MISMATCH" | "MISSING_DOCUMENT" | "PRICING_ERROR" | "DOUBLE_BOOKING";
-type ExceptionStatus = "OPEN" | "RESOLVED" | "ESCALATED" | "DISMISSED";
-
-interface Exception {
-    id: string;
-    type: ExceptionType;
-    severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-    status: ExceptionStatus;
-    title: string;
-    description: string;
-    entityType: "BOOKING" | "ROOM" | "PAYMENT" | "GUEST";
-    entityId: string;
-    relatedEntities: { type: string; id: string; label: string }[];
-    resolution: string | null;
-    resolvedBy: string | null;
-    resolvedAt: string | null;
-    createdAt: string;
-    updatedAt: string;
-}
+// ─── Config ────────────────────────────────────────────────────────────────────
 
 const EXCEPTION_TYPE_CONFIG: Record<ExceptionType, { label: string; icon: React.ElementType; bg: string }> = {
     OVERBOOKING: { label: "Overbooking", icon: BedDouble, bg: "bg-red-100" },
@@ -78,110 +71,136 @@ const STATUS_CONFIG = {
     DISMISSED: { label: "Dismissed", bg: "bg-gray-100", text: "text-gray-700", icon: XCircle },
 };
 
-const MOCK_EXCEPTIONS: Exception[] = [
-    {
-        id: "1",
-        type: "OVERBOOKING",
-        severity: "CRITICAL",
-        status: "OPEN",
-        title: "Room 203 double booked",
-        description: "Room 203 has been booked for two different guests on the same dates (June 20-22).",
-        entityType: "ROOM",
-        entityId: "203",
-        relatedEntities: [
-            { type: "BOOKING", id: "BKN-20240615-0001", label: "Booking BKN-20240615-0001" },
-            { type: "BOOKING", id: "BKN-20240615-0002", label: "Booking BKN-20240615-0002" },
-        ],
-        resolution: null,
-        resolvedBy: null,
-        resolvedAt: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-    {
-        id: "2",
-        type: "PAYMENT_MISMATCH",
-        severity: "HIGH",
-        status: "OPEN",
-        title: "Payment amount discrepancy",
-        description: "Invoice amount is ₹15,000 but payment received is only ₹14,500. Missing ₹500.",
-        entityType: "PAYMENT",
-        entityId: "PAY-2024-0045",
-        relatedEntities: [
-            { type: "INVOICE", id: "INV-20240610-0003", label: "Invoice INV-20240610-0003" },
-        ],
-        resolution: null,
-        resolvedBy: null,
-        resolvedAt: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-    {
-        id: "3",
-        type: "MISSING_DOCUMENT",
-        severity: "MEDIUM",
-        status: "ESCALATED",
-        title: "Guest ID verification pending",
-        description: "Guest Arjun Sharma (Booking BKN-20240618-0008) has not submitted ID proof.",
-        entityType: "GUEST",
-        entityId: "GST-00234",
-        relatedEntities: [
-            { type: "BOOKING", id: "BKN-20240618-0008", label: "Booking BKN-20240618-0008" },
-        ],
-        resolution: null,
-        resolvedBy: null,
-        resolvedAt: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-    {
-        id: "4",
-        type: "DOUBLE_BOOKING",
-        severity: "CRITICAL",
-        status: "RESOLVED",
-        title: "Room 305 double booking resolved",
-        description: "Room 305 was accidentally assigned to two guests. One booking was moved to Room 307.",
-        entityType: "ROOM",
-        entityId: "305",
-        relatedEntities: [
-            { type: "BOOKING", id: "BKN-20240612-0005", label: "Original booking" },
-            { type: "ROOM", id: "307", label: "New room assigned" },
-        ],
-        resolution: "Guest was moved to Room 307 at no additional cost. Original booking updated.",
-        resolvedBy: "Admin User",
-        resolvedAt: new Date().toISOString(),
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-];
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ExceptionsPage() {
-    const [exceptions, setExceptions] = useState<Exception[]>(MOCK_EXCEPTIONS);
-    const [loading, setLoading] = useState(false);
+    const [exceptions, setExceptions] = useState<Exception[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<"ALL" | ExceptionStatus>("ALL");
     const [typeFilter, setTypeFilter] = useState<"ALL" | ExceptionType>("ALL");
     const [selectedException, setSelectedException] = useState<Exception | null>(null);
+    const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
+    const [resolutionText, setResolutionText] = useState("");
+    const [actionLoading, setActionLoading] = useState(false);
+    const { toast } = useToast();
+
+    // ─── Data Fetching ─────────────────────────────────────────────────────────
+
+    const loadExceptions = useCallback(async (isRefresh = false) => {
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
+
+        try {
+            const filters: { status?: ExceptionStatus; type?: ExceptionType } = {};
+            if (filter !== "ALL") filters.status = filter;
+            if (typeFilter !== "ALL") filters.type = typeFilter;
+
+            const { exceptions: fetchedExceptions } = await fetchExceptions(filters);
+            setExceptions(fetchedExceptions);
+        } catch (error) {
+            console.error("Failed to load exceptions:", error);
+            toast({
+                type: "error",
+                title: "Error",
+                message: "Failed to load exceptions",
+            });
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, [filter, typeFilter, toast]);
+
+    useEffect(() => {
+        loadExceptions();
+    }, [loadExceptions]);
+
+    // ─── Handlers ─────────────────────────────────────────────────────────────
+
+    const handleRefresh = () => loadExceptions(true);
+
+    const handleResolve = async () => {
+        if (!selectedException || !resolutionText.trim()) {
+            toast({
+                type: "error",
+                title: "Validation Error",
+                message: "Resolution text is required",
+            });
+            return;
+        }
+
+        setActionLoading(true);
+        try {
+            await resolveException(selectedException.id, resolutionText);
+
+            setExceptions((prev) =>
+                prev.map((e) =>
+                    e.id === selectedException.id
+                        ? { ...e, status: "RESOLVED" as ExceptionStatus, resolution: resolutionText, resolvedAt: new Date().toISOString() }
+                        : e
+                )
+            );
+
+            setResolveDialogOpen(false);
+            setSelectedException(null);
+            setResolutionText("");
+
+            toast({
+                type: "success",
+                title: "Success",
+                message: "Exception resolved successfully",
+            });
+        } catch (error) {
+            console.error("Failed to resolve exception:", error);
+            toast({
+                type: "error",
+                title: "Error",
+                message: "Failed to resolve exception",
+            });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleEscalate = async (exceptionId: string) => {
+        setActionLoading(true);
+        try {
+            await escalateException(exceptionId);
+
+            setExceptions((prev) =>
+                prev.map((e) =>
+                    e.id === exceptionId ? { ...e, status: "ESCALATED" as ExceptionStatus } : e
+                )
+            );
+
+            setSelectedException(null);
+
+            toast({
+                type: "success",
+                title: "Success",
+                message: "Exception escalated successfully",
+            });
+        } catch (error) {
+            console.error("Failed to escalate exception:", error);
+            toast({
+                type: "error",
+                title: "Error",
+                message: "Failed to escalate exception",
+            });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // ─── Computed Values ───────────────────────────────────────────────────────
 
     const openCount = exceptions.filter((e) => e.status === "OPEN").length;
     const escalatedCount = exceptions.filter((e) => e.status === "ESCALATED").length;
     const criticalCount = exceptions.filter((e) => e.severity === "CRITICAL" && e.status !== "RESOLVED").length;
 
-    const filteredExceptions = exceptions.filter((e) => {
-        if (filter !== "ALL" && e.status !== filter) return false;
-        if (typeFilter !== "ALL" && e.type !== typeFilter) return false;
-        return true;
-    });
+    const filteredExceptions = exceptions;
 
-    const resolveException = (exceptionId: string, resolution: string) => {
-        setExceptions((prev) =>
-            prev.map((e) =>
-                e.id === exceptionId
-                    ? { ...e, status: "RESOLVED" as ExceptionStatus, resolution, resolvedBy: "Admin", resolvedAt: new Date().toISOString() }
-                    : e
-            )
-        );
-        setSelectedException(null);
-    };
+    // ─── Render ───────────────────────────────────────────────────────────────
 
     return (
         <div className="space-y-6">
@@ -189,8 +208,8 @@ export default function ExceptionsPage() {
                 title="Exception Handling"
                 description="Resolve operational exceptions and conflicts"
                 actions={
-                    <Button variant="outline" size="sm">
-                        <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+                    <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+                        <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} /> Refresh
                     </Button>
                 }
             />
@@ -242,6 +261,7 @@ export default function ExceptionsPage() {
                         <SelectItem value="OPEN">Open</SelectItem>
                         <SelectItem value="ESCALATED">Escalated</SelectItem>
                         <SelectItem value="RESOLVED">Resolved</SelectItem>
+                        <SelectItem value="DISMISSED">Dismissed</SelectItem>
                     </SelectContent>
                 </Select>
                 <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
@@ -259,20 +279,48 @@ export default function ExceptionsPage() {
                 </Select>
             </div>
 
-            {/* Exceptions List */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5" />
-                        Exceptions ({filteredExceptions.length})
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {filteredExceptions.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                            No exceptions found matching the filter
+            {/* Loading State */}
+            {loading ? (
+                <Card>
+                    <CardContent className="py-12">
+                        <div className="space-y-4">
+                            {[...Array(3)].map((_, i) => (
+                                <div key={i} className="flex items-start gap-4 animate-pulse">
+                                    <div className="h-12 w-12 rounded-lg bg-muted" />
+                                    <div className="space-y-2 flex-1">
+                                        <div className="h-5 w-48 bg-muted rounded" />
+                                        <div className="h-4 w-full bg-muted rounded" />
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    ) : (
+                    </CardContent>
+                </Card>
+            ) : filteredExceptions.length === 0 ? (
+                /* Empty State */
+                <Card>
+                    <CardContent className="py-12">
+                        <div className="text-center">
+                            <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                            <p className="text-lg font-medium">No exceptions found</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {filter !== "ALL" || typeFilter !== "ALL"
+                                    ? "Try adjusting your filters"
+                                    : "All exceptions have been resolved"}
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            ) : (
+                /* Exceptions List */
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5" />
+                            Exceptions ({filteredExceptions.length})
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
                         <div className="space-y-3">
                             {filteredExceptions.map((exception) => {
                                 const typeConfig = EXCEPTION_TYPE_CONFIG[exception.type];
@@ -322,29 +370,29 @@ export default function ExceptionsPage() {
                                 );
                             })}
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Exception Details Dialog */}
-            {selectedException && (
-                <Dialog open onOpenChange={() => setSelectedException(null)}>
-                    <DialogContent className="max-w-lg">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-3">
-                                {(() => {
-                                    const TypeIcon = EXCEPTION_TYPE_CONFIG[selectedException.type].icon;
-                                    return <TypeIcon className="h-6 w-6" />;
-                                })()}
-                                <div>
-                                    <span>{selectedException.title}</span>
-                                    <p className="text-sm font-normal text-muted-foreground">
-                                        {EXCEPTION_TYPE_CONFIG[selectedException.type].label}
-                                    </p>
-                                </div>
-                            </DialogTitle>
-                        </DialogHeader>
+            <Dialog open={!!selectedException} onOpenChange={() => setSelectedException(null)}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3">
+                            {selectedException && (() => {
+                                const TypeIcon = EXCEPTION_TYPE_CONFIG[selectedException.type].icon;
+                                return <TypeIcon className="h-6 w-6" />;
+                            })()}
+                            <div>
+                                <span>{selectedException?.title}</span>
+                                <p className="text-sm font-normal text-muted-foreground">
+                                    {selectedException && EXCEPTION_TYPE_CONFIG[selectedException.type].label}
+                                </p>
+                            </div>
+                        </DialogTitle>
+                    </DialogHeader>
 
+                    {selectedException && (
                         <div className="space-y-4 py-4">
                             {/* Severity & Status */}
                             <div className="grid grid-cols-2 gap-4">
@@ -404,43 +452,73 @@ export default function ExceptionsPage() {
                                 </div>
                             )}
                         </div>
+                    )}
 
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setSelectedException(null)}>Close</Button>
-                            {selectedException.status === "OPEN" && (
-                                <>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => {
-                                            setExceptions((prev) =>
-                                                prev.map((e) =>
-                                                    e.id === selectedException.id ? { ...e, status: "ESCALATED" as ExceptionStatus } : e
-                                                )
-                                            );
-                                            setSelectedException(null);
-                                        }}
-                                    >
-                                        Escalate
-                                    </Button>
-                                    <Button
-                                        onClick={() => {
-                                            const resolution = prompt("Enter resolution:");
-                                            if (resolution) resolveException(selectedException.id, resolution);
-                                        }}
-                                    >
-                                        Resolve
-                                    </Button>
-                                </>
-                            )}
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setSelectedException(null)}>Close</Button>
+                        {selectedException?.status === "OPEN" && (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => handleEscalate(selectedException.id)}
+                                    disabled={actionLoading}
+                                >
+                                    Escalate
+                                </Button>
+                                <Button
+                                    onClick={() => setResolveDialogOpen(true)}
+                                    disabled={actionLoading}
+                                >
+                                    Resolve
+                                </Button>
+                            </>
+                        )}
+                        {selectedException?.status === "ESCALATED" && (
+                            <Button
+                                onClick={() => setResolveDialogOpen(true)}
+                                disabled={actionLoading}
+                            >
+                                Resolve
+                            </Button>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Resolve Dialog */}
+            <Dialog open={resolveDialogOpen} onOpenChange={setResolveDialogOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Resolve Exception</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div>
+                            <label className="text-sm font-medium">Resolution *</label>
+                            <textarea
+                                className="w-full mt-2 h-24 p-3 border rounded-lg text-sm"
+                                placeholder="Describe how this exception was resolved..."
+                                value={resolutionText}
+                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setResolutionText(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => {
+                            setResolveDialogOpen(false);
+                            setResolutionText("");
+                        }}>Cancel</Button>
+                        <Button onClick={handleResolve} disabled={actionLoading}>
+                            {actionLoading ? "Resolving..." : "Resolve"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
 
-// Placeholder components
+// ─── SelectItem (shadcn/ui) ────────────────────────────────────────────────────
+
 function SelectItem({ value, children }: { value: string; children: React.ReactNode }) {
     return <option value={value}>{children}</option>;
 }

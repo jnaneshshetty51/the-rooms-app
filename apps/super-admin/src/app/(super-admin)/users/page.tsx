@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   PageHeader,
   Card,
@@ -43,6 +44,7 @@ import {
   Users,
   KeyRound,
   Clock,
+  Building2,
 } from "lucide-react";
 import { formatDate, getInitials } from "@the-rooms/ui";
 import { useToast } from "@the-rooms/ui";
@@ -75,6 +77,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
 };
 
 export default function UsersPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -144,13 +147,13 @@ export default function UsersPage() {
             : { name: form.name, email: form.email, role: form.role, password: form.password }
         ),
       });
-      
+
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Failed to save user");
         return;
       }
-      
+
       toast.success(`User ${editing ? "updated" : "created"} successfully`);
       setDialogOpen(false);
       loadUsers();
@@ -275,9 +278,8 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                          ROLE_COLORS[user.role]
-                        }`}
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[user.role]
+                          }`}
                       >
                         {ROLE_LABELS[user.role]}
                       </span>
@@ -346,6 +348,17 @@ export default function UsersPage() {
                             onClick={() => setShowDeleteDialog(user.id)}
                           >
                             <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {user.role !== "SUPER_ADMIN" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => router.push(`/users/${user.id}/properties`)}
+                            title="Manage properties"
+                          >
+                            <Building2 className="h-3 w-3" />
                           </Button>
                         )}
                       </div>

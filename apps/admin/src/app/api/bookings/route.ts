@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import prisma from "@the-rooms/db";
+import { getPropertyIdFromSession } from "@the-rooms/api/middleware";
 
 function requireAdmin(session: { user?: { role?: string } | null } | null) {
   if (!session?.user) throw new Error("Unauthorized");
@@ -26,7 +27,22 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") ?? "1");
     const perPage = parseInt(searchParams.get("perPage") ?? "20");
 
+    // Get propertyId from session for filtering
+    const propertyId = await getPropertyIdFromSession(session);
+    const userRole = (session?.user as { role?: string }).role;
+
     const where: Record<string, unknown> = {};
+
+    // SUPER_ADMIN sees all properties, others filter by propertyId
+    if (userRole !== "SUPER_ADMIN") {
+      if (propertyId) {
+        where.propertyId = propertyId;
+      } else {
+        // User has no property access
+        return NextResponse.json({ bookings: [], total: 0, pages: 0, page });
+      }
+    }
+
     if (status) where.status = status;
     if (paymentStatus) where.paymentStatus = paymentStatus;
     if (bookingSource) where.bookingSource = bookingSource;

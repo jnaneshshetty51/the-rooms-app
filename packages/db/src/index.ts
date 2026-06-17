@@ -35,6 +35,8 @@ export { flagBookingForReview, getFraudFlags, updateFraudFlagStatus, dismissFrau
 export { createOfflineBooking, getPendingOfflineEntries, getOfflineEntryById, getOfflineEntryByLocalId, markOfflineEntrySynced, markOfflineEntrySyncing, markOfflineEntryFailed, retryOfflineSync, getOfflineEntryConflicts, resolveOfflineConflict } from './queries/offlineEntryQueries';
 export { checkRoomAvailability, detectRoomConflicts, getRoomConflicts, getRoomConflictById, resolveRoomConflict, createRoomHold, releaseRoomHold, getRoomHolds } from './queries/roomConflictQueries';
 
+export { createUserPropertyAccess, getUserPropertyAccess, getUserPropertyAccessById, getAllUserPropertyAccess, updateUserPropertyAccess, upsertUserPropertyAccess, deleteUserPropertyAccess, deleteAllUserPropertyAccessForUser, deleteAllUserPropertyAccessForProperty, getUsersByProperty, getPropertiesByUser } from './queries/userPropertyAccessQueries';
+
 export { Prisma, ExpenseCategory, RoomType, DamageType, RoomMoveReason } from '@prisma/client';
 
 export default prisma;

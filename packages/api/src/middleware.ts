@@ -198,6 +198,73 @@ export async function checkRateLimit(
   return { allowed: true, remaining: maxRequests - record.count, resetAt: record.resetAt };
 }
 
+// ─── getPropertyIdFromSession ─────────────────────────────────────────────────
+
+/**
+ * Get propertyId from user session by looking up UserPropertyAccess.
+ * This is the primary method for determining the current property context.
+ * 
+ * For ADMIN/MANAGER roles, returns the property they manage.
+ * For SUPER_ADMIN, returns the first property they have access to (or null if none).
+ * For FRONT_OFFICE/HOUSEKEEPING, returns the property they are assigned to.
+ * 
+ * @param session - The auth session object
+ * @returns propertyId string or null if not found
+ */
+export async function getPropertyIdFromSession(session: { user?: { id?: string } | null } | null): Promise<string | null> {
+  const userId = session?.user?.id;
+  if (!userId) return null;
+
+  const { db } = await import('@the-rooms/db');
+
+  // Get the user's property access - prioritize ADMIN/MANAGER roles
+  const propertyAccess = await db.userPropertyAccess.findFirst({
+    where: {
+      userId,
+      role: { in: ["ADMIN", "MANAGER"] }
+    },
+    include: { property: true }
+  });
+
+  if (propertyAccess) {
+    return propertyAccess.propertyId;
+  }
+
+  // Fallback: try to get any property access for the user
+  const anyAccess = await db.userPropertyAccess.findFirst({
+    where: { userId },
+    include: { property: true }
+  });
+
+  return anyAccess?.propertyId || null;
+}
+
+/**
+ * Get all propertyIds that a user has access to.
+ * 
+ * @param session - The auth session object  
+ * @returns Array of propertyId strings (empty if no access or SUPER_ADMIN who should use null for all)
+ */
+export async function getPropertyIdsFromSession(session: { user?: { id?: string; role?: string } | null } | null): Promise<{ propertyIds: string[] | null; isSuperAdmin: boolean }> {
+  const userId = session?.user?.id;
+  const userRole = session?.user?.role;
+
+  // SUPER_ADMIN sees all properties - return null to indicate no filtering
+  if (userRole === 'SUPER_ADMIN') {
+    return { propertyIds: null, isSuperAdmin: true };
+  }
+
+  if (!userId) return { propertyIds: [], isSuperAdmin: false };
+
+  const { db } = await import('@the-rooms/db');
+  const accesses = await db.userPropertyAccess.findMany({
+    where: { userId },
+    select: { propertyId: true }
+  });
+
+  return { propertyIds: accesses.map(a => a.propertyId), isSuperAdmin: false };
+}
+
 // ── Property Access Control ───────────────────────────────────────────────────
 
 /**
