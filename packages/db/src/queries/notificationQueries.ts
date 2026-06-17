@@ -316,8 +316,8 @@ export async function getGuestNotifications(guestId: string, limit = 50) {
     return prisma.notificationLog.findMany({
         where: {
             OR: [
-                { recipient: guest.phone },
-                { recipient: guest.email },
+                { recipient: guest.phone ?? undefined },
+                { recipient: guest.email ?? undefined },
             ],
         },
         orderBy: { createdAt: 'desc' },
