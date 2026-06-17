@@ -3,7 +3,6 @@
 
 import prisma from '../index';
 import { Prisma } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 
 /**
  * Generate a monthly invoice number
@@ -80,24 +79,10 @@ export async function createMonthlyInvoice(
         data: {
             bookingId,
             invoiceNumber,
-            issuedAt: new Date(year, month - 1, 15), // Mid-month billing
-            dueDate: new Date(year, month - 1, 15 + 30), // 30 days due
-            subtotal: new Decimal(charges.roomCharge + (charges.addonCharges || 0)),
-            taxAmount: new Decimal(data?.taxAmount ?? charges.taxAmount),
-            discountAmount: new Decimal(data?.discountAmount ?? charges.discountAmount),
-            totalAmount: new Decimal(data?.totalAmount ?? charges.totalAmount),
-            paymentStatus: 'PENDING',
-            lineItems: {
-                roomCharge: charges.roomCharge,
-                addonCharges: charges.addonCharges || 0,
-                discountAmount: charges.discountAmount,
-                taxAmount: charges.taxAmount,
-                totalAmount: charges.totalAmount,
-                periodStart: charges.periodStart,
-                periodEnd: charges.periodEnd,
-                nights: charges.nights,
-            },
-            notes: data?.notes,
+            issuedAt: new Date(year, month - 1, 15),
+            subtotal: new Prisma.Decimal(charges.roomCharge + (charges.addonCharges || 0)),
+            taxAmount: new Prisma.Decimal(data?.taxAmount ?? charges.taxAmount),
+            totalAmount: new Prisma.Decimal(data?.totalAmount ?? charges.totalAmount),
         },
         include: {
             booking: {
@@ -342,31 +327,12 @@ export async function sendMonthlyInvoice(invoiceId: string): Promise<{
         throw new Error('Invoice not found');
     }
 
-    // In a real implementation, this would integrate with an email service
-    // For now, we'll just update the invoice status and create a notification
     const sentAt = new Date();
 
-    // Create notification for the guest
-    await prisma.notification.create({
-        data: {
-            guestId: invoice.booking.guestId,
-            type: 'INVOICE_SENT',
-            title: 'Monthly Invoice Available',
-            message: `Your invoice ${invoice.invoiceNumber} for ${invoice.totalAmount} is now available.`,
-            metadata: {
-                invoiceId: invoice.id,
-                invoiceNumber: invoice.invoiceNumber,
-                amount: Number(invoice.totalAmount),
-            },
-        },
-    });
-
-    // Update invoice with sent status
+    // Mark invoice as ISSUED when sent
     await prisma.invoice.update({
         where: { id: invoiceId },
-        data: {
-            sentAt,
-        },
+        data: { status: 'ISSUED' },
     });
 
     return {
@@ -389,14 +355,14 @@ export async function getGuestMonthlyBillingSummary(guestId: string) {
     const summary = {
         totalInvoices: invoices.length,
         totalAmount: invoices.reduce((sum, inv) => sum + Number(inv.totalAmount), 0),
-        totalPaid: invoices
-            .filter(inv => inv.paymentStatus === 'PAID')
+        totalIssued: invoices
+            .filter(inv => inv.status === 'ISSUED')
             .reduce((sum, inv) => sum + Number(inv.totalAmount), 0),
-        totalPending: invoices
-            .filter(inv => inv.paymentStatus === 'PENDING')
+        totalDraft: invoices
+            .filter(inv => inv.status === 'DRAFT')
             .reduce((sum, inv) => sum + Number(inv.totalAmount), 0),
-        totalOverdue: invoices
-            .filter(inv => inv.paymentStatus === 'OVERDUE')
+        totalCancelled: invoices
+            .filter(inv => inv.status === 'CANCELLED')
             .reduce((sum, inv) => sum + Number(inv.totalAmount), 0),
     };
 
