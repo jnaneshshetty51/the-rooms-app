@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { mockCashManagementData } from "../route";
+import { mockCashManagementData } from "../_data";
 
 export async function POST(request: Request) {
     try {
