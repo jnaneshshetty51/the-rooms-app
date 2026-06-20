@@ -4,9 +4,10 @@ import { mockCashManagementData } from "../../../route";
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id } = await params;
         const session = await auth();
         if (!session?.user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,8 +15,8 @@ export async function POST(
 
         const body = await request.json();
         const { countedAmount } = body;
-        
-        const drawerIndex = mockCashManagementData.drawers.findIndex(d => d.id === params.id);
+
+        const drawerIndex = mockCashManagementData.drawers.findIndex(d => d.id === id);
         
         if (drawerIndex === -1) {
             return NextResponse.json({ error: "Drawer not found" }, { status: 404 });
@@ -47,7 +48,7 @@ export async function POST(
             type: "RECONCILIATION",
             amount: variance,
             description: `Reconciled ${drawer.name}`,
-            reference: params.id,
+            reference: null,
             createdBy: (session.user as { name?: string }).name || "Admin",
             createdAt: new Date().toISOString(),
             shiftId: "shift-1",
