@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.56.2",
+    "@the-rooms/api": "workspace:*",
     "@the-rooms/auth": "workspace:*",
     "@the-rooms/db": "workspace:*",
     "@the-rooms/email": "workspace:*",

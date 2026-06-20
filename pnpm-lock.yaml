@@ -226,6 +226,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.56.2
         version: 5.100.14(react@19.2.6)
+      '@the-rooms/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@the-rooms/auth':
         specifier: workspace:*
         version: link:../../packages/auth
