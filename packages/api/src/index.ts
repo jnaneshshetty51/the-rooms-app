@@ -3,5 +3,4 @@
 
 export * from './response';
 export * from './middleware';
-export * from './sse';
-export * from './sse-redis';
+// SSE utilities available via @the-rooms/api/sse and @the-rooms/api/sse-redis subpaths
