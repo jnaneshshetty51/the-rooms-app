@@ -1,3 +1,4 @@
+"use client";
 // apps/admin/src/app/offline/page.tsx
 // Offline fallback page for Admin PWA
 

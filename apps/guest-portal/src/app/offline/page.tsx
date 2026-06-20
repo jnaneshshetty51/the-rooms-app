@@ -1,3 +1,4 @@
+"use client";
 // apps/guest-portal/src/app/offline/page.tsx
 // Offline fallback page for Guest Portal PWA
 
