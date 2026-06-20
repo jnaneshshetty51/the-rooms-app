@@ -1,7 +1,6 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
-
+import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -83,7 +82,7 @@ const STATUS_STEPS = [
     { key: "COMPLETED", label: "Completed" },
 ] as const;
 
-export default function ExpressCheckoutPage() {
+function ExpressCheckoutContent() {
     const searchParams = useSearchParams();
     const bookingId = searchParams.get("bookingId");
 
@@ -573,5 +572,17 @@ export default function ExpressCheckoutPage() {
                 </Button>
             </div>
         </div>
+    );
+}
+
+export default function ExpressCheckoutPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 text-[#E17055] animate-spin" />
+            </div>
+        }>
+            <ExpressCheckoutContent />
+        </Suspense>
     );
 }
