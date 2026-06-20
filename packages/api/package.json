@@ -9,7 +9,9 @@
     "./middleware": "./src/middleware.ts",
     "./response": "./src/response.ts",
     "./shutdown": "./src/shutdown.ts",
-    "./validation": "./src/validation.ts"
+    "./validation": "./src/validation.ts",
+    "./sse": "./src/sse.ts",
+    "./sse-redis": "./src/sse-redis.ts"
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
