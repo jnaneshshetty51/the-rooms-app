@@ -116,28 +116,13 @@ export async function POST(request: NextRequest) {
                 continue;
             }
 
-            // Find room type by name
-            const roomType = await db.roomType.findFirst({
-                where: { name: { equals: data.roomType.trim(), mode: "insensitive" } },
-            });
-
-            if (!roomType) {
-                result.errors.push({
-                    row: rowNum,
-                    field: "roomType",
-                    message: `Room type '${data.roomType}' not found`,
-                });
-                result.skipped++;
-                continue;
-            }
-
-            // Check for duplicate seasonal rate (same room type + overlapping dates)
+            // Check for duplicate seasonal rate (same name + overlapping dates)
             const startDate = new Date(data.startDate);
             const endDate = new Date(data.endDate);
 
             const existingRate = await db.seasonalRate.findFirst({
                 where: {
-                    roomTypeId: roomType.id,
+                    name: data.seasonName.trim(),
                     AND: [
                         { startDate: { lte: endDate } },
                         { endDate: { gte: startDate } },
@@ -153,17 +138,17 @@ export async function POST(request: NextRequest) {
 
             // Create seasonal rate
             try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const createData: any = {
-                    roomTypeId: roomType.id,
-                    name: data.seasonName.trim(),
-                    startDate,
-                    endDate,
-                    priceMultiplier: parseFloat(data.priceMultiplier),
-                    isActive: true,
-                };
-
-                await db.seasonalRate.create({ data: createData });
+                await db.seasonalRate.create({
+                    data: {
+                        name: data.seasonName.trim(),
+                        seasonType: "PEAK",
+                        startDate,
+                        endDate,
+                        adjustmentType: "PERCENTAGE",
+                        adjustmentValue: parseFloat(data.priceMultiplier ?? "0"),
+                        isActive: true,
+                    },
+                });
                 result.imported++;
             } catch (err) {
                 console.error(`Error creating rate at row ${rowNum}:`, err);

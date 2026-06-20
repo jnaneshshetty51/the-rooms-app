@@ -110,22 +110,18 @@ export async function POST(request: NextRequest) {
 
             // Create guest - use dynamic field access to avoid TS errors
             try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const createData: any = {
-                    name: data.name.trim(),
-                    phone: data.phone.trim(),
-                };
-
-                if (data.email?.trim()) createData.email = data.email.trim();
-                if (data.address?.trim()) createData.address = data.address.trim();
-                if (data.city?.trim()) createData.city = data.city.trim();
-                if (data.state?.trim()) createData.state = data.state.trim();
-                if (data.pincode?.trim()) createData.pincode = data.pincode.trim();
-                if (data.dateOfBirth?.trim()) createData.dateOfBirth = new Date(data.dateOfBirth);
-                if (data.idType?.trim()) createData.idType = data.idType.trim();
-                if (data.idNumber?.trim()) createData.idNumber = data.idNumber.trim();
-
-                await db.guest.create({ data: createData });
+                await db.guest.create({
+                    data: {
+                        name: data.name.trim(),
+                        phone: data.phone.trim(),
+                        email: data.email?.trim() || null,
+                        address: data.address?.trim() || null,
+                        city: data.city?.trim() || null,
+                        state: data.state?.trim() || null,
+                        pincode: data.pincode?.trim() || null,
+                        dateOfBirth: data.dateOfBirth?.trim() ? new Date(data.dateOfBirth) : null,
+                    },
+                });
                 result.imported++;
             } catch (err) {
                 console.error(`Error creating guest at row ${rowNum}:`, err);

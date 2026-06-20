@@ -91,11 +91,8 @@ export async function GET(request: NextRequest) {
                 },
             }),
 
-            // Open exceptions (if Exception model exists, otherwise 0)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (prisma as any).exception?.count?.({
-                where: { status: { in: ["OPEN", "ESCALATED"] } },
-            }) ?? Promise.resolve(0),
+            // Open exceptions - placeholder (no Exception model in schema)
+            Promise.resolve(0),
         ]);
 
         // Active automation rules count
