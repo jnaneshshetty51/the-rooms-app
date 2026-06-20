@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { bookingId, actualCheckInTime, documentId } = parsed.data;
+        const { bookingId, documentId } = parsed.data;
 
         // Get the booking
         const booking = await db.booking.findUnique({
@@ -147,18 +147,11 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Use provided time or current time
-        const checkInTime = actualCheckInTime
-            ? new Date(actualCheckInTime)
-            : new Date();
-
         // Update booking status
         const updatedBooking = await db.booking.update({
             where: { id: bookingId },
             data: {
                 status: 'CHECKED_IN',
-                checkedInAt: checkInTime,
-                checkedInMethod: 'ONLINE_SELF_CHECKIN',
             },
         });
 
