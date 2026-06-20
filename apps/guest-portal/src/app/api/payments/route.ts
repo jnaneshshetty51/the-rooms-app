@@ -52,9 +52,9 @@ export async function GET() {
             orderBy: { createdAt: "desc" },
         });
 
-        // Separate refunds from payments
-        const regularPayments = payments.filter((p) => p.type !== "REFUND");
-        const refunds = payments.filter((p) => p.type === "REFUND");
+        // Separate refunds from regular payments using refundStatus field
+        const regularPayments = payments.filter((p) => !p.refundStatus);
+        const refunds = payments.filter((p) => p.refundStatus);
 
         return NextResponse.json({
             payments: regularPayments.map((p) => ({
