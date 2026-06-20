@@ -1,3 +1,4 @@
+"use client";
 'use client';
 
 // apps/guest-portal/src/app/not-found.tsx

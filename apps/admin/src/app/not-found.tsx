@@ -1,3 +1,4 @@
+"use client";
 // apps/admin/src/app/not-found.tsx
 // 404 page for admin portal
 

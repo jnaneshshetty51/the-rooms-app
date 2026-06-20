@@ -1,3 +1,4 @@
+"use client";
 // apps/front-office/src/app/not-found.tsx
 // 404 page for front office portal
 
