@@ -20,7 +20,7 @@ export default function CouponsPage() {
     useEffect(() => { fetchData(); }, []);
 
     const handleSubmit = async () => {
-        const data = { ...formData, value: parseFloat(formData.value), minBookingAmount: parseFloat(formData.minBookingAmount), maxDiscount: formData.maxDiscount ? parseFloat(formData.maxDiscount) : null, usageLimit: parseInt(formData.usageLimit) };
+        const data = { ...formData, type: formData.type as "PERCENTAGE" | "FIXED", value: parseFloat(formData.value), minBookingAmount: parseFloat(formData.minBookingAmount), maxDiscount: formData.maxDiscount ? parseFloat(formData.maxDiscount) : null, usageLimit: parseInt(formData.usageLimit) };
         if (editingCoupon) { await updateCoupon(editingCoupon.id, data); } else { await createCoupon(data); }
         setShowModal(false); setEditingCoupon(null); setFormData({ code: "", type: "PERCENTAGE", value: "0", minBookingAmount: "0", maxDiscount: "", validFrom: "", validUntil: "", usageLimit: "100" }); fetchData();
     };
