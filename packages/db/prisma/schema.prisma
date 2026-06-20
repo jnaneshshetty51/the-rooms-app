@@ -1036,6 +1036,7 @@ enum StayModificationType {
   EARLY_CHECKIN
   LATE_CHECKOUT
   EXTEND_STAY
+  DATE_CHANGE
 }
 
 enum StayModificationStatus {
