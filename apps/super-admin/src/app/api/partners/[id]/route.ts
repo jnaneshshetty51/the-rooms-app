@@ -43,36 +43,21 @@ export async function PUT(
     try {
         const { id } = await params;
         const body = await request.json();
-        const {
-            name,
-            email,
-            phone,
-            website,
-            address,
-            city,
-            state,
-            country,
-            commissionRate,
-            status,
-        } = body;
+        const { name, email, phone, address, city, notes } = body;
 
         // Check if partner exists
-        const existing = await db.partnerHotel.findUnique({
-            where: { id },
-        });
+        const existing = await db.partnerHotel.findUnique({ where: { id } });
         if (!existing) {
             return NextResponse.json({ error: "Partner not found" }, { status: 404 });
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const updateData: any = { name, commissionRate };
-        if (status) updateData.status = status;
+        const updateData: { name?: string; email?: string | null; phone?: string | null; address?: string | null; city?: string | null; notes?: string | null } = {};
+        if (name !== undefined) updateData.name = name;
         if (email !== undefined) updateData.email = email || null;
         if (phone !== undefined) updateData.phone = phone || null;
         if (address !== undefined) updateData.address = address || null;
         if (city !== undefined) updateData.city = city || null;
-        if (state !== undefined) updateData.state = state || null;
-        if (country !== undefined) updateData.country = country || null;
+        if (notes !== undefined) updateData.notes = notes || null;
 
         const partner = await db.partnerHotel.update({
             where: { id },

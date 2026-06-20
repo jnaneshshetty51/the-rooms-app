@@ -10,9 +10,7 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const search = searchParams.get("search");
 
-        // Build where clause - use any to handle dynamic schema
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const where: any = {};
+        const where: Record<string, unknown> = {};
         if (search) {
             where.OR = [
                 { name: { contains: search, mode: "insensitive" } },
@@ -44,40 +42,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const {
-            name,
-            email,
-            phone,
-            website,
-            address,
-            city,
-            state,
-            country,
-            commissionRate,
-            status = "ACTIVE",
-        } = body;
+        const { name, email, phone, address, city, notes } = body;
 
-        // Validation
-        if (!name || commissionRate === undefined) {
-            return NextResponse.json({ error: "Name and commission rate are required" }, { status: 400 });
+        if (!name) {
+            return NextResponse.json({ error: "Name is required" }, { status: 400 });
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const createData: any = {
-            name,
-            commissionRate,
-            status,
-        };
-
-        if (email) createData.email = email;
-        if (phone) createData.phone = phone;
-        if (address) createData.address = address;
-        if (city) createData.city = city;
-        if (state) createData.state = state;
-        if (country) createData.country = country;
-
         const partner = await db.partnerHotel.create({
-            data: createData,
+            data: { name, email: email || null, phone: phone || null, address: address || null, city: city || null, notes: notes || null },
         });
 
         return NextResponse.json({ partner }, { status: 201 });
