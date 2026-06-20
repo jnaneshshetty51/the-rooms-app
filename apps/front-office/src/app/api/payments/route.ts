@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     const payment = await createPayment({
       bookingId,
       amount: new Prisma.Decimal(amount),
-      method,
+      method: method as 'ONLINE' | 'UPI' | 'CARD' | 'CASH' | 'BANK_TRANSFER' | 'CORPORATE_INVOICE',
       transactionId,
       status: "PAID",
     });
