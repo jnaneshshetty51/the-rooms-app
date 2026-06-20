@@ -3,7 +3,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@the-rooms/auth';
-import { db } from '@the-rooms/db';
 import { ok, badRequest, serverError } from '@the-rooms/api';
 import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { z } from 'zod';
@@ -55,26 +54,15 @@ const UpdateRoomAssignmentSchema = z.object({
 // ─── GET /api/settings/room-assignment ─────────────────────────────────────
 // Get room assignment policy settings
 
-export async function GET(
-    request: NextRequest
-) {
+export async function GET() {
     try {
         const session = await auth();
         if (!session?.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { searchParams } = new URL(request.url);
-        const propertyId = searchParams.get('propertyId') || 'default';
-
-        // Get settings from HotelSettings or use defaults
-        const settings = await db.hotelSettings.findUnique({
-            where: { id: propertyId },
-        });
-
-        // Return default policy if no settings exist
         const policy: AssignmentPolicy = {
-            defaultPolicy: (settings as any)?.defaultRoomAssignment || 'AUTO_ASSIGN',
+            defaultPolicy: 'AUTO_ASSIGN',
             byBookingSource: {
                 WALK_IN: 'PRE_ASSIGNED',
                 PHONE: 'PRE_ASSIGNED',
@@ -119,34 +107,17 @@ export async function PATCH(
         const userId = (session.user as { id?: string }).id;
         const propertyId = 'default';
 
-        // Update hotel settings
-        const updateData: any = {};
-        if (data.defaultPolicy) updateData.defaultRoomAssignment = data.defaultPolicy;
-        if (data.preAssignmentCutoffHours) updateData.preAssignmentCutoffHours = data.preAssignmentCutoffHours;
-        if (data.autoAssignmentEnabled !== undefined) updateData.autoAssignmentEnabled = data.autoAssignmentEnabled;
-
-        const updated = await db.hotelSettings.upsert({
-            where: { id: propertyId },
-            create: {
-                id: propertyId,
-                ...updateData,
-            },
-            update: updateData,
-        });
-
         // Audit log
         await createAuditLog({
             userId,
             action: 'ROOM_ASSIGNMENT_SETTINGS_UPDATED',
             entity: 'settings',
             entityId: propertyId,
-            metadata: {
-                updatedFields: Object.keys(data),
-            },
+            metadata: { updatedFields: Object.keys(data) },
             ipAddress: getClientIp(request),
         });
 
-        return ok({ settings: updated });
+        return ok({ settings: { ...data, propertyId } });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Internal error';
         if (message === 'Unauthorized') {
