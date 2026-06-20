@@ -108,6 +108,8 @@ export async function POST(
                 bookingId,
                 type,
                 status: "PENDING",
+                originalCheckIn: booking.checkIn,
+                originalCheckOut: booking.checkOut,
                 requestedCheckIn: requestedCheckIn ? new Date(requestedCheckIn) : null,
                 requestedCheckOut: requestedCheckOut ? new Date(requestedCheckOut) : null,
                 reason,
