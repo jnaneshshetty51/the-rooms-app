@@ -1,3 +1,4 @@
+"use client";
 // apps/super-admin/src/app/access-denied/page.tsx
 import Link from "next/link"
 import { ShieldX, Shield } from "lucide-react"
