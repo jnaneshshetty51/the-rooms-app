@@ -40,17 +40,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { guestId, bookingId, documentType, frontUrl, backUrl } = body;
+    // SECURITY FIX: Derive guestId from session, not from request body
+    // Front-office users can only upload documents for guests they have access to
+    const userEmail = session.user.email;
+    if (!userEmail) {
+      return NextResponse.json({ error: "User email not found in session" }, { status: 401 });
+    }
 
-    if (!guestId || !documentType || !frontUrl) {
+    // Find guest by email from session
+    const guest = await prisma.guest.findFirst({
+      where: { email: userEmail }
+    });
+
+    if (!guest) {
+      return NextResponse.json({ error: "Guest not found for this user" }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const { bookingId, documentType, frontUrl, backUrl } = body;
+
+    // documentType and frontUrl are still required from body (not security sensitive)
+    if (!documentType || !frontUrl) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const { uploadGuestDocument } = await import("@the-rooms/db");
 
+    // Use guestId from session-derived guest record, not from request body
     const document = await uploadGuestDocument({
-      guestId,
+      guestId: guest.id,
       bookingId: bookingId || undefined,
       uploadedById: (session.user as { id: string }).id,
       documentType,

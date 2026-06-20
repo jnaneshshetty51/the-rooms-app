@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Save, User, Utensils, Bed, Volume2 } from "lucide-react";
-import { PageHeader, Button, Card, CardContent, CardHeader, CardTitle, Label, Input, Select, SelectTrigger, SelectContent, SelectValue, Badge } from "@the-rooms/ui";
+import { PageHeader, Button, Card, CardContent, CardHeader, CardTitle, Label, Input, Select, SelectTrigger, SelectContent, SelectValue, Badge, Breadcrumbs, BreadcrumbItem } from "@the-rooms/ui";
 import { fetchGuestPreferences, updateGuestPreferences, type GuestPreferences } from "@/lib/api";
 
 export default function GuestPreferencesPage() {
@@ -67,8 +67,15 @@ export default function GuestPreferencesPage() {
 
     if (loading) { return <div className="space-y-6"><PageHeader title="Guest Preferences" description="Loading..." /><div className="h-64 animate-pulse rounded-xl bg-muted" /></div>; }
 
+    const breadcrumbItems: BreadcrumbItem[] = [
+        { label: "Guests", href: "/guests" },
+        { label: guestId },
+        { label: "Preferences" },
+    ];
+
     return (
         <div className="space-y-6">
+            <Breadcrumbs items={breadcrumbItems} />
             <PageHeader title="Guest Preferences" description={`Managing preferences for guest ${guestId}`} actions={<Button onClick={handleSave} disabled={saving}><Save className="h-4 w-4 mr-2" />{saving ? "Saving..." : "Save Preferences"}</Button>} />
             <div className="grid gap-6 lg:grid-cols-2">
                 <Card>

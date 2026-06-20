@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { ok, badRequest, serverError } from "@the-rooms/api/response";
 import { auth } from "@the-rooms/auth";
-import { getBookingById, updateBookingStatus, db } from "@the-rooms/db";
+import { getBookingById, db } from "@the-rooms/db";
 
 export async function POST(
   request: Request,
@@ -9,7 +9,7 @@ export async function POST(
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return badRequest("Unauthorized", "UNAUTHORIZED");
     }
 
     const resolvedParams = await params;
@@ -18,12 +18,12 @@ export async function POST(
     // Get the booking
     const booking = await getBookingById(bookingId);
     if (!booking) {
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      return badRequest("Booking not found", "NOT_FOUND");
     }
 
     // Verify state is CONFIRMED
     if (booking.status !== "CONFIRMED") {
-      return NextResponse.json({ error: "Only confirmed bookings can be cancelled" }, { status: 400 });
+      return badRequest("Only confirmed bookings can be cancelled", "INVALID_STATUS");
     }
 
     // Cancel the booking and release the room in a transaction
@@ -46,9 +46,9 @@ export async function POST(
       });
     });
 
-    return NextResponse.json({ success: true });
+    return ok({ success: true });
   } catch (error) {
     console.error("Failed to cancel booking:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return serverError("Internal Server Error", "INTERNAL_ERROR");
   }
 }

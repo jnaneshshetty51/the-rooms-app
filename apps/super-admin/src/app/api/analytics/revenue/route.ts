@@ -10,11 +10,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // ─── Role Check ──────────────────────────────────────────────────────────
+    const userRole = (session.user as { role?: string }).role;
+    if (userRole !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const propertyId = searchParams.get("propertyId");
+
+    // Build property filters
+    const bookingPropertyFilter = propertyId ? { room: { propertyId } } : {};
+    const expensePropertyFilter = propertyId ? { propertyId } : {};
 
     const whereClause: Record<string, unknown> = {
+      ...bookingPropertyFilter,
       paymentStatus: "PAID",
     };
 
@@ -39,10 +51,10 @@ export async function GET(request: NextRequest) {
     const [yearlyBookings, yearlyExpenses] = await Promise.all([
       db.booking.findMany({
         where: { ...whereClause, createdAt: { gte: yearStart } },
-        include: { room: { select: { type: true } } },
+        include: { room: { select: { type: true, propertyId: true } } },
       }),
       db.expense.findMany({
-        where: { date: { gte: yearStart } },
+        where: { ...expensePropertyFilter, date: { gte: yearStart } },
       }),
     ]);
 
@@ -171,12 +183,38 @@ export async function GET(request: NextRequest) {
       },
     ];
 
+    // ─── Property breakdown when showing "all" ───────────────────────────────
+    let propertyBreakdown = null;
+    if (!propertyId) {
+      const properties = await db.property.findMany({
+        select: { id: true, name: true, code: true },
+      });
+
+      propertyBreakdown = await Promise.all(
+        properties.map(async (property) => {
+          const propMonthBookings = monthBookings.filter((b) => b.room.propertyId === property.id);
+          const propYearBookings = yearlyBookings.filter((b) => b.room.propertyId === property.id);
+          return {
+            propertyId: property.id,
+            propertyName: property.name,
+            propertyCode: property.code,
+            monthlyRevenue: propMonthBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
+            yearlyRevenue: propYearBookings.reduce((s, b) => s + Number(b.totalAmount), 0),
+            monthlyBookings: propMonthBookings.length,
+            yearlyBookings: propYearBookings.length,
+          };
+        })
+      );
+    }
+
     return NextResponse.json({
       data: {
         revenueByPeriod,
         roomBreakdown,
         bookingTypeBreakdown,
       },
+      propertyBreakdown,
+      selectedPropertyId: propertyId,
     });
   } catch (error) {
     console.error("[REVENUE_ANALYTICS]", error);

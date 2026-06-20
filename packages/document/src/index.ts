@@ -129,7 +129,9 @@ export async function uploadDocument(
     contentType: string = 'application/pdf'
 ): Promise<string> {
     const client = getMinioClient();
-    const bucket = process.env.MINIO_BUCKET || 'therooms-documents';
+    // Use consistent bucket - prefer MINIO_BUCKET env var, fallback to 'therooms-storage'
+    // Use prefixes (invoices/, receipts/) for organization within the bucket
+    const bucket = process.env.MINIO_BUCKET || 'therooms-storage';
 
     const exists = await client.bucketExists(bucket);
     if (!exists) {
@@ -140,13 +142,9 @@ export async function uploadDocument(
         'Content-Type': contentType,
     });
 
-    const publicBase = (process.env.MINIO_PUBLIC_URL || '').replace(/\/$/, '');
-    if (publicBase) {
-        return `${publicBase}/${bucket}/${fileName}`;
-    }
-
-    // Fallback: presigned URL valid for 7 days
-    return client.presignedGetObject(bucket, fileName, 7 * 24 * 60 * 60);
+    // Return presigned URL for private access (15 minutes expiry)
+    // NOTE: Documents are sensitive financial data and must remain private
+    return client.presignedGetObject(bucket, fileName, 15 * 60);
 }
 
 /**

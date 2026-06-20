@@ -69,6 +69,7 @@ model User {
   lastLogin     DateTime?
   isActive      Boolean   @default(true)
   attempts      Int       @default(0)
+  lockedUntil   DateTime? // Account lockout expiration time
 
   bookings    Booking[]
   auditLogs   AuditLog[]
@@ -272,6 +273,7 @@ model RoomPhoto {
   roomId     String
   room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   url        String
+  storageKey String?  @map("storage_key") // MinIO object key for deletion
   caption    String?
   sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
@@ -300,6 +302,7 @@ model RoomTypeImage {
   profileId String
   profile   RoomTypeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   url       String
+  storageKey String?        @map("storage_key") // MinIO object key for deletion
   caption   String?
   sortOrder Int             @default(0)
   createdAt DateTime        @default(now())
@@ -345,7 +348,7 @@ model Booking {
   guestId        String
   guest          Guest         @relation(fields: [guestId], references: [id])
   roomId         String
-  room           Room          @relation(fields: [roomId], references: [id])
+  room           Room          @relation(fields: [roomId], references: [id], onDelete: SetNull)
   property       Property      @relation(fields: [propertyId], references: [id])
 
   checkIn        DateTime
@@ -414,6 +417,7 @@ model Booking {
 
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  version      Int          @default(1)  // Optimistic locking version
 
   payments     Payment[]
   invoice      Invoice?
@@ -446,6 +450,9 @@ model Booking {
   @@index([status])
   @@index([guestId])
   @@index([paymentStatus])
+  @@index([roomId, checkIn, checkOut])
+  @@index([propertyId, status, checkIn])
+  @@index([propertyId, paymentStatus])
   @@map("bookings")
 }
 
@@ -495,7 +502,12 @@ model GuestDocument {
 
   documentType  DocumentTypeEnum
   frontUrl      String
+  frontStorageKey String?   @map("front_storage_key") // MinIO object key for front document
   backUrl       String?
+  backStorageKey String?    @map("back_storage_key") // MinIO object key for back document
+  fileName      String?     @map("file_name") // Original filename
+  fileSize      Int?        @map("file_size") // File size in bytes
+  mimeType      String?     @map("mime_type") // MIME type (e.g., image/jpeg)
   verified      Boolean     @default(false)
   verifiedAt    DateTime?
   verifiedById  String?
@@ -600,6 +612,7 @@ model Invoice {
 
   // PDF Storage
   pdfUrl       String?
+  pdfStorageKey String?  @map("pdf_storage_key") // MinIO object key for PDF deletion
 
   // Line items
   items        InvoiceItem[]
@@ -613,6 +626,7 @@ model Invoice {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  @@index([bookingId])
   @@index([status])
   @@index([issuedAt])
   @@map("invoices")
@@ -681,6 +695,7 @@ model Receipt {
 
   // PDF Storage
   pdfUrl        String?
+  pdfStorageKey String?  @map("pdf_storage_key") // MinIO object key for PDF deletion
 
   // Status
   status        ReceiptStatus @default(ACTIVE)
@@ -691,6 +706,24 @@ model Receipt {
   @@index([invoiceId])
   @@index([createdAt])
   @@map("receipts")
+}
+
+// ── File Hash (for deduplication) ─────────────────────────────────────────────
+model FileHash {
+  id          String   @id @default(cuid())
+  hash        String   @unique // SHA-256 hash of file content
+  storageKey  String  @map("storage_key") // MinIO object key
+  size        Int      // File size in bytes
+  mimeType    String?  @map("mime_type") // MIME type
+  createdAt   DateTime @default(now())
+  
+  // Reference to the owning model
+  modelType   String   @map("model_type") // "RoomPhoto", "RoomTypeImage", "GuestDocument", "Invoice", "Receipt"
+  modelId     String?  @map("model_id")   // ID of the owning record
+  
+  @@index([hash])
+  @@index([modelType, modelId])
+  @@map("file_hashes")
 }
 
 enum ReceiptPaymentType {
@@ -815,6 +848,7 @@ model AuditLog {
 
   @@index([userId])
   @@index([entity, entityId])
+  @@index([entity, createdAt])
   @@index([createdAt])
   @@map("audit_logs")
 }
@@ -1114,6 +1148,7 @@ model RoomCharge {
   
   createdAt       DateTime  @default(now())
 
+  @@unique([bookingId, chargeDate])
   @@index([bookingId, chargeDate])
   @@index([propertyId, chargeDate])
   @@map("room_charges")
@@ -1483,6 +1518,7 @@ model GuestBlacklist {
   // Blacklist is permanent unless explicitly removed
   expiresAt   DateTime? // null = permanent
 
+  @@index([expiresAt])
   @@map("guest_blacklist")
 }
 
@@ -2590,6 +2626,7 @@ model StaffActivityLog {
   @@index([staffId, createdAt])
   @@index([entityType, entityId])
   @@index([propertyId, createdAt])
+  @@index([propertyId, action, createdAt])
   @@index([action])
   @@map("staff_activity_logs")
 }

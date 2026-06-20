@@ -4,8 +4,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Filter, CalendarDays, Eye, XCircle } from "lucide-react";
-import { PageHeader, Button, StatusBadge, Select, SelectTrigger, SelectContent, SelectValue, Input, DataTable, type ColumnDef } from "@the-rooms/ui";
+import { PageHeader, Button, StatusBadge, Select, SelectTrigger, SelectContent, SelectValue, Input, DataTable, type ColumnDef, EmptyState } from "@the-rooms/ui";
 import { formatCurrency, formatDate } from "@the-rooms/ui";
+import { Calendar } from "lucide-react";
 
 interface Booking {
   id: string;
@@ -248,13 +249,26 @@ export default function BookingsPage() {
       </div>
 
       {/* Table */}
-      <DataTable
-        columns={columns}
-        data={data?.bookings ?? []}
-        isLoading={loading}
-        pageSize={20}
-        filterPlaceholder="Filter bookings…"
-      />
+      {!loading && (!data?.bookings || data.bookings.length === 0) ? (
+        <EmptyState
+          title="No bookings found"
+          description={filters.search || filters.status !== "ALL" ? "Try adjusting your filters to find what you're looking for." : "New bookings will appear here once guests start making reservations."}
+          icon={<Calendar className="h-12 w-12" />}
+          action={
+            filters.search || filters.status !== "ALL"
+              ? { label: "Clear Filters", onClick: () => setFilters((f) => ({ ...f, search: "", status: "ALL", paymentStatus: "ALL", bookingSource: "ALL", bookingType: "ALL", checkInFrom: "", checkInTo: "" })) }
+              : undefined
+          }
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={data?.bookings ?? []}
+          isLoading={loading}
+          pageSize={20}
+          filterPlaceholder="Filter bookings…"
+        />
+      )}
 
       {/* Pagination info */}
       {data && (

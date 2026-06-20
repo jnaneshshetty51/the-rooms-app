@@ -1,7 +1,8 @@
 // apps/super-admin/src/app/api/users/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@the-rooms/auth";
 import { db } from "@the-rooms/db";
+import { ok, created, badRequest, serverError, forbidden } from "@the-rooms/api/response";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return badRequest("Unauthorized", "UNAUTHORIZED");
     }
 
     const { searchParams } = new URL(request.url);
@@ -53,13 +54,10 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ data: users });
+    return ok({ users });
   } catch (error) {
     console.error("[USERS_GET]", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }
 
@@ -67,20 +65,20 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return badRequest("Unauthorized", "UNAUTHORIZED");
     }
 
     const userRole = (session.user as { role?: string }).role;
     if (userRole !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return forbidden("Forbidden", "FORBIDDEN");
     }
 
     const body = await request.json();
     const parsed = createUserSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Invalid input", details: parsed.error.flatten() },
-        { status: 400 }
+      return badRequest(
+        `Invalid input: ${parsed.error.errors.map(e => e.message).join(', ')}`,
+        "VALIDATION_ERROR"
       );
     }
 
@@ -89,10 +87,7 @@ export async function POST(request: NextRequest) {
     // Check if email already exists
     const existing = await db.user.findUnique({ where: { email } });
     if (existing) {
-      return NextResponse.json(
-        { error: "A user with this email already exists" },
-        { status: 409 }
-      );
+      return badRequest("A user with this email already exists", "CONFLICT");
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -126,13 +121,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ data: user }, { status: 201 });
+    return created({ user });
   } catch (error) {
     console.error("[USERS_POST]", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }
 
@@ -140,36 +132,33 @@ export async function PATCH(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return badRequest("Unauthorized", "UNAUTHORIZED");
     }
 
     const userRole = (session.user as { role?: string }).role;
     if (userRole !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return forbidden("Forbidden", "FORBIDDEN");
     }
 
     const body = await request.json();
     const { id, ...updates } = body;
 
     if (!id) {
-      return NextResponse.json({ error: "User ID required" }, { status: 400 });
+      return badRequest("User ID required", "VALIDATION_ERROR");
     }
 
     const parsed = updateUserSchema.safeParse(updates);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Invalid input", details: parsed.error.flatten() },
-        { status: 400 }
+      return badRequest(
+        `Invalid input: ${parsed.error.errors.map(e => e.message).join(', ')}`,
+        "VALIDATION_ERROR"
       );
     }
 
     // Prevent self-demotion
     const currentUserId = (session.user as { id?: string }).id ?? "";
     if (id === currentUserId && parsed.data.role) {
-      return NextResponse.json(
-        { error: "Cannot change your own role" },
-        { status: 400 }
-      );
+      return badRequest("Cannot change your own role", "FORBIDDEN");
     }
 
     const user = await db.user.update({
@@ -197,13 +186,10 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ data: user });
+    return ok({ user });
   } catch (error) {
     console.error("[USERS_PATCH]", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }
 
@@ -211,33 +197,33 @@ export async function DELETE(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return badRequest("Unauthorized", "UNAUTHORIZED");
     }
 
     const userRole = (session.user as { role?: string }).role;
     if (userRole !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return forbidden("Forbidden", "FORBIDDEN");
     }
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) {
-      return NextResponse.json({ error: "User ID required" }, { status: 400 });
+      return badRequest("User ID required", "VALIDATION_ERROR");
     }
 
     // Prevent self-deletion
     const currentUserId = (session.user as { id?: string }).id ?? "";
     if (id === currentUserId) {
-      return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });
+      return badRequest("Cannot delete your own account", "FORBIDDEN");
     }
 
     // Check user exists and is not SUPER_ADMIN
     const targetUser = await db.user.findUnique({ where: { id } });
     if (!targetUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return badRequest("User not found", "NOT_FOUND");
     }
     if (targetUser.role === "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Cannot delete Super Admin accounts" }, { status: 403 });
+      return forbidden("Cannot delete Super Admin accounts", "FORBIDDEN");
     }
 
     await db.user.delete({ where: { id } });
@@ -253,12 +239,9 @@ export async function DELETE(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ data: { deleted: true } });
+    return ok({ deleted: true });
   } catch (error) {
     console.error("[USERS_DELETE]", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }

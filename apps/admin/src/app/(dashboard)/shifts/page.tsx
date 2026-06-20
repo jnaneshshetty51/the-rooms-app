@@ -17,6 +17,8 @@ import {
     Input,
     Badge,
     StatCard,
+    Breadcrumbs,
+    BreadcrumbItem,
 } from "@the-rooms/ui";
 import { formatDate } from "@the-rooms/ui";
 import {
@@ -98,8 +100,14 @@ export default function ShiftsPage() {
         }
     };
 
+    const breadcrumbItems: BreadcrumbItem[] = [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Shifts" },
+    ];
+
     return (
         <div className="space-y-6">
+            <Breadcrumbs items={breadcrumbItems} />
             <PageHeader
                 title="Shift Management"
                 description="Manage shift types and staff assignments"

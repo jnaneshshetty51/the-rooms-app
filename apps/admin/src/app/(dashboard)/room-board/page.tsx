@@ -23,6 +23,9 @@ import {
     XCircle,
     Eye,
     Settings,
+    ChevronLeft,
+    ChevronRight,
+    Calendar,
 } from "lucide-react";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
 import { PageHeader, Button, StatusBadge, Select, SelectTrigger, SelectContent, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@the-rooms/ui";
@@ -36,6 +39,7 @@ interface CurrentBooking {
     checkOut: string;
     status: string;
     arrivingToday: boolean;
+    departingToday: boolean;
 }
 
 interface RoomEntry {
@@ -58,6 +62,8 @@ interface RoomBoardData {
     blocked: number;
     arrivingToday: number;
     departingToday: number;
+    selectedDate: string;
+    isToday: boolean;
 }
 
 interface AdminOverrideModal {
@@ -81,6 +87,11 @@ const ROOM_STATUS_OPTIONS = [
     { value: "BLOCKED", label: "Blocked", color: "text-gray-600" },
 ];
 
+function getTodayString() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 export default function RoomBoardPage() {
     const [data, setData] = useState<RoomBoardData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -91,38 +102,65 @@ export default function RoomBoardPage() {
     const [newStatus, setNewStatus] = useState<string>("");
     const [overrideReason, setOverrideReason] = useState("");
     const [actionLoading, setActionLoading] = useState(false);
+    const [selectedDate, setSelectedDate] = useState<string>(getTodayString());
 
-    const fetchRoomBoard = useCallback(async () => {
+    const fetchRoomBoard = useCallback(async (date?: string) => {
         try {
-            const res = await fetch("/api/rooms/board");
+            const dateParam = date || selectedDate;
+            const url = `/api/rooms/board?date=${dateParam}`;
+            const res = await fetch(url);
             if (res.ok) {
                 const json = await res.json();
-                // Add blocked count if not present
                 setData({
                     ...json,
                     blocked: json.blocked ?? 0,
                 });
+                if (date) setSelectedDate(date);
             }
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [selectedDate]);
 
     useEffect(() => { fetchRoomBoard(); }, [fetchRoomBoard]);
 
     useEffect(() => {
         if (!autoRefresh) return;
-        const interval = setInterval(fetchRoomBoard, 30000);
+        const interval = setInterval(() => fetchRoomBoard(selectedDate), 30000);
         return () => clearInterval(interval);
-    }, [autoRefresh, fetchRoomBoard]);
+    }, [autoRefresh, fetchRoomBoard, selectedDate]);
+
+    const handleDateChange = (newDate: string) => {
+        setLoading(true);
+        fetchRoomBoard(newDate);
+    };
+
+    const handleToday = () => {
+        const today = getTodayString();
+        setLoading(true);
+        fetchRoomBoard(today);
+    };
+
+    const handlePrevDay = () => {
+        const current = new Date(selectedDate);
+        current.setDate(current.getDate() - 1);
+        const newDate = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+        setLoading(true);
+        fetchRoomBoard(newDate);
+    };
+
+    const handleNextDay = () => {
+        const current = new Date(selectedDate);
+        current.setDate(current.getDate() + 1);
+        const newDate = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+        setLoading(true);
+        fetchRoomBoard(newDate);
+    };
 
     const filteredRooms = data?.rooms.filter((room) => {
         if (filter === "all") return true;
         if (filter === "arriving") return room.currentBooking?.arrivingToday;
-        if (filter === "departing") {
-            const today = new Date().toISOString().split("T")[0];
-            return room.currentBooking?.checkOut === today;
-        }
+        if (filter === "departing") return room.currentBooking?.departingToday;
         return room.status === filter.toUpperCase();
     }) ?? [];
 
@@ -134,6 +172,12 @@ export default function RoomBoardPage() {
 
     const floors = Object.keys(roomsByFloor).map(Number).sort((a, b) => a - b);
     const occupancyPercent = data?.totalRooms ? Math.round((data.occupied / data.totalRooms) * 100) : 0;
+
+    // Format selected date for display
+    const formatDisplayDate = (dateStr: string) => {
+        const date = new Date(dateStr + 'T00:00:00');
+        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    };
 
     // Check for double bookings / conflicts
     const checkConflicts = (room: RoomEntry): RoomEntry[] => {
@@ -162,7 +206,7 @@ export default function RoomBoardPage() {
                 }),
             });
             if (res.ok) {
-                fetchRoomBoard();
+                fetchRoomBoard(selectedDate);
                 setOverrideModal({ type: null, room: null });
             }
         } finally {
@@ -180,7 +224,7 @@ export default function RoomBoardPage() {
                 body: JSON.stringify({ reason: overrideReason }),
             });
             if (res.ok) {
-                fetchRoomBoard();
+                fetchRoomBoard(selectedDate);
                 setOverrideModal({ type: null, room: null });
             }
         } finally {
@@ -198,7 +242,7 @@ export default function RoomBoardPage() {
                 body: JSON.stringify({ targetRoomId, reason: overrideReason }),
             });
             if (res.ok) {
-                fetchRoomBoard();
+                fetchRoomBoard(selectedDate);
                 setOverrideModal({ type: null, room: null });
             }
         } finally {
@@ -237,13 +281,60 @@ export default function RoomBoardPage() {
                             <RefreshCw className={cn("h-4 w-4 mr-2", autoRefresh && "animate-spin")} />
                             {autoRefresh ? "Auto-refresh On" : "Auto-refresh Off"}
                         </Button>
-                        <Button variant="outline" size="sm" onClick={fetchRoomBoard} disabled={loading}>
+                        <Button variant="outline" size="sm" onClick={() => fetchRoomBoard(selectedDate)} disabled={loading}>
                             <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
                             Refresh
                         </Button>
                     </div>
                 }
             />
+
+            {/* ─── Date Navigation ─────────────────────────────────────────────────── */}
+            <div className="flex items-center justify-center gap-2 bg-white rounded-lg border p-2">
+                <button
+                    onClick={handlePrevDay}
+                    className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                    title="Previous day"
+                >
+                    <ChevronLeft className="h-5 w-5 text-gray-600" />
+                </button>
+
+                <div className="flex items-center gap-2 px-4">
+                    <Calendar className="h-5 w-5 text-gray-400" />
+                    <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => handleDateChange(e.target.value)}
+                        className="text-sm font-medium text-gray-900 border-0 bg-transparent focus:ring-2 focus:ring-[#E17055] rounded px-2 py-1"
+                    />
+                    <span className="text-sm text-gray-600">
+                        {formatDisplayDate(selectedDate)}
+                    </span>
+                </div>
+
+                <button
+                    onClick={handleNextDay}
+                    className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                    title="Next day"
+                >
+                    <ChevronRight className="h-5 w-5 text-gray-600" />
+                </button>
+
+                {!data?.isToday && (
+                    <button
+                        onClick={handleToday}
+                        className="ml-2 px-3 py-1.5 text-sm font-medium text-[#E17055] border border-[#E17055] rounded-md hover:bg-[#E17055] hover:text-white transition-colors"
+                    >
+                        Today
+                    </button>
+                )}
+
+                {data?.isToday && (
+                    <span className="ml-2 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md">
+                        Today
+                    </span>
+                )}
+            </div>
 
             {/* ─── KPI Cards ───────────────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">

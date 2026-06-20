@@ -3,10 +3,11 @@ import bcrypt from "bcryptjs"
 import { auth } from "../index"
 import type { Role } from "@the-rooms/types"
 
-const SALT_ROUNDS = 12
+// Bcrypt salt rounds - configurable via environment variable (default: 12)
+const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
 
 /**
- * Hash a password using bcrypt (salt rounds = 12)
+ * Hash a password using bcrypt with configurable salt rounds
  */
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS)

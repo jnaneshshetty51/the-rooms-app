@@ -1,6 +1,8 @@
 import prisma from '../index';
 import { Prisma } from '@prisma/client';
 import { hasDateOverlap } from '../config';
+import { markRoomDirty } from './housekeepingQueries';
+import { NotFoundError, ConflictError } from '@the-rooms/api/errors';
 
 export type BookingFilters = {
   status?: string;
@@ -185,7 +187,11 @@ export async function updateBookingStatus(
   if (status === 'CHECKED_IN') {
     await dbClient.room.update({ where: { id: booking.roomId }, data: { status: 'OCCUPIED' } });
   } else if (status === 'CHECKED_OUT' || status === 'CANCELLED') {
-    await dbClient.room.update({ where: { id: booking.roomId }, data: { status: 'VACANT' } });
+    await dbClient.room.update({ where: { id: booking.roomId }, data: { status: 'VACANT', cleaningStatus: 'DIRTY' } });
+    // Create HK task for checkout (only when not in an existing transaction)
+    if (status === 'CHECKED_OUT' && !txClient) {
+      await markRoomDirty(booking.roomId, booking.id);
+    }
   }
 
   return booking;
@@ -291,26 +297,32 @@ export async function isRoomAvailableReadOnly(
 
 /**
  * Generate a unique booking number: BKN-YYYYMMDD-XXXX
+ * Uses a transaction with serializable isolation to prevent race conditions.
  */
 export async function generateBookingNumber(): Promise<string> {
-  const today = new Date();
-  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-  const prefix = `BKN-${dateStr}-`;
+  return prisma.$transaction(async (tx) => {
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+    const prefix = `BKN-${dateStr}-`;
 
-  // Find the highest count for today
-  const lastBooking = await prisma.booking.findFirst({
-    where: { bookingNumber: { startsWith: prefix } },
-    orderBy: { bookingNumber: 'desc' },
-    select: { bookingNumber: true },
+    // Find the highest count for today
+    const lastBooking = await tx.booking.findFirst({
+      where: { bookingNumber: { startsWith: prefix } },
+      orderBy: { bookingNumber: 'desc' },
+      select: { bookingNumber: true },
+    });
+
+    let counter = 1;
+    if (lastBooking) {
+      const lastCounter = parseInt(lastBooking.bookingNumber.split('-').pop() ?? '0', 10);
+      counter = lastCounter + 1;
+    }
+
+    return `${prefix}${String(counter).padStart(4, '0')}`;
+  }, {
+    isolationLevel: 'Serializable',
+    timeout: 10000,
   });
-
-  let counter = 1;
-  if (lastBooking) {
-    const lastCounter = parseInt(lastBooking.bookingNumber.split('-').pop() ?? '0', 10);
-    counter = lastCounter + 1;
-  }
-
-  return `${prefix}${String(counter).padStart(4, '0')}`;
 }
 
 // ─── No-Show Handling ─────────────────────────────────────────────────────────
@@ -489,4 +501,39 @@ export async function getNoShowBookings(
   ]);
 
   return { bookings, total, pages: Math.ceil(total / perPage), page };
+}
+
+// ─── Optimistic Locking ────────────────────────────────────────────────────────
+
+/**
+ * Updates a booking with optimistic locking
+ * @throws NotFoundError if booking doesn't exist
+ * @throws ConflictError if version mismatch (concurrent modification)
+ */
+export async function updateBookingWithLocking(
+  bookingId: string,
+  data: Partial<Prisma.BookingUpdateInput>,
+  expectedVersion: number
+) {
+  const result = await prisma.booking.updateMany({
+    where: {
+      id: bookingId,
+      version: expectedVersion,
+    },
+    data: {
+      ...data,
+      version: { increment: 1 },
+    },
+  });
+
+  if (result.count === 0) {
+    // Either booking doesn't exist or version mismatch
+    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!booking) {
+      throw new NotFoundError('Booking');
+    }
+    throw new ConflictError('Booking was modified by another request. Please refresh and try again.');
+  }
+
+  return prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
 }

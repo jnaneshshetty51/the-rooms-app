@@ -1,31 +1,58 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@the-rooms/auth";
 import { createPayment, getPaymentsByBooking, Prisma } from "@the-rooms/db";
-import prisma from "@the-rooms/db";
+import { db } from "@the-rooms/db";
+import { getPropertyIdFromSession } from "@the-rooms/api/middleware";
+import { ok, created, badRequest, serverError } from "@the-rooms/api/response";
+import { z } from "zod";
+
+// ─── Zod Schemas ──────────────────────────────────────────────────────────────
+
+const CreatePaymentSchema = z.object({
+  bookingId: z.string().min(1),
+  amount: z.number().positive(),
+  method: z.string().min(1),
+  transactionId: z.string().optional(),
+});
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return badRequest("Unauthorized", "UNAUTHORIZED");
     }
+
+    // Get propertyId from session for filtering
+    const propertyId = await getPropertyIdFromSession(session);
+    const userRole = session?.user?.role;
 
     const { searchParams } = new URL(request.url);
     const bookingId = searchParams.get("bookingId");
 
     if (bookingId) {
       const payments = await getPaymentsByBooking(bookingId);
-      return NextResponse.json({ payments });
+      return ok(payments);
     } else {
       const from = searchParams.get("from");
       const to = searchParams.get("to");
-      const where: { createdAt?: { gte?: Date; lte?: Date } } = {};
+      const where: { createdAt?: { gte?: Date; lte?: Date }; propertyId?: string } = {};
+
+      // SUPER_ADMIN sees all properties, others filter by propertyId
+      if (userRole !== "SUPER_ADMIN") {
+        if (propertyId) {
+          where.propertyId = propertyId;
+        } else {
+          // User has no property access
+          return ok([]);
+        }
+      }
+
       if (from || to) {
         where.createdAt = {};
         if (from) where.createdAt.gte = new Date(from);
         if (to) where.createdAt.lte = new Date(to);
       }
-      const payments = await prisma.payment.findMany({
+      const payments = await db.payment.findMany({
         where,
         orderBy: { createdAt: "desc" },
         take: 500,
@@ -34,6 +61,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               bookingNumber: true,
+              propertyId: true,
               guest: {
                 select: { name: true, phone: true },
               },
@@ -44,11 +72,11 @@ export async function GET(request: NextRequest) {
           },
         },
       });
-      return NextResponse.json({ payments });
+      return ok(payments);
     }
   } catch (error) {
     console.error("Error fetching payments:", error);
-    return NextResponse.json({ error: "Failed to fetch payments" }, { status: 500 });
+    return serverError("Failed to fetch payments", "INTERNAL_ERROR");
   }
 }
 
@@ -56,19 +84,32 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return badRequest("Unauthorized", "UNAUTHORIZED");
     }
+
+    // Get propertyId from session for filtering
+    const propertyId = await getPropertyIdFromSession(session);
+    const userRole = session?.user?.role;
 
     const body = await request.json();
-    const { bookingId, amount, method, transactionId } = body;
-
-    if (!bookingId || !amount || !method) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const parsed = CreatePaymentSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        parsed.error.errors.map(e => e.message).join(', '),
+        "VALIDATION_ERROR"
+      );
     }
 
-    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+    const { bookingId, amount, method, transactionId } = parsed.data;
+
+    const booking = await db.booking.findUnique({ where: { id: bookingId } });
     if (!booking) {
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      return badRequest("Booking not found", "NOT_FOUND");
+    }
+
+    // Verify booking belongs to user's property (for non-SUPER_ADMIN)
+    if (userRole !== "SUPER_ADMIN" && propertyId && booking.propertyId !== propertyId) {
+      return badRequest("Access denied to this booking", "FORBIDDEN");
     }
 
     const payment = await createPayment({
@@ -79,7 +120,7 @@ export async function POST(request: NextRequest) {
       status: "PAID",
     });
 
-    const totalPaid = await prisma.payment.aggregate({
+    const totalPaid = await db.payment.aggregate({
       where: { bookingId, status: "PAID" },
       _sum: { amount: true },
     });
@@ -92,12 +133,12 @@ export async function POST(request: NextRequest) {
       paymentStatus = paidAmount.greaterThan(0) ? "PARTIAL" : "PENDING";
     }
 
-    await prisma.booking.update({
+    await db.booking.update({
       where: { id: bookingId },
       data: { paymentStatus },
     });
 
-    await prisma.auditLog.create({
+    await db.auditLog.create({
       data: {
         userId: (session.user as { id: string }).id,
         bookingId,
@@ -108,9 +149,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ payment, paymentStatus }, { status: 201 });
+    return created({ payment, paymentStatus });
   } catch (error) {
     console.error("Error recording payment:", error);
-    return NextResponse.json({ error: "Failed to record payment" }, { status: 500 });
+    return serverError("Failed to record payment", "INTERNAL_ERROR");
   }
 }

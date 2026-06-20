@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@the-rooms/api": "workspace:*",
     "@the-rooms/auth": "workspace:*",
     "@the-rooms/ui": "workspace:*",
     "@the-rooms/db": "workspace:*",

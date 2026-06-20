@@ -2,8 +2,8 @@
 // Server Component: handles auth check and passes serializable props to clients.
 import { redirect } from "next/navigation";
 import { auth } from "@the-rooms/auth";
-import { DashboardHeader } from "@the-rooms/ui";
 import { AdminSidebarClient } from "./_components/AdminSidebarClient";
+import { AdminHeaderClient } from "./_components/AdminHeaderClient";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -23,12 +23,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
-        <DashboardHeader
-          portalName="Admin Portal"
-          userName={userName}
-          notificationCount={0}
-        />
+        {/* Header with Notification Bell */}
+        <AdminHeaderClient portalName="Admin Portal" userName={userName} />
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">

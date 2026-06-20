@@ -29,6 +29,7 @@ import {
   Wallet,
   FileSpreadsheet,
   TrendingUp,
+  TrendingDown,
   Plug,
   Cog,
   Shield,
@@ -40,6 +41,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Package,
 } from "lucide-react";
 import { cn } from "@the-rooms/ui";
 import { signOut as nextAuthSignOut } from "next-auth/react";
@@ -83,6 +85,9 @@ const ADMIN_NAV_SECTIONS: NavSection[] = [
       { label: "Housekeeping", href: "/housekeeping", icon: Sparkles },
       { label: "Maintenance", href: "/maintenance", icon: Wrench },
       { label: "Complaints", href: "/complaints", icon: AlertTriangle },
+      { label: "Night Audit", href: "/night-audit", icon: Shield },
+      { label: "Damage Assessments", href: "/damage-assessments", icon: AlertTriangle },
+      { label: "Lost & Found", href: "/lost-found", icon: Package },
     ],
   },
   {
@@ -97,6 +102,7 @@ const ADMIN_NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Invoices", href: "/invoices", icon: FileText },
       { label: "Payments", href: "/payments", icon: CreditCard },
+      { label: "Expenses", href: "/expenses", icon: TrendingDown },
       { label: "Cash Management", href: "/cash-management", icon: Wallet },
       { label: "Tally Export", href: "/tally-export", icon: FileSpreadsheet },
     ],
@@ -132,6 +138,7 @@ const ADMIN_NAV_SECTIONS: NavSection[] = [
     label: "System",
     items: [
       { label: "Reports", href: "/reports", icon: BarChart3 },
+      { label: "Daily Report", href: "/reports/daily", icon: BarChart3 },
       { label: "Audit Logs", href: "/audit-logs", icon: ClipboardList },
       { label: "Announcements", href: "/announcements", icon: Megaphone },
       { label: "Notifications", href: "/notifications", icon: Bell },

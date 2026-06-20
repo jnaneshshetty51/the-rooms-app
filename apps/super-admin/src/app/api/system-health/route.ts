@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import { db } from "@the-rooms/db";
+import { ok } from "@the-rooms/api/response";
 
 interface ServiceHealth {
   name: string;
@@ -374,16 +375,18 @@ export async function GET() {
     const slowCount = services.filter((s) => s.status === "slow").length;
     const downCount = services.filter((s) => s.status === "down").length;
 
-    return NextResponse.json({
-      data: {
-        services,
-        summary: {
-          total: services.length,
-          healthy: healthyCount,
-          slow: slowCount,
-          down: downCount,
-          lastChecked: new Date().toISOString(),
-        },
+    const allHealthy = downCount === 0 && slowCount === 0;
+    const status = allHealthy ? "ok" : "degraded";
+
+    return ok({
+      status,
+      services,
+      summary: {
+        total: services.length,
+        healthy: healthyCount,
+        slow: slowCount,
+        down: downCount,
+        lastChecked: new Date().toISOString(),
       },
     });
   } catch (error) {

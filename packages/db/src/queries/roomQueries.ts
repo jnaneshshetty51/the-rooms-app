@@ -1,5 +1,5 @@
 import prisma from '../index';
-import { Room, RoomType, RoomStatus, CleaningStatus } from '@prisma/client';
+import { Room, RoomType, RoomStatus, CleaningStatus, Prisma } from '@prisma/client';
 
 /**
  * Get all rooms with photos and amenities
@@ -129,9 +129,25 @@ export async function getRoomsByCleaningStatus(status: CleaningStatus) {
 export async function markRoomAsCleaned(
   roomId: string,
   cleanedById: string,
-  notes?: string
+  notes?: string,
+  txClient?: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">
 ) {
-  return prisma.room.update({
+  // If txClient is provided, use it directly (caller manages transaction)
+  // Otherwise use prisma with its own transaction
+  if (txClient) {
+    return markRoomAsCleanedInternal(roomId, cleanedById, notes, txClient);
+  }
+  return prisma.$transaction((tx) => markRoomAsCleanedInternal(roomId, cleanedById, notes, tx));
+}
+
+async function markRoomAsCleanedInternal(
+  roomId: string,
+  cleanedById: string,
+  notes: string | undefined,
+  tx: Prisma.TransactionClient
+) {
+  // Update room to CLEAN status
+  const room = await tx.room.update({
     where: { id: roomId },
     data: {
       cleaningStatus: 'CLEAN',
@@ -143,13 +159,32 @@ export async function markRoomAsCleaned(
       cleanedBy: { select: { id: true, name: true, email: true } },
     },
   });
+
+  // Create HK task with COMPLETED status for audit tracking
+  // (since cleaning already happened, we create directly as COMPLETED)
+  await tx.housekeepingTask.create({
+    data: {
+      roomId,
+      assigneeId: cleanedById,
+      date: new Date(),
+      status: 'COMPLETED',
+      notes: notes || 'Room cleaned',
+    },
+  });
+
+  return room;
 }
 
 /**
  * Mark room as dirty (manual trigger)
  */
-export async function markRoomAsDirty(roomId: string, notes?: string) {
-  return prisma.room.update({
+export async function markRoomAsDirty(
+  roomId: string,
+  notes?: string,
+  txClient?: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">
+) {
+  const dbClient = txClient || prisma;
+  return dbClient.room.update({
     where: { id: roomId },
     data: {
       cleaningStatus: 'DIRTY',
@@ -699,4 +734,24 @@ export async function getAvailableRoomsForType(
   });
 
   return rooms;
+}
+
+/**
+ * Optimized room availability check using raw SQL with FOR UPDATE SKIP LOCKED
+ * This is more efficient than using ORM queries for concurrent booking prevention
+ */
+export async function isRoomAvailable(
+  roomId: string,
+  checkIn: Date,
+  checkOut: Date
+): Promise<boolean> {
+  const conflicting = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "Booking" 
+    WHERE "roomId" = ${roomId}
+    AND status IN ('CONFIRMED', 'CHECKED_IN')
+    AND ("checkIn", "checkOut") OVERLAPS (${checkIn}, ${checkOut})
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1
+  `;
+  return conflicting.length === 0;
 }

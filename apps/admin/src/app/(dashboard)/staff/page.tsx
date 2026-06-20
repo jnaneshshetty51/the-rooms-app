@@ -23,6 +23,8 @@ import {
     DialogFooter,
     Label,
     StatCard,
+    Breadcrumbs,
+    BreadcrumbItem,
 } from "@the-rooms/ui";
 import { formatDate } from "@the-rooms/ui";
 import {
@@ -197,8 +199,14 @@ export default function StaffPage() {
         }, {} as Record<string, number>),
     } : { total: 0, active: 0, byDepartment: {} };
 
+    const breadcrumbItems: BreadcrumbItem[] = [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Staff" },
+    ];
+
     return (
         <div className="space-y-6">
+            <Breadcrumbs items={breadcrumbItems} />
             <PageHeader
                 title="Staff Management"
                 description="Manage staff profiles and departments"

@@ -1,8 +1,10 @@
 // apps/admin/src/app/api/bookings/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@the-rooms/auth";
-import prisma from "@the-rooms/db";
+import { db } from "@the-rooms/db";
 import { getPropertyIdFromSession } from "@the-rooms/api/middleware";
+import { paginated } from "@the-rooms/api/response";
 
 function requireAdmin(session: { user?: { role?: string } | null } | null) {
   if (!session?.user) throw new Error("Unauthorized");
@@ -10,22 +12,43 @@ function requireAdmin(session: { user?: { role?: string } | null } | null) {
   if (role !== "ADMIN" && role !== "SUPER_ADMIN") throw new Error("Forbidden");
 }
 
+// ── Zod Schemas for Validation ──────────────────────────────────────────────
+
+const GetBookingsSchema = z.object({
+  status: z.enum(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED']).optional(),
+  paymentStatus: z.enum(['PENDING', 'PARTIAL', 'PAID', 'REFUNDED']).optional(),
+  bookingSource: z.string().optional(),
+  bookingType: z.enum(['DAILY', 'MONTHLY']).optional(),
+  checkInFrom: z.string().datetime().optional(),
+  checkInTo: z.string().datetime().optional(),
+  roomId: z.string().optional(),
+  search: z.string().optional(),
+  page: z.coerce.number().min(1).default(1),
+  perPage: z.coerce.number().min(1).max(100).default(20),
+});
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     requireAdmin(session);
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
-    const paymentStatus = searchParams.get("paymentStatus");
-    const bookingSource = searchParams.get("bookingSource");
-    const bookingType = searchParams.get("bookingType");
-    const checkInFrom = searchParams.get("checkInFrom");
-    const checkInTo = searchParams.get("checkInTo");
-    const roomId = searchParams.get("roomId");
-    const search = searchParams.get("search");
-    const page = parseInt(searchParams.get("page") ?? "1");
-    const perPage = parseInt(searchParams.get("perPage") ?? "20");
+
+    // Validate query parameters with Zod
+    const validatedParams = GetBookingsSchema.parse({
+      status: searchParams.get("status") ?? undefined,
+      paymentStatus: searchParams.get("paymentStatus") ?? undefined,
+      bookingSource: searchParams.get("bookingSource") ?? undefined,
+      bookingType: searchParams.get("bookingType") ?? undefined,
+      checkInFrom: searchParams.get("checkInFrom") ?? undefined,
+      checkInTo: searchParams.get("checkInTo") ?? undefined,
+      roomId: searchParams.get("roomId") ?? undefined,
+      search: searchParams.get("search") ?? undefined,
+      page: searchParams.get("page") ?? undefined,
+      perPage: searchParams.get("perPage") ?? undefined,
+    });
+
+    const { status, paymentStatus, bookingSource, bookingType, checkInFrom, checkInTo, roomId, search, page, perPage } = validatedParams;
 
     // Get propertyId from session for filtering
     const propertyId = await getPropertyIdFromSession(session);
@@ -39,7 +62,7 @@ export async function GET(request: NextRequest) {
         where.propertyId = propertyId;
       } else {
         // User has no property access
-        return NextResponse.json({ bookings: [], total: 0, pages: 0, page });
+        return paginated([], 0, page, perPage);
       }
     }
 
@@ -62,7 +85,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [bookings, total] = await Promise.all([
-      prisma.booking.findMany({
+      db.booking.findMany({
         where,
         include: {
           guest: { select: { id: true, name: true, phone: true, email: true } },
@@ -74,11 +97,17 @@ export async function GET(request: NextRequest) {
         skip: (page - 1) * perPage,
         take: perPage,
       }),
-      prisma.booking.count({ where }),
+      db.booking.count({ where }),
     ]);
 
-    return NextResponse.json({ bookings, total, pages: Math.ceil(total / perPage), page });
+    return paginated(bookings, total, page, perPage);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({
+        error: 'Validation error',
+        details: error.errors
+      }, { status: 400 });
+    }
     const message = error instanceof Error ? error.message : "Internal error";
     if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
     if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });

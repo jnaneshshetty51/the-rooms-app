@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { TheRoomsProvider } from "@the-rooms/ui";
+import { TheRoomsProvider, ToastProvider } from "@the-rooms/ui";
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
@@ -33,8 +33,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body>
         <TheRoomsProvider>
-          {children}
-          <ServiceWorkerRegistration />
+          <ToastProvider>
+            {children}
+            <ServiceWorkerRegistration />
+          </ToastProvider>
         </TheRoomsProvider>
       </body>
     </html>

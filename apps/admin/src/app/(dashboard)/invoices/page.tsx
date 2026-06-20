@@ -32,6 +32,9 @@ import {
     DialogHeader,
     DialogTitle,
     DialogFooter,
+    EmptyState,
+    Breadcrumbs,
+    BreadcrumbItem,
 } from "@the-rooms/ui";
 import { formatCurrency, formatDate } from "@the-rooms/ui";
 
@@ -224,8 +227,14 @@ export default function InvoicesPage() {
         setFilters((f) => ({ ...f, [key]: value, page: 1 }));
     }
 
+    const breadcrumbItems: BreadcrumbItem[] = [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Invoices" },
+    ];
+
     return (
         <div className="space-y-6">
+            <Breadcrumbs items={breadcrumbItems} />
             <PageHeader
                 title="Invoices"
                 description={`${data?.total ?? 0} total invoices`}
@@ -299,13 +308,26 @@ export default function InvoicesPage() {
             </div>
 
             {/* Table */}
-            <DataTable
-                columns={columns}
-                data={data?.invoices ?? []}
-                isLoading={loading}
-                pageSize={20}
-                filterPlaceholder="Filter invoices..."
-            />
+            {!loading && (!data?.invoices || data.invoices.length === 0) ? (
+                <EmptyState
+                    title="No invoices found"
+                    description={filters.search || filters.status !== "ALL" || filters.paymentStatus !== "ALL" ? "Try adjusting your filters to find what you're looking for." : "Invoices will appear here once bookings are completed."}
+                    icon={<FileText className="h-12 w-12" />}
+                    action={
+                        filters.search || filters.status !== "ALL" || filters.paymentStatus !== "ALL"
+                            ? { label: "Clear Filters", onClick: () => setFilters((f) => ({ ...f, search: "", status: "ALL", paymentStatus: "ALL" })) }
+                            : undefined
+                    }
+                />
+            ) : (
+                <DataTable
+                    columns={columns}
+                    data={data?.invoices ?? []}
+                    isLoading={loading}
+                    pageSize={20}
+                    filterPlaceholder="Filter invoices..."
+                />
+            )}
 
             {/* Pagination info */}
             {data && (

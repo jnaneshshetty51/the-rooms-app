@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Calendar, DollarSign, Tag, MessageSquare, Plus } from "lucide-react";
-import { PageHeader, Button, Card, CardContent, CardHeader, CardTitle, Badge, StatCard, DataTable, type ColumnDef, Label, Input, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@the-rooms/ui";
+import { PageHeader, Button, Card, CardContent, CardHeader, CardTitle, Badge, StatCard, DataTable, type ColumnDef, Label, Input, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Breadcrumbs, BreadcrumbItem } from "@the-rooms/ui";
 import { formatCurrency, formatDate } from "@the-rooms/ui";
 import { fetchGuestHistory, fetchGuestNotes, fetchGuestTags, addGuestNote, addGuestTag, removeGuestTag, type GuestStayHistory, type GuestSpendingHistory, type GuestNote, type GuestTag } from "@/lib/api";
 
@@ -67,8 +67,15 @@ export default function GuestHistoryPage() {
         { accessorKey: "status", header: "Status", cell: ({ row }) => <Badge variant={row.original.status === "CHECKED_OUT" ? "success" : "secondary"}>{row.original.status}</Badge> },
     ];
 
+    const breadcrumbItems: BreadcrumbItem[] = [
+        { label: "Guests", href: "/guests" },
+        { label: guestId },
+        { label: "History" },
+    ];
+
     return (
         <div className="space-y-6">
+            <Breadcrumbs items={breadcrumbItems} />
             <PageHeader title="Guest History" description={`Complete history for guest ${guestId}`} actions={<><Button variant="outline" onClick={() => setShowNoteModal(true)}><MessageSquare className="h-4 w-4 mr-2" />Add Note</Button><Button onClick={() => setShowTagModal(true)}><Tag className="h-4 w-4 mr-2" />Add Tag</Button></>} />
 
             {/* Spending Summary */}

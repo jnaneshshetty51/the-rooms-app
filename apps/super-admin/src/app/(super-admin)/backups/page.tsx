@@ -14,6 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  Switch,
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectValue,
+  Input,
 } from "@the-rooms/ui";
 import {
   Database,
@@ -26,9 +32,13 @@ import {
   Clock,
   Shield,
   AlertCircle,
+  Calendar,
+  Settings,
+  Bell,
 } from "lucide-react";
 import { formatDate } from "@the-rooms/ui";
 import { useToast } from "@the-rooms/ui";
+import { LoadingSpinner } from "@the-rooms/ui";
 
 interface Backup {
   id: string;
@@ -41,23 +51,82 @@ interface Backup {
   createdBy: string;
 }
 
-// Mocks removed
-
-import { LoadingSpinner } from "@the-rooms/ui";
+interface BackupSchedule {
+  enabled: boolean;
+  frequency: "daily" | "weekly" | "custom";
+  fullBackupTime: string; // HH:MM format
+  incrementalBackupTime: string;
+  fullBackupDay?: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+  retentionDays: number;
+  offsiteRetentionDays: number;
+  lastFullBackup: string | null;
+  nextFullBackup: string | null;
+  nextIncrementalBackup: string | null;
+}
 
 export default function BackupsPage() {
   const [backups, setBackups] = useState<Backup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [restoreDialog, setRestoreDialog] = useState<string | null>(null);
   const [runningBackup, setRunningBackup] = useState(false);
+  const [scheduleDialog, setScheduleDialog] = useState(false);
   const toast = useToast();
+
+  // Schedule state
+  const [schedule, setSchedule] = useState<BackupSchedule>({
+    enabled: true,
+    frequency: "daily",
+    fullBackupTime: "02:00",
+    incrementalBackupTime: "14:00",
+    fullBackupDay: "sunday",
+    retentionDays: 14,
+    offsiteRetentionDays: 90,
+    lastFullBackup: null,
+    nextFullBackup: null,
+    nextIncrementalBackup: null,
+  });
 
   const successCount = backups.filter((b) => b.status === "success").length;
   const totalSize = backups
     .filter((b) => b.status === "success")
     .reduce((s, b) => s + parseFloat(b.size), 0);
   const lastSuccess = backups.find((b) => b.status === "success");
-  const nextBackup = backups.length > 0 ? new Date(Math.max(...backups.filter(b => b.status === "success").map(b => new Date(b.date).getTime()), 0) + 86400000).toISOString() : new Date(Date.now() + 86400000).toISOString();
+
+  // Calculate next backup times based on schedule
+  const calculateNextBackup = () => {
+    const now = new Date();
+    const [hours, minutes] = schedule.fullBackupTime.split(":").map(Number);
+
+    // Next full backup
+    let nextFull = new Date(now);
+    nextFull.setHours(hours, minutes, 0, 0);
+    if (nextFull <= now) {
+      if (schedule.frequency === "daily") {
+        nextFull.setDate(nextFull.getDate() + 1);
+      } else if (schedule.frequency === "weekly") {
+        const daysOfWeek = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+        const targetDay = schedule.fullBackupDay || "sunday";
+        const targetDayIndex = daysOfWeek.indexOf(targetDay);
+        const currentDayIndex = now.getDay();
+        let daysUntilNext = (targetDayIndex - currentDayIndex + 7) % 7;
+        if (daysUntilNext === 0) daysUntilNext = 7;
+        nextFull.setDate(nextFull.getDate() + daysUntilNext);
+      }
+    }
+
+    // Next incremental backup
+    const [incHours, incMinutes] = schedule.incrementalBackupTime.split(":").map(Number);
+    let nextInc = new Date(now);
+    nextInc.setHours(incHours, incMinutes, 0, 0);
+    if (nextInc <= now) {
+      nextInc.setDate(nextInc.getDate() + 1);
+    }
+
+    return {
+      nextFullBackup: schedule.enabled ? nextFull.toISOString() : null,
+      nextIncrementalBackup: schedule.enabled && schedule.frequency !== "weekly" ? nextInc.toISOString() : null,
+    };
+  };
 
   async function fetchBackups() {
     try {
@@ -73,9 +142,23 @@ export default function BackupsPage() {
     }
   }
 
+  async function fetchSchedule() {
+    try {
+      const res = await fetch("/api/backups/schedule");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.schedule) {
+          setSchedule(json.schedule);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   useEffect(() => {
     fetchBackups();
-    // Poll for updates if a backup is running
+    fetchSchedule();
     const interval = setInterval(fetchBackups, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -83,7 +166,7 @@ export default function BackupsPage() {
   async function triggerBackup() {
     setRunningBackup(true);
     toast.success("Backup initiated", "Starting full backup...");
-    
+
     try {
       const res = await fetch("/api/backups", { method: "POST" });
       if (res.ok) {
@@ -101,6 +184,25 @@ export default function BackupsPage() {
     }
   }
 
+  async function saveSchedule() {
+    try {
+      const res = await fetch("/api/backups/schedule", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(schedule),
+      });
+      if (res.ok) {
+        toast.success("Schedule saved", "Backup schedule updated successfully");
+        setScheduleDialog(false);
+      } else {
+        toast.error("Failed to save schedule");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error saving schedule");
+    }
+  }
+
   function restoreBackup(id: string) {
     toast.success("Restore initiated", "Restoring from backup...");
     setRestoreDialog(null);
@@ -108,6 +210,8 @@ export default function BackupsPage() {
       toast.success("Restore completed");
     }, 3000);
   }
+
+  const { nextFullBackup, nextIncrementalBackup } = calculateNextBackup();
 
   if (isLoading) {
     return (
@@ -123,14 +227,24 @@ export default function BackupsPage() {
         title="Backup Manager"
         description="Automated and manual PostgreSQL + MinIO backup management"
         actions={
-          <Button
-            onClick={triggerBackup}
-            disabled={runningBackup}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${runningBackup ? "animate-spin" : ""}`} />
-            {runningBackup ? "Backing up..." : "Trigger Backup Now"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setScheduleDialog(true)}
+              className="gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Schedule
+            </Button>
+            <Button
+              onClick={triggerBackup}
+              disabled={runningBackup}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${runningBackup ? "animate-spin" : ""}`} />
+              {runningBackup ? "Backing up..." : "Trigger Backup Now"}
+            </Button>
+          </div>
         }
       />
 
@@ -174,9 +288,11 @@ export default function BackupsPage() {
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <Database className="h-5 w-5 text-blue-500" />
+              <Calendar className="h-5 w-5 text-blue-500" />
               <div>
-                <p className="text-sm font-bold">{formatDate(nextBackup, "short")}</p>
+                <p className="text-sm font-bold">
+                  {nextFullBackup ? formatDate(nextFullBackup, "short") : "Disabled"}
+                </p>
                 <p className="text-xs text-muted-foreground">Next scheduled</p>
               </div>
             </div>
@@ -184,32 +300,101 @@ export default function BackupsPage() {
         </Card>
       </div>
 
-      {/* Backup Schedule */}
+      {/* Schedule Overview */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[#E17055]" />
-            Automated Schedule
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-[#E17055]" />
+              Automated Schedule
+            </span>
+            <div className="flex items-center gap-2">
+              {schedule.enabled ? (
+                <Badge variant="default" className="bg-green-500">Active</Badge>
+              ) : (
+                <Badge variant="secondary">Disabled</Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setScheduleDialog(true)}
+                className="gap-1"
+              >
+                <Settings className="h-3 w-3" /> Edit
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-3 bg-accent/50 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Full Backup</p>
-              <p className="text-sm font-semibold">Daily at 2:00 AM IST</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs text-muted-foreground">Full Backup</p>
+                {schedule.enabled ? (
+                  <CheckCircle2 className="h-3 w-3 text-green-500" />
+                ) : (
+                  <XCircle className="h-3 w-3 text-gray-400" />
+                )}
+              </div>
+              <p className="text-sm font-semibold">
+                {schedule.enabled
+                  ? schedule.frequency === "weekly"
+                    ? `Weekly on ${(schedule.fullBackupDay || "Sunday").charAt(0).toUpperCase() + (schedule.fullBackupDay || "sunday").slice(1)} at ${schedule.fullBackupTime}`
+                    : `Daily at ${schedule.fullBackupTime} IST`
+                  : "Disabled"
+                }
+              </p>
               <p className="text-[10px] text-muted-foreground">PostgreSQL + MinIO snapshots</p>
             </div>
             <div className="p-3 bg-accent/50 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Incremental Backup</p>
-              <p className="text-sm font-semibold">Every 12 hours (2 PM IST)</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs text-muted-foreground">Incremental Backup</p>
+                {schedule.enabled && schedule.frequency !== "weekly" ? (
+                  <CheckCircle2 className="h-3 w-3 text-green-500" />
+                ) : (
+                  <XCircle className="h-3 w-3 text-gray-400" />
+                )}
+              </div>
+              <p className="text-sm font-semibold">
+                {schedule.enabled && schedule.frequency !== "weekly"
+                  ? `Every 12 hours at ${schedule.incrementalBackupTime} IST`
+                  : schedule.enabled ? "Weekly - No incremental" : "Disabled"
+                }
+              </p>
               <p className="text-[10px] text-muted-foreground">Changes since last full backup</p>
             </div>
             <div className="p-3 bg-accent/50 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Retention</p>
-              <p className="text-sm font-semibold">14 days locally, 90 days offsite</p>
-              <p className="text-[10px] text-muted-foreground">Backblaze B2 cold storage</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs text-muted-foreground">Retention</p>
+                <Bell className="h-3 w-3 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-semibold">{schedule.retentionDays} days local</p>
+              <p className="text-[10px] text-muted-foreground">{schedule.offsiteRetentionDays} days offsite (Backblaze B2)</p>
             </div>
           </div>
+
+          {/* Next Backups */}
+          {schedule.enabled && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs font-semibold text-blue-800 mb-2">Upcoming Backups</p>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <Database className="h-4 w-4 text-blue-600" />
+                  <span className="text-blue-700">
+                    Full: <strong>{nextFullBackup ? formatDate(nextFullBackup, "long") : "N/A"}</strong>
+                  </span>
+                </div>
+                {nextIncrementalBackup && (
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 text-blue-600" />
+                    <span className="text-blue-700">
+                      Incremental: <strong>{formatDate(nextIncrementalBackup, "long")}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -273,16 +458,16 @@ export default function BackupsPage() {
                       backup.status === "success"
                         ? "success"
                         : backup.status === "failed"
-                        ? "destructive"
-                        : "secondary"
+                          ? "destructive"
+                          : "secondary"
                     }
                     className="text-xs"
                   >
                     {backup.status === "success"
                       ? "Success"
                       : backup.status === "failed"
-                      ? "Failed"
-                      : "Running"}
+                        ? "Failed"
+                        : "Running"}
                   </Badge>
                   {backup.status === "success" && (
                     <Button
@@ -323,7 +508,7 @@ export default function BackupsPage() {
               </p>
             </div>
             <p className="text-sm">
-              Type <strong>&quot;restore&quot;</strong> to confirm:
+              Type <strong>"restore"</strong> to confirm:
             </p>
             <input
               type="text"
@@ -345,6 +530,136 @@ export default function BackupsPage() {
               onClick={() => restoreDialog && restoreBackup(restoreDialog)}
             >
               Restore Backup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Configuration Dialog */}
+      <Dialog open={scheduleDialog} onOpenChange={setScheduleDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Backup Schedule Configuration
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Enable/Disable */}
+            <div className="flex items-center justify-between p-3 bg-accent/50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Shield className="h-5 w-5 text-[#E17055]" />
+                <div>
+                  <p className="font-medium text-sm">Automatic Backups</p>
+                  <p className="text-xs text-muted-foreground">Enable scheduled backups</p>
+                </div>
+              </div>
+              <Switch
+                checked={schedule.enabled}
+                onCheckedChange={(checked) => setSchedule({ ...schedule, enabled: checked })}
+              />
+            </div>
+
+            {/* Frequency */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Backup Frequency</label>
+              <Select
+                value={schedule.frequency}
+                onValueChange={(v) => setSchedule({ ...schedule, frequency: v as "daily" | "weekly" })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Full Backup Time */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Full Backup Time (IST)</label>
+              <Input
+                type="time"
+                value={schedule.fullBackupTime}
+                onChange={(e) => setSchedule({ ...schedule, fullBackupTime: e.target.value })}
+              />
+            </div>
+
+            {/* Weekly Day Selection */}
+            {schedule.frequency === "weekly" && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">Day of Week</label>
+                <Select
+                  value={schedule.fullBackupDay}
+                  onValueChange={(v) => setSchedule({ ...schedule, fullBackupDay: v as any })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <option value="monday">Monday</option>
+                    <option value="tuesday">Tuesday</option>
+                    <option value="wednesday">Wednesday</option>
+                    <option value="thursday">Thursday</option>
+                    <option value="friday">Friday</option>
+                    <option value="saturday">Saturday</option>
+                    <option value="sunday">Sunday</option>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Incremental Backup Time */}
+            {schedule.frequency !== "weekly" && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">Incremental Backup Time (IST)</label>
+                <Input
+                  type="time"
+                  value={schedule.incrementalBackupTime}
+                  onChange={(e) => setSchedule({ ...schedule, incrementalBackupTime: e.target.value })}
+                />
+              </div>
+            )}
+
+            {/* Retention */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Local Retention (days)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={schedule.retentionDays}
+                  onChange={(e) => setSchedule({ ...schedule, retentionDays: parseInt(e.target.value) || 14 })}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Offsite Retention (days)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={schedule.offsiteRetentionDays}
+                  onChange={(e) => setSchedule({ ...schedule, offsiteRetentionDays: parseInt(e.target.value) || 90 })}
+                />
+              </div>
+            </div>
+
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-700">
+                <strong>Note:</strong> Offsite backups are stored on Backblaze B2 for disaster recovery.
+                Retention period determines how long backups are kept before automatic cleanup.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScheduleDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveSchedule}>
+              Save Schedule
             </Button>
           </DialogFooter>
         </DialogContent>

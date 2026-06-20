@@ -13,7 +13,7 @@ import {
   ImageIcon,
   Wrench,
 } from "lucide-react";
-import { PageHeader, StatusBadge, Button, Dialog, Input, Select, SelectTrigger, SelectContent, SelectValue, Badge } from "@the-rooms/ui";
+import { PageHeader, StatusBadge, Button, Dialog, Input, Select, SelectTrigger, SelectContent, SelectValue, Badge, EmptyState } from "@the-rooms/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@the-rooms/ui";
 import { formatCurrency } from "@the-rooms/ui";
 
@@ -168,12 +168,16 @@ export default function RoomsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <BedDouble className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">No rooms found matching your filters.</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="No rooms found"
+          description={search || filterType !== "ALL" || filterStatus !== "ALL" ? "Try adjusting your filters to find what you're looking for." : "Add your first room to get started."}
+          icon={<BedDouble className="h-12 w-12" />}
+          action={
+            search || filterType !== "ALL" || filterStatus !== "ALL"
+              ? { label: "Clear Filters", onClick: () => { setSearch(""); setFilterType("ALL"); setFilterStatus("ALL"); } }
+              : { label: "Add Room", onClick: () => setShowAddModal(true) }
+          }
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((room) => (

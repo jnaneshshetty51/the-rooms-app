@@ -11,7 +11,9 @@ export default auth((req: any) => {
 
   if (isProtectedRoute) {
     if (!isLoggedIn) {
-      return NextResponse.redirect(new URL('/login', req.url));
+      const loginUrl = new URL('/login', req.url);
+      loginUrl.searchParams.set('callbackUrl', encodeURIComponent(req.url));
+      return NextResponse.redirect(loginUrl);
     }
 
     const role = req.auth?.user?.role;

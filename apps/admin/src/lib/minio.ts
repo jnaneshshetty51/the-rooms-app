@@ -1,10 +1,21 @@
 import { Client } from 'minio';
+import crypto from 'crypto';
+import prisma from '@the-rooms/db';
 
 let minioClient: Client | null = null;
 
 // ─── File Upload Security Constants ────────────────────────────────────────
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+// ─── File Hash Types ─────────────────────────────────────────────────────────
+
+export interface FileHashEntry {
+  hash: string;
+  storageKey: string;
+  size: number;
+  mimeType: string | null;
+}
 
 // Magic bytes for image validation
 const MAGIC_BYTES: Record<string, { signatures: number[][], offset: number }> = {
@@ -141,29 +152,42 @@ export async function uploadRoomPhoto(
   if (!exists) {
     await client.makeBucket(bucket, 'us-east-1');
   }
-  // Ensure bucket is always public-read (idempotent)
-  const policy = JSON.stringify({
-    Version: '2012-10-17',
-    Statement: [{
-      Effect: 'Allow',
-      Principal: { AWS: ['*'] },
-      Action: ['s3:GetObject'],
-      Resource: [`arn:aws:s3:::${bucket}/*`],
-    }],
-  });
-  await client.setBucketPolicy(bucket, policy);
+  // NOTE: Bucket remains private - use getPresignedUrl() to access files
 
   await client.putObject(bucket, key, fileBuffer);
 
-  // Build a stable public URL using MINIO_PUBLIC_URL (e.g. https://minio.therooms.in)
-  // If not set, fall back to a presigned URL
-  const publicBase = process.env.MINIO_PUBLIC_URL;
-  if (publicBase) {
-    return `${publicBase.replace(/\/$/, '')}/${bucket}/${key}`;
-  }
+  // Return presigned URL for private access (15 minutes expiry)
+  return client.presignedGetObject(bucket, key, 15 * 60);
+}
 
-  // Fallback: presigned URL valid for 7 days
-  return client.presignedGetObject(bucket, key, 7 * 24 * 60 * 60);
+// ─── Presigned URL Export ─────────────────────────────────────────────────────
+
+/**
+ * Generate a presigned URL for private file access
+ * @param bucket - MinIO bucket name
+ * @param key - Object key (file path in bucket)
+ * @param expiry - URL expiry in seconds (default: 15 minutes)
+ */
+export async function getPresignedUrl(
+  bucket: string,
+  key: string,
+  expiry: number = 15 * 60
+): Promise<string> {
+  const client = getMinioClient();
+  return client.presignedGetObject(bucket, key, expiry);
+}
+
+/**
+ * Delete an object from MinIO storage
+ * @param bucket - MinIO bucket name
+ * @param key - Object key (file path in bucket)
+ */
+export async function deleteObject(
+  bucket: string,
+  key: string
+): Promise<void> {
+  const client = getMinioClient();
+  await client.removeObject(bucket, key);
 }
 
 export async function uploadRoomTypeImage(
@@ -186,16 +210,136 @@ export async function uploadRoomTypeImage(
   if (!exists) {
     await client.makeBucket(bucket, 'us-east-1');
   }
-  const policy = JSON.stringify({
-    Version: '2012-10-17',
-    Statement: [{ Effect: 'Allow', Principal: { AWS: ['*'] }, Action: ['s3:GetObject'], Resource: [`arn:aws:s3:::${bucket}/*`] }],
-  });
-  await client.setBucketPolicy(bucket, policy);
+  // NOTE: Bucket remains private - use getPresignedUrl() to access files
+
   await client.putObject(bucket, key, fileBuffer);
 
-  const publicBase = process.env.MINIO_PUBLIC_URL;
-  if (publicBase) {
-    return `${publicBase.replace(/\/$/, '')}/${bucket}/${key}`;
+  // Return presigned URL for private access (15 minutes expiry)
+  return client.presignedGetObject(bucket, key, 15 * 60);
+}
+
+// ─── File Hashing & Deduplication ──────────────────────────────────────────────
+
+/**
+ * Compute SHA-256 hash of file content
+ * @param buffer - File content as Buffer
+ * @returns Hex-encoded SHA-256 hash
+ */
+export function computeFileHash(buffer: Buffer): string {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+/**
+ * Find an existing file by its content hash
+ * @param hash - SHA-256 hash of file content
+ * @returns FileHash entry if found, null otherwise
+ */
+export async function findExistingFileByHash(hash: string): Promise<FileHashEntry | null> {
+  const entry = await prisma.fileHash.findUnique({
+    where: { hash },
+  });
+  return entry;
+}
+
+/**
+ * Record a file hash entry for deduplication tracking
+ * @param params - Hash entry parameters
+ */
+export async function recordFileHash(params: {
+  hash: string;
+  storageKey: string;
+  size: number;
+  mimeType?: string;
+  modelType: string;
+  modelId?: string;
+}): Promise<void> {
+  await prisma.fileHash.upsert({
+    where: { hash: params.hash },
+    create: {
+      hash: params.hash,
+      storageKey: params.storageKey,
+      size: params.size,
+      mimeType: params.mimeType,
+      modelType: params.modelType,
+      modelId: params.modelId,
+    },
+    update: {
+      storageKey: params.storageKey,
+      size: params.size,
+      mimeType: params.mimeType,
+      modelType: params.modelType,
+      modelId: params.modelId,
+    },
+  });
+}
+
+/**
+ * Upload a room photo with automatic deduplication.
+ * If a file with the same content hash already exists, returns the existing URL.
+ * Otherwise, uploads the new file and records its hash.
+ * 
+ * @param roomId - Room ID
+ * @param fileName - Original filename
+ * @param fileBuffer - File content
+ * @returns Object with url and storageKey (and isDupe flag if file was deduplicated)
+ */
+export async function uploadRoomPhotoWithDeduplication(
+  roomId: string,
+  fileName: string,
+  fileBuffer: Buffer
+): Promise<{ url: string; storageKey: string; isDupe: boolean }> {
+  // Validate file before upload
+  const validation = validateFile(fileBuffer, fileName, 'image/jpeg');
+  if (!validation.valid) {
+    throw new Error(`File validation failed: ${validation.error}`);
   }
-  return client.presignedGetObject(bucket, key, 7 * 24 * 60 * 60);
+
+  const client = getMinioClient();
+  const bucket = process.env.MINIO_BUCKET || 'therooms-storage';
+  const safeName = sanitizeFileName(fileName);
+
+  // Compute hash for deduplication
+  const hash = computeFileHash(fileBuffer);
+
+  // Check for existing file with same hash
+  const existing = await findExistingFileByHash(hash);
+  if (existing) {
+    // File already exists - return existing URL
+    const url = await client.presignedGetObject(bucket, existing.storageKey, 15 * 60);
+    return { url, storageKey: existing.storageKey, isDupe: true };
+  }
+
+  // New file - upload to MinIO
+  const key = `room-photos/${roomId}/${Date.now()}-${safeName}`;
+
+  const exists = await client.bucketExists(bucket);
+  if (!exists) {
+    await client.makeBucket(bucket, 'us-east-1');
+  }
+
+  await client.putObject(bucket, key, fileBuffer);
+
+  // Record hash for future deduplication
+  await recordFileHash({
+    hash,
+    storageKey: key,
+    size: fileBuffer.length,
+    mimeType: validation.detectedMime,
+    modelType: 'RoomPhoto',
+    modelId: roomId,
+  });
+
+  // Return presigned URL for private access (15 minutes expiry)
+  const url = await client.presignedGetObject(bucket, key, 15 * 60);
+  return { url, storageKey: key, isDupe: false };
+}
+
+/**
+ * Remove a file hash entry (call when deleting a file)
+ * @param hash - SHA-256 hash of the file
+ */
+export async function removeFileHash(hash: string): Promise<void> {
+  await prisma.fileHash.delete({
+    where: { hash },
+  });
 }

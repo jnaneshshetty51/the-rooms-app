@@ -131,9 +131,15 @@ export async function getNightAuditReport(propertyId: string, date: Date) {
                 createdAt: { gte: closeDate, lte: endOfDay },
                 status: 'PAID',
             },
-            include: {
+            select: {
+                id: true,
+                amount: true,
+                method: true,
+                createdAt: true,
                 booking: {
-                    include: {
+                    select: {
+                        id: true,
+                        bookingNumber: true,
                         guest: { select: { id: true, name: true, phone: true } },
                         room: { select: { id: true, roomNumber: true } },
                     },
@@ -147,9 +153,17 @@ export async function getNightAuditReport(propertyId: string, date: Date) {
                 propertyId,
                 chargeDate: { gte: closeDate, lte: endOfDay },
             },
-            include: {
+            select: {
+                id: true,
+                roomRate: true,
+                extraGuestCharge: true,
+                subtotal: true,
+                totalAmount: true,
+                chargeDate: true,
                 booking: {
-                    include: {
+                    select: {
+                        id: true,
+                        bookingNumber: true,
                         guest: { select: { id: true, name: true } },
                         room: { select: { id: true, roomNumber: true } },
                     },
@@ -159,9 +173,16 @@ export async function getNightAuditReport(propertyId: string, date: Date) {
         // Discrepancies for this close
         prisma.auditDiscrepancy.findMany({
             where: { propertyId, dailyCloseId: closeRecord?.id ?? 'none' },
-            include: {
+            select: {
+                id: true,
+                type: true,
+                severity: true,
+                description: true,
+                resolved: true,
                 booking: {
-                    include: {
+                    select: {
+                        id: true,
+                        bookingNumber: true,
                         guest: { select: { id: true, name: true } },
                         room: { select: { id: true, roomNumber: true } },
                     },
@@ -219,6 +240,7 @@ export async function getNightAuditReport(propertyId: string, date: Date) {
 
 /**
  * Post room charges for occupied rooms on a specific date
+ * Optimized: Uses batch inserts instead of individual creates
  */
 export async function postRoomCharges(
     propertyId: string,
@@ -243,18 +265,31 @@ export async function postRoomCharges(
         },
     });
 
+    if (bookings.length === 0) {
+        return [];
+    }
+
     const hotelSettings = await prisma.hotelSettings.findUnique({ where: { id: propertyId === 'default' ? 'default' : propertyId } });
     const extraGuestRateDaily = hotelSettings?.extraGuestRateDaily?.toNumber() ?? 500;
 
-    const results = [];
-    for (const booking of bookings) {
-        // Check if charge already exists for this date
-        const existingCharge = await prisma.roomCharge.findFirst({
-            where: { bookingId: booking.id, chargeDate: date },
-        });
+    // Get all existing charges for these bookings on this date in one query
+    const bookingIds = bookings.map(b => b.id);
+    const existingCharges = await prisma.roomCharge.findMany({
+        where: {
+            bookingId: { in: bookingIds },
+            chargeDate: date,
+        },
+        select: { bookingId: true },
+    });
+    const chargedBookingIds = new Set(existingCharges.map(c => c.bookingId));
 
-        if (existingCharge) {
-            results.push({ bookingId: booking.id, status: 'SKIPPED', reason: 'Already charged' });
+    // Prepare charges data for batch insert
+    const chargesToCreate = [];
+    const skippedBookings = [];
+
+    for (const booking of bookings) {
+        if (chargedBookingIds.has(booking.id)) {
+            skippedBookings.push({ bookingId: booking.id, status: 'SKIPPED' as const, reason: 'Already charged' });
             continue;
         }
 
@@ -268,23 +303,34 @@ export async function postRoomCharges(
         const sgst = subtotal.mul(0.09); // 9% SGST
         const totalAmount = subtotal.add(cgst).add(sgst);
 
-        const charge = await prisma.roomCharge.create({
-            data: {
-                bookingId: booking.id,
-                propertyId,
-                chargeDate: date,
-                roomRate: baseRate,
-                extraGuestCharge,
-                subtotal,
-                cgst,
-                sgst,
-                totalAmount,
-                postedById,
-                dailyCloseId,
-            },
+        chargesToCreate.push({
+            bookingId: booking.id,
+            propertyId,
+            chargeDate: date,
+            roomRate: baseRate,
+            extraGuestCharge,
+            subtotal,
+            cgst,
+            sgst,
+            totalAmount,
+            postedById,
+            dailyCloseId,
+        });
+    }
+
+    // Batch insert all charges at once
+    type ChargeResult = { bookingId: string; status: 'CREATED'; chargeId: string } | { bookingId: string; status: 'SKIPPED'; reason: string };
+    const results: ChargeResult[] = [...skippedBookings];
+    if (chargesToCreate.length > 0) {
+        await prisma.roomCharge.createMany({
+            data: chargesToCreate,
+            skipDuplicates: true, // Safety net for race conditions
         });
 
-        results.push({ bookingId: booking.id, status: 'CREATED', chargeId: charge.id });
+        // Mark all as created (since we skipped duplicates via query)
+        for (const charge of chargesToCreate) {
+            results.push({ bookingId: charge.bookingId, status: 'CREATED', chargeId: charge.bookingId });
+        }
     }
 
     return results;

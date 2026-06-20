@@ -4,7 +4,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CalendarCheck, XCircle, CheckCircle, Clock } from "lucide-react";
-import { Button, StatusBadge, Badge } from "@the-rooms/ui";
+import { Button, StatusBadge, Badge, Breadcrumbs, BreadcrumbItem, ConfirmDialog } from "@the-rooms/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@the-rooms/ui";
 import { PageHeader } from "@the-rooms/ui";
 import { formatCurrency, formatDate, formatPhone } from "@the-rooms/ui";
@@ -53,6 +53,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
+  // Confirmation dialogs
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: "checkIn" | "checkOut" | "cancel" | null;
+  }>({ open: false, title: "", description: "", action: null });
+
   useEffect(() => {
     fetch(`/api/bookings/${id}`)
       .then((r) => r.json())
@@ -76,6 +84,17 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  function handleConfirmAction() {
+    if (confirmDialog.action === "checkIn" && booking?.status === "CONFIRMED") {
+      updateStatus("CHECKED_IN");
+    } else if (confirmDialog.action === "checkOut" && booking?.status === "CHECKED_IN") {
+      updateStatus("CHECKED_OUT");
+    } else if (confirmDialog.action === "cancel") {
+      updateStatus("CANCELLED");
+    }
+    setConfirmDialog({ open: false, title: "", description: "", action: null });
+  }
+
   if (loading) {
     return <div className="space-y-4">{[...Array(3)].map((_, i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-muted" />)}</div>;
   }
@@ -91,8 +110,16 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
   const statusAction = STATUS_ACTIONS[booking.status as keyof typeof STATUS_ACTIONS];
 
+  const breadcrumbItems: BreadcrumbItem[] = [
+    { label: "Bookings", href: "/bookings" },
+    { label: booking.bookingNumber },
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <Breadcrumbs items={breadcrumbItems} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -112,7 +139,23 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           {statusAction && (
             <Button
               variant="default"
-              onClick={() => updateStatus(statusAction.next)}
+              onClick={() => {
+                if (statusAction.next === "CHECKED_IN") {
+                  setConfirmDialog({
+                    open: true,
+                    title: "Confirm Check-in",
+                    description: `Are you sure you want to check in ${booking.guest.name}? This will mark the room as occupied.`,
+                    action: "checkIn",
+                  });
+                } else {
+                  setConfirmDialog({
+                    open: true,
+                    title: "Confirm Check-out",
+                    description: `Are you sure you want to check out ${booking.guest.name}? This will free up Room ${booking.room.roomNumber}.`,
+                    action: "checkOut",
+                  });
+                }
+              }}
               disabled={updating}
             >
               <statusAction.icon className="h-4 w-4 mr-1.5" />
@@ -122,7 +165,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           {booking.status === "CONFIRMED" && (
             <Button
               variant="destructive"
-              onClick={() => updateStatus("CANCELLED")}
+              onClick={() => {
+                setConfirmDialog({
+                  open: true,
+                  title: "Cancel Booking",
+                  description: `Are you sure you want to cancel booking ${booking.bookingNumber}? The room will be released and the guest notified.`,
+                  action: "cancel",
+                });
+              }}
               disabled={updating}
             >
               <XCircle className="h-4 w-4 mr-1.5" />
@@ -281,6 +331,18 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           </Card>
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog((d) => ({ ...d, open }))}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmLabel={confirmDialog.action === "cancel" ? "Cancel Booking" : "Confirm"}
+        cancelLabel="Go Back"
+        onConfirm={handleConfirmAction}
+        variant={confirmDialog.action === "cancel" ? "destructive" : "default"}
+      />
     </div>
   );
 }

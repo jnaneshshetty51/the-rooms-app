@@ -51,7 +51,7 @@ function LoginInner() {
 
   return (
     <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-2/5 bg-[#2D3436] flex-col items-center justify-center p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-2/5 bg-primary flex-col items-center justify-center p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-5">
           <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -68,7 +68,7 @@ function LoginInner() {
             <div className="mx-auto flex items-center justify-center mb-6">
               <img src="/logo.svg" alt="The Rooms Logo" className="h-40 w-auto object-contain" />
             </div>
-            <p className="text-[#DFE6E9] text-xl font-light italic">
+            <p className="text-gray-200 text-xl font-light italic">
               Your Space. Your Stay.
             </p>
           </div>
@@ -79,15 +79,15 @@ function LoginInner() {
               "Process bookings & payments",
               "Room status at a glance",
             ].map((feature, i) => (
-              <div key={i} className="flex items-center gap-3 text-[#DFE6E9]">
-                <div className="w-2 h-2 rounded-full bg-[#E17055] flex-shrink-0" />
+              <div key={i} className="flex items-center gap-3 text-gray-200">
+                <div className="w-2 h-2 rounded-full bg-secondary flex-shrink-0" />
                 <span className="text-sm">{feature}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#E17055] via-[#E17055] to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-secondary via-secondary to-transparent" />
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-12 bg-white">
@@ -97,10 +97,10 @@ function LoginInner() {
 
         <div className="w-full max-w-md">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-[#2D3436] mb-1">
+            <h2 className="text-2xl font-bold text-primary mb-1">
               Front Office
             </h2>
-            <p className="text-[#636E72] text-sm">
+            <p className="text-muted-foreground text-sm">
               Sign in to access the front desk operations portal
             </p>
           </div>
@@ -120,7 +120,7 @@ function LoginInner() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#2D3436] mb-1.5">
+              <label htmlFor="email" className="block text-sm font-medium text-primary mb-1.5">
                 Email address
               </label>
               <input
@@ -131,13 +131,13 @@ function LoginInner() {
                 required
                 autoComplete="email"
                 placeholder="you@therooms.in"
-                className="w-full px-4 py-3 rounded-lg border border-[#E5E5E5] bg-white text-[#2D3436] placeholder:text-[#B2BEC3] focus:outline-none focus:ring-2 focus:ring-[#E17055] focus:border-transparent transition-all text-sm"
+                className="w-full px-4 py-3 rounded-lg border border-input bg-white text-primary placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition-all text-sm"
                 disabled={isLoading}
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[#2D3436] mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium text-primary mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -149,13 +149,13 @@ function LoginInner() {
                   required
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="w-full px-4 py-3 pr-12 rounded-lg border border-[#E5E5E5] bg-white text-[#2D3436] placeholder:text-[#B2BEC3] focus:outline-none focus:ring-2 focus:ring-[#E17055] focus:border-transparent transition-all text-sm"
+                  className="w-full px-4 py-3 pr-12 rounded-lg border border-input bg-white text-primary placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition-all text-sm"
                   disabled={isLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#636E72] hover:text-[#2D3436] transition-colors p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors p-1"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -164,7 +164,7 @@ function LoginInner() {
             </div>
 
             <div className="flex justify-end">
-              <a href="/forgot-password" className="text-sm text-[#E17055] hover:text-[#D35B3F] font-medium transition-colors">
+              <a href="/forgot-password" className="text-sm text-secondary hover:text-secondary/90 font-medium transition-colors">
                 Forgot password?
               </a>
             </div>
@@ -172,7 +172,7 @@ function LoginInner() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-6 rounded-lg bg-[#2D3436] hover:bg-[#3d4a4c] disabled:bg-[#636E72] text-white font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:cursor-not-allowed"
+              className="w-full py-3 px-6 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted text-white font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Signing in...</>
@@ -180,7 +180,7 @@ function LoginInner() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-xs text-[#636E72]">
+          <p className="mt-8 text-center text-xs text-muted-foreground">
             &copy; {new Date().getFullYear()} The Rooms. All rights reserved.
           </p>
         </div>

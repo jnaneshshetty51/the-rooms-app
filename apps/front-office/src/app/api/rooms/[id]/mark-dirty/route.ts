@@ -8,7 +8,7 @@ import { markRoomAsDirty } from "@the-rooms/db";
 
 /**
  * POST /api/rooms/[id]/mark-dirty
- * Manually mark a room as dirty (e.g., for deep cleaning or maintenance发现了问题)
+ * Manually mark a room as dirty (e.g., for deep cleaning or maintenance)
  * Sets cleaningStatus to DIRTY
  */
 export async function POST(
@@ -44,22 +44,27 @@ export async function POST(
             return notFound("Room");
         }
 
-        // Mark room as dirty
-        const updatedRoom = await markRoomAsDirty(id, notes);
+        // Wrap operations in transaction for atomicity
+        const updatedRoom = await db.$transaction(async (tx) => {
+            // Mark room as dirty (passing tx to use same transaction)
+            const room = await markRoomAsDirty(id, notes, tx);
 
-        // Create audit log
-        await db.auditLog.create({
-            data: {
-                userId,
-                action: "ROOM_MARKED_DIRTY",
-                entity: "room",
-                entityId: id,
-                metadata: {
-                    roomNumber: existingRoom.roomNumber,
-                    previousStatus: existingRoom.cleaningStatus,
-                    notes,
+            // Create audit log within same transaction
+            await tx.auditLog.create({
+                data: {
+                    userId,
+                    action: "ROOM_MARKED_DIRTY",
+                    entity: "room",
+                    entityId: id,
+                    metadata: {
+                        roomNumber: existingRoom.roomNumber,
+                        previousStatus: existingRoom.cleaningStatus,
+                        notes,
+                    },
                 },
-            },
+            });
+
+            return room;
         });
 
         return ok(updatedRoom);

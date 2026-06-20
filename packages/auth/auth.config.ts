@@ -8,6 +8,9 @@ import crypto from "crypto"
 import { z } from "zod"
 import { db } from "@the-rooms/db"
 
+// Bcrypt rounds configurable via environment variable (default: 12 for security)
+const BCRYPT_ROUNDS = parseInt(process.env.NEXTAUTH_BCRYPT_ROUNDS || '12', 10);
+
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().optional(),
@@ -72,15 +75,36 @@ export const authConfig: NextAuthConfig = {
         if (!password) return null
         if (!user || !user.isActive) return null
 
-        // Rate limiting: if attempts >= 5, account is locked
+        // Check if lockout period has expired and reset attempts if so
+        const now = new Date();
+        if (user.lockedUntil && user.lockedUntil <= now) {
+          // Lockout expired, reset attempts and lockedUntil
+          await db.user.update({
+            where: { id: user.id },
+            data: { attempts: 0, lockedUntil: null },
+          });
+        } else if (user.lockedUntil && user.lockedUntil > now) {
+          // Account is currently locked
+          return null;
+        }
+
+        // Check if attempts >= 5 (account locked)
         if (user.attempts >= 5) return null
 
         const valid = await bcrypt.compare(password, user.passwordHash)
         if (!valid) {
-          // Increment failed attempts
+          // Increment failed attempts and set lockout if reached 5
+          const newAttempts = user.attempts + 1;
+          const updateData: { attempts: number; lockedUntil?: Date } = { attempts: newAttempts };
+
+          // Lock for 30 minutes if attempts reach 5
+          if (newAttempts >= 5) {
+            updateData.lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+          }
+
           await db.user.update({
             where: { id: user.id },
-            data: { attempts: { increment: 1 } },
+            data: updateData,
           })
           return null
         }
@@ -88,7 +112,7 @@ export const authConfig: NextAuthConfig = {
         // Reset attempts on successful login
         await db.user.update({
           where: { id: user.id },
-          data: { attempts: 0, lastLogin: new Date() },
+          data: { attempts: 0, lockedUntil: null, lastLogin: new Date() },
         })
 
         return { id: user.id, email: user.email, name: user.name, role: user.role }

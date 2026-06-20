@@ -9,11 +9,11 @@ import { Home, CalendarDays, FileText, User, Settings } from 'lucide-react';
 import { cn } from '@the-rooms/ui';
 
 const NAV_ITEMS = [
-  { label: 'Home', href: '/dashboard', icon: Home },
+  { label: 'Dashboard', href: '/dashboard', icon: Home },
   { label: 'Bookings', href: '/bookings', icon: CalendarDays },
+  { label: 'Payments', href: '/payments', icon: FileText },
   { label: 'Documents', href: '/documents', icon: FileText },
   { label: 'Profile', href: '/profile', icon: User },
-  { label: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export function BottomTabNav() {
@@ -40,8 +40,8 @@ export function BottomTabNav() {
               href={item.href}
               className={cn(
                 'flex flex-col items-center justify-center gap-1 px-3 py-2 min-w-[64px] min-h-[44px] rounded-lg transition-colors',
-                active 
-                  ? 'text-[#E17055]' 
+                active
+                  ? 'text-[#E17055]'
                   : 'text-[#636E72] hover:text-[#2D3436]'
               )}
             >

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import prisma from "@the-rooms/db";
+import { db } from "@the-rooms/db";
+import { getPropertyIdFromSession, getPropertyIdsFromSession, createAuditLog, getClientIp } from "@the-rooms/api/middleware";
 
 export async function GET(
   _request: NextRequest,
@@ -13,11 +14,16 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const guest = await prisma.guest.findUnique({
+    // ─── Property Scoping ─────────────────────────────────────────────────────
+    // Get property IDs for the user based on role
+    const { propertyIds, isSuperAdmin } = await getPropertyIdsFromSession(session);
+
+    // Find guest and verify property access
+    const guest = await db.guest.findUnique({
       where: { id },
       include: {
         bookings: {
-          include: { room: { select: { roomNumber: true, type: true } } },
+          include: { room: { select: { roomNumber: true, type: true, propertyId: true } } },
           orderBy: { checkIn: "desc" },
         },
         documents: {
@@ -28,6 +34,17 @@ export async function GET(
 
     if (!guest) {
       return NextResponse.json({ error: "Guest not found" }, { status: 404 });
+    }
+
+    // ─── Property Access Check ───────────────────────────────────────────────
+    if (!isSuperAdmin && propertyIds) {
+      // Check if guest has any bookings at accessible properties
+      const hasAccess = guest.bookings.some(booking =>
+        propertyIds.includes(booking.room.propertyId)
+      );
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Access denied to this guest" }, { status: 403 });
+      }
     }
 
     return NextResponse.json(guest);
@@ -48,15 +65,45 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { name, phone, email, alternatePhone, address, companyName } = body;
+    // ─── Role Check ──────────────────────────────────────────────────────────
+    const userRole = session.user.role;
+    if (userRole !== "ADMIN" && userRole !== "SUPER_ADMIN" && userRole !== "FRONT_OFFICE") {
+      return NextResponse.json({ error: "Forbidden - insufficient role" }, { status: 403 });
+    }
 
-    const guest = await prisma.guest.findUnique({ where: { id } });
+    // ─── Property Scoping ─────────────────────────────────────────────────────
+    // Get property IDs for the user based on role
+    const { propertyIds, isSuperAdmin } = await getPropertyIdsFromSession(session);
+
+    // Find guest and verify property access
+    const guest = await db.guest.findUnique({
+      where: { id },
+      include: {
+        bookings: {
+          include: { room: { select: { propertyId: true } } },
+        },
+      },
+    });
+
     if (!guest) {
       return NextResponse.json({ error: "Guest not found" }, { status: 404 });
     }
 
-    const updatedGuest = await prisma.guest.update({
+    // ─── Property Access Check ───────────────────────────────────────────────
+    if (!isSuperAdmin && propertyIds) {
+      // Check if guest has any bookings at accessible properties
+      const hasAccess = guest.bookings.some(booking =>
+        propertyIds.includes(booking.room.propertyId)
+      );
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Access denied to this guest" }, { status: 403 });
+      }
+    }
+
+    const body = await request.json();
+    const { name, phone, email, alternatePhone, address, companyName } = body;
+
+    const updatedGuest = await db.guest.update({
       where: { id },
       data: {
         name: name !== undefined ? name : undefined,
@@ -66,6 +113,16 @@ export async function PATCH(
         address: address !== undefined ? address : undefined,
         companyName: companyName !== undefined ? companyName : undefined,
       },
+    });
+
+    // ─── Audit Log ───────────────────────────────────────────────────────────
+    await createAuditLog({
+      userId: session.user.id,
+      action: "UPDATE",
+      entity: "Guest",
+      entityId: id,
+      metadata: { fieldsUpdated: Object.keys(body) },
+      ipAddress: getClientIp(request),
     });
 
     return NextResponse.json({ success: true, guest: updatedGuest });

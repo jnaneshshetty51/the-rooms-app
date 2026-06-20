@@ -10,25 +10,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // ─── Role Check ──────────────────────────────────────────────────────────
+    const userRole = (session.user as { role?: string }).role;
+    if (userRole !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const months = parseInt(searchParams.get("months") ?? "12", 10);
+    const propertyId = searchParams.get("propertyId");
+
+    // Build property filters
+    const roomPropertyFilter = propertyId ? { propertyId } : {};
+    const bookingPropertyFilter = propertyId ? { room: { propertyId } } : {};
 
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
 
     const bookings = await db.booking.findMany({
       where: {
+        ...bookingPropertyFilter,
         checkIn: { gte: startDate },
         status: { in: ["CHECKED_IN", "CHECKED_OUT"] },
       },
       select: {
         checkIn: true,
         checkOut: true,
-        room: { select: { type: true } },
+        room: { select: { type: true, propertyId: true } },
       },
     });
 
-    const totalRooms = await db.room.count();
+    const totalRooms = await db.room.count({ where: roomPropertyFilter });
     const monthsArr: { month: string; occupancy: number; rooms: number }[] = [];
 
     // Generate monthly occupancy data
@@ -68,9 +80,36 @@ export async function GET(request: NextRequest) {
     }
 
     // Current stats
-    const currentOccupied = await db.room.count({ where: { status: "OCCUPIED" } });
+    const currentOccupied = await db.room.count({
+      where: { ...roomPropertyFilter, status: "OCCUPIED" }
+    });
     const currentOccupancy =
       totalRooms > 0 ? (currentOccupied / totalRooms) * 100 : 0;
+
+    // ─── Property breakdown when showing "all" ───────────────────────────────
+    let propertyBreakdown = null;
+    if (!propertyId) {
+      const properties = await db.property.findMany({
+        select: { id: true, name: true, code: true },
+      });
+
+      propertyBreakdown = await Promise.all(
+        properties.map(async (property) => {
+          const [rooms, occupied] = await Promise.all([
+            db.room.count({ where: { propertyId: property.id } }),
+            db.room.count({ where: { propertyId: property.id, status: "OCCUPIED" } }),
+          ]);
+          return {
+            propertyId: property.id,
+            propertyName: property.name,
+            propertyCode: property.code,
+            totalRooms: rooms,
+            occupiedRooms: occupied,
+            currentOccupancy: rooms > 0 ? Math.round((occupied / rooms) * 100 * 10) / 10 : 0,
+          };
+        })
+      );
+    }
 
     return NextResponse.json({
       data: {
@@ -80,6 +119,8 @@ export async function GET(request: NextRequest) {
         totalRooms,
         availableRooms: totalRooms - currentOccupied,
       },
+      propertyBreakdown,
+      selectedPropertyId: propertyId,
     });
   } catch (error) {
     console.error("[OCCUPANCY_ANALYTICS]", error);

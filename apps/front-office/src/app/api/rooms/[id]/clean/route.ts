@@ -44,22 +44,27 @@ export async function POST(
             return notFound("Room");
         }
 
-        // Mark room as cleaned
-        const updatedRoom = await markRoomAsCleaned(id, userId, notes);
+        // Wrap operations in transaction for atomicity
+        const updatedRoom = await db.$transaction(async (tx) => {
+            // Mark room as cleaned (passing tx to use same transaction)
+            const room = await markRoomAsCleaned(id, userId, notes, tx);
 
-        // Create audit log
-        await db.auditLog.create({
-            data: {
-                userId,
-                action: "ROOM_CLEANED",
-                entity: "room",
-                entityId: id,
-                metadata: {
-                    roomNumber: existingRoom.roomNumber,
-                    previousStatus: existingRoom.cleaningStatus,
-                    notes,
+            // Create audit log within same transaction
+            await tx.auditLog.create({
+                data: {
+                    userId,
+                    action: "ROOM_CLEANED",
+                    entity: "room",
+                    entityId: id,
+                    metadata: {
+                        roomNumber: existingRoom.roomNumber,
+                        previousStatus: existingRoom.cleaningStatus,
+                        notes,
+                    },
                 },
-            },
+            });
+
+            return room;
         });
 
         return ok(updatedRoom);

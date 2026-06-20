@@ -10,7 +10,7 @@ import {
   Trash2,
   ImageIcon,
 } from "lucide-react";
-import { Button, StatusBadge, Input, Select, SelectTrigger, SelectContent, SelectValue, Badge } from "@the-rooms/ui";
+import { Button, StatusBadge, Input, Select, SelectTrigger, SelectContent, SelectValue, Badge, Breadcrumbs, BreadcrumbItem } from "@the-rooms/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@the-rooms/ui";
 import { PageHeader } from "@the-rooms/ui";
 
@@ -125,8 +125,16 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
+  const breadcrumbItems: BreadcrumbItem[] = [
+    { label: "Rooms", href: "/rooms" },
+    { label: room ? `Room ${room.roomNumber}` : "Room Details" },
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <Breadcrumbs items={breadcrumbItems} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

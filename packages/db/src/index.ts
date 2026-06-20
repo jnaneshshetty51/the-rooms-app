@@ -29,6 +29,7 @@ export { createCorporateAccount, getCorporateAccount, getCorporateAccountByName,
 export { createDamageAssessment, getDamageAssessmentById, getDamageAssessmentsByBooking, getDamageAssessmentsByRoom, updateDamageAssessment, deleteDamageAssessment, approveDamageCharge, getAllDamageAssessments } from './queries/damageAssessmentQueries';
 export { calculateLateCheckoutFee, applyLateCheckoutFee, checkLateCheckoutEligibility } from './queries/lateCheckoutQueries';
 export { recordRoomMove } from './queries/roomMoveQueries';
+export { findOrphanFiles, cleanupOrphanFiles, upsertFileHash, findFileHashByHash, deleteFileHash, getFileHashesByModel, getStorageStats } from './queries/storageQueries';
 export { searchLostBookings, markBookingAsLost, recoverBooking, getLostBookings, getLostBookingById, identifyDuplicateBookings, mergeDuplicateBookings } from './queries/bookingRecoveryQueries';
 export { createDispute, getDispute, getBookingDisputes, getDisputes, addDisputeResponse, resolveDispute, updateDisputeStatus, calculateDisputeAdjustment } from './queries/disputeQueries';
 export { flagBookingForReview, getFraudFlags, updateFraudFlagStatus, dismissFraudFlag, confirmFraud, getFraudRiskScore } from './queries/fraudDetectionQueries';

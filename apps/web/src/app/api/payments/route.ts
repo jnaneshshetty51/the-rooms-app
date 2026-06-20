@@ -16,6 +16,7 @@ const CreatePaymentSchema = z.object({
   method: z.enum(['ONLINE', 'UPI', 'CARD', 'CASH', 'BANK_TRANSFER', 'CORPORATE_INVOICE']),
   transactionId: z.string().optional(),
   gatewayRef: z.string().optional(),
+  idempotencyKey: z.string().optional(),
 });
 
 const ListPaymentsSchema = z.object({
@@ -116,6 +117,16 @@ export async function POST(request: NextRequest) {
       return badRequest('Booking not found');
     }
 
+    // Check for idempotency - return existing payment if same idempotencyKey
+    if (data.idempotencyKey) {
+      const existingPayment = await db.payment.findUnique({
+        where: { idempotencyKey: data.idempotencyKey },
+      });
+      if (existingPayment) {
+        return ok(existingPayment); // Return existing payment (idempotent response)
+      }
+    }
+
     // Create payment record
     const payment = await db.payment.create({
       data: {
@@ -124,7 +135,8 @@ export async function POST(request: NextRequest) {
         method: data.method,
         transactionId: data.transactionId,
         gatewayRef: data.gatewayRef,
-        status: data.method === 'CASH' || data.method === 'BANK_TRANSFER' ? 'PENDING' : 'PENDING',
+        idempotencyKey: data.idempotencyKey,
+        status: data.method === 'CASH' || data.method === 'BANK_TRANSFER' || data.method === 'CORPORATE_INVOICE' ? 'PENDING' : 'PAID',
       },
       include: {
         booking: {

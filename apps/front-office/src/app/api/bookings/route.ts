@@ -1,8 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import prisma from "@the-rooms/db";
+import { db } from "@the-rooms/db";
 import { Prisma, getBookings, generateBookingNumber } from "@the-rooms/db";
-import { verifyPropertyAccess } from "@the-rooms/api/middleware";
+import { verifyPropertyAccess, getPropertyIdFromSession } from "@the-rooms/api/middleware";
+import { paginated, created, badRequest, serverError } from "@the-rooms/api/response";
+import { z } from "zod";
+
+// ─── Zod Schemas ────────────────────────────────────────────────────────────────
+
+const bookingQuerySchema = z.object({
+  status: z.string().optional(),
+  paymentStatus: z.string().optional(),
+  bookingSource: z.string().optional(),
+  checkInFrom: z.string().datetime().optional(),
+  checkInTo: z.string().datetime().optional(),
+  propertyId: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  perPage: z.coerce.number().int().positive().max(100).default(20),
+});
+
+const createBookingSchema = z.object({
+  guestId: z.string().min(1, "Guest ID is required"),
+  roomId: z.string().min(1, "Room ID is required"),
+  checkIn: z.string().datetime({ message: "Valid check-in date is required" }),
+  checkOut: z.string().datetime({ message: "Valid check-out date is required" }),
+  guestsCount: z.number().int().positive().default(1),
+  bookingType: z.enum(["DAILY", "MONTHLY"]).default("DAILY"),
+  bookingSource: z.enum(["WEBSITE", "WALK_IN", "PHONE", "OTA", "COMPLIMENTARY", "CORPORATE", "GROUP"]).default("WALK_IN"),
+  specialRequests: z.string().optional(),
+  baseAmount: z.number().positive("Base amount must be positive"),
+  discountAmount: z.number().nonnegative().default(0),
+  extrasAmount: z.number().nonnegative().default(0),
+  totalAmount: z.number().positive("Total amount is required"),
+  complimentaryReason: z.string().optional(),
+  docs: z.array(z.object({
+    docType: z.string(),
+    frontId: z.string().optional(),
+    backId: z.string().optional(),
+  })).optional().default([]),
+  propertyId: z.string().optional(),
+  discountCode: z.string().optional(),
+});
 
 // GET /api/bookings
 export async function GET(request: NextRequest) {
@@ -12,41 +50,98 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") ?? undefined;
-    const paymentStatus = searchParams.get("paymentStatus") ?? undefined;
-    const bookingSource = searchParams.get("bookingSource") ?? undefined;
-    const checkInFrom = searchParams.get("checkInFrom");
-    const checkInTo = searchParams.get("checkInTo");
-    const propertyId = searchParams.get("propertyId") ?? undefined;
-    const page = parseInt(searchParams.get("page") ?? "1");
-    const perPage = parseInt(searchParams.get("perPage") ?? "20");
+    // Validate query params
+    const queryResult = bookingQuerySchema.safeParse({
+      status: request.nextUrl.searchParams.get("status"),
+      paymentStatus: request.nextUrl.searchParams.get("paymentStatus"),
+      bookingSource: request.nextUrl.searchParams.get("bookingSource"),
+      checkInFrom: request.nextUrl.searchParams.get("checkInFrom"),
+      checkInTo: request.nextUrl.searchParams.get("checkInTo"),
+      propertyId: request.nextUrl.searchParams.get("propertyId"),
+      page: request.nextUrl.searchParams.get("page"),
+      perPage: request.nextUrl.searchParams.get("perPage"),
+    });
 
-    // Property-based access control (C3 - IDOR prevention)
-    // Only SUPER_ADMIN can query across all properties
-    if (propertyId && session.user.role !== 'SUPER_ADMIN') {
-      const hasAccess = await verifyPropertyAccess(
-        session.user.id,
-        propertyId,
-        session.user.role
-      );
-      if (!hasAccess) {
-        return NextResponse.json({ error: "Access denied to this property" }, { status: 403 });
-      }
+    if (!queryResult.success) {
+      return badRequest(queryResult.error.errors.map(e => e.message).join(", "));
     }
 
-    const filters = {
+    const {
       status,
       paymentStatus,
       bookingSource,
-      checkInFrom: checkInFrom ? new Date(checkInFrom) : undefined,
-      checkInTo: checkInTo ? new Date(checkInTo) : undefined,
+      checkInFrom,
+      checkInTo,
+      propertyId: queryPropertyId,
       page,
       perPage,
-    };
+    } = queryResult.data;
 
-    const result = await getBookings(filters);
-    return NextResponse.json(result);
+    // Get propertyId from session for filtering
+    const sessionPropertyId = await getPropertyIdFromSession(session);
+    const userRole = session?.user?.role;
+
+    // Determine the propertyId to use for filtering
+    let propertyId: string | undefined;
+
+    if (userRole === 'SUPER_ADMIN') {
+      // SUPER_ADMIN can query across all properties or specific one
+      propertyId = queryPropertyId;
+    } else {
+      // Other roles can only query their assigned property
+      propertyId = sessionPropertyId || undefined;
+
+      // If user tries to query a different property, deny access
+      if (queryPropertyId && queryPropertyId !== sessionPropertyId) {
+        const hasAccess = await verifyPropertyAccess(
+          session.user.id,
+          queryPropertyId,
+          userRole || ''
+        );
+        if (!hasAccess) {
+          return NextResponse.json({ error: "Access denied to this property" }, { status: 403 });
+        }
+        propertyId = queryPropertyId;
+      }
+    }
+
+    if (!propertyId && userRole !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: "No property access found" }, { status: 403 });
+    }
+
+    const where: Record<string, unknown> = {};
+
+    // Add propertyId filter for non-SUPER_ADMIN users
+    if (propertyId) {
+      where.propertyId = propertyId;
+    }
+
+    if (status) where.status = status;
+    if (paymentStatus) where.paymentStatus = paymentStatus;
+    if (bookingSource) where.bookingSource = bookingSource;
+    if (checkInFrom || checkInTo) {
+      where.checkIn = {};
+      if (checkInFrom) (where.checkIn as Record<string, unknown>).gte = new Date(checkInFrom);
+      if (checkInTo) (where.checkIn as Record<string, unknown>).lte = new Date(checkInTo);
+    }
+
+    const [bookings, total] = await Promise.all([
+      db.booking.findMany({
+        where,
+        include: {
+          guest: { select: { id: true, name: true, phone: true, email: true } },
+          room: { select: { id: true, roomNumber: true, type: true } },
+          payments: { select: { id: true, amount: true, status: true, method: true } },
+          createdBy: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      db.booking.count({ where }),
+    ]);
+
+    return paginated(bookings, total, page, perPage);
   } catch (error) {
     console.error("Error fetching bookings:", error);
     return NextResponse.json({ error: "Failed to fetch bookings" }, { status: 500 });
@@ -61,25 +156,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get propertyId from session for default
+    const sessionPropertyId = await getPropertyIdFromSession(session);
+    const userRole = session?.user?.role;
+
     const body = await request.json();
+
+    // Validate request body
+    const bodyResult = createBookingSchema.safeParse(body);
+    if (!bodyResult.success) {
+      return badRequest(bodyResult.error.errors.map(e => e.message).join(", "));
+    }
+
     const {
       guestId,
       roomId,
       checkIn,
       checkOut,
-      guestsCount = 1,
-      bookingType = "DAILY",
-      bookingSource = "WALK_IN",
+      guestsCount,
+      bookingType,
+      bookingSource,
       specialRequests,
       baseAmount,
-      discountAmount = 0,
-      extrasAmount = 0,
+      discountAmount,
+      extrasAmount,
       totalAmount,
       complimentaryReason,
       docs,
-      propertyId,
+      propertyId: bodyPropertyId,
       discountCode,
-    } = body;
+    } = bodyResult.data;
 
     if (process.env.NODE_ENV !== 'production') {
       console.log("[BOOKING_CREATE] Parsed fields - guestId:", guestId, "roomId:", roomId, "bookingSource:", bookingSource);
@@ -89,32 +195,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // Determine propertyId to use
+    let propertyId = bodyPropertyId || sessionPropertyId;
+
     // Property-based access control (C3 - IDOR prevention)
-    if (session.user.role !== 'SUPER_ADMIN' && propertyId) {
+    if (userRole !== 'SUPER_ADMIN' && propertyId) {
       const hasAccess = await verifyPropertyAccess(
         session.user.id,
         propertyId,
-        session.user.role
+        userRole || ''
       );
       if (!hasAccess) {
         return NextResponse.json({ error: "Access denied to this property" }, { status: 403 });
       }
     }
 
+    if (!propertyId) {
+      return NextResponse.json({ error: "No property access found" }, { status: 403 });
+    }
+
     const bookingNumber = await generateBookingNumber();
 
     // H2: Use SERIALIZABLE transaction isolation to prevent race conditions
-    const booking = await prisma.$transaction(async (tx) => {
+    const booking = await db.$transaction(async (tx) => {
       // Lock the room row to prevent concurrent bookings
       await tx.room.findUnique({
         where: { id: roomId },
-        select: { id: true },
+        select: { id: true, propertyId: true },
       });
 
       // Check for overlapping bookings within transaction
       const overlapping = await tx.booking.findFirst({
         where: {
           roomId,
+          propertyId,
           status: { in: ["CONFIRMED", "CHECKED_IN"] },
           OR: [
             {
@@ -136,6 +250,7 @@ export async function POST(request: NextRequest) {
           bookingNumber,
           guestId,
           roomId,
+          propertyId,
           checkIn: new Date(checkIn),
           checkOut: new Date(checkOut),
           guestsCount,
@@ -179,7 +294,7 @@ export async function POST(request: NextRequest) {
             checkOut,
             totalAmount,
             bookingSource,
-            propertyId: propertyId || 'default',
+            propertyId,
           },
         },
       });

@@ -39,6 +39,7 @@ const dateString = z.string().refine(
 const CreateBookingSchema = z.object({
   roomId: z.string().min(1, 'Room ID is required').optional(),
   roomType: z.enum(['STUDIO', 'PREMIUM']).optional(),
+  propertyId: z.string().min(1, 'Property ID is required').optional(),
   checkIn: dateString,
   checkOut: dateString,
   guestsCount: z.number().int().min(1).max(4).default(1),
@@ -210,25 +211,38 @@ export async function POST(request: NextRequest) {
       data.discountCode
     );
 
-    // Generate booking number
+    // ─── Booking Number Generation ─────────────────────────────────────────────
+    // Generate booking number inside a SERIALIZABLE transaction to prevent race conditions
     const today = new Date();
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-    const count = await db.booking.count({
-      where: {
-        createdAt: {
-          gte: new Date(today.setHours(0, 0, 0, 0)),
-          lt: new Date(today.setHours(23, 59, 59, 999)),
-        },
-      },
-    });
-    const bookingNumber = `BKN-${dateStr}-${String(count + 1).padStart(4, '0')}`;
 
     // H2: Use SERIALIZABLE transaction to prevent race conditions
-    // This wraps the entire booking creation including room assignment and availability check
+    // This wraps the entire booking creation including room assignment, availability check,
+    // and booking number generation to ensure uniqueness
     const booking = await db.$transaction(async (tx) => {
+      // Generate booking number inside transaction with proper locking
+      const bookingNumber = await tx.booking.findFirst({
+        where: {
+          bookingNumber: { startsWith: `BKN-${dateStr}` }
+        },
+        orderBy: { bookingNumber: 'desc' },
+        select: { bookingNumber: true }
+      });
+
+      let nextNum = 1;
+      if (bookingNumber?.bookingNumber) {
+        const lastNum = parseInt(bookingNumber.bookingNumber.split('-')[2]);
+        nextNum = lastNum + 1;
+      }
+
+      const bookingNumberFinal = `BKN-${dateStr}-${String(nextNum).padStart(4, '0')}`;
+
+      // Determine propertyId for filtering - use provided, session, or default
+      const propertyId = data.propertyId || session?.user?.propertyId || 'default';
+
       // Determine the room to use - either provided roomId or auto-assign from roomType
       let actualRoomId: string;
-      let room: { id: string; roomNumber: string; type: string } | null = null;
+      let room: { id: string; roomNumber: string; type: string; propertyId: string } | null = null;
 
       if (data.roomId) {
         // Use the provided room ID
@@ -237,13 +251,18 @@ export async function POST(request: NextRequest) {
         if (!room) {
           throw new Error('Room not found');
         }
+        // Verify room belongs to the correct property
+        if (propertyId && room.propertyId !== propertyId) {
+          throw new Error('Room does not belong to the specified property');
+        }
       } else if (data.roomType) {
-        // Auto-assign an available room of the specified type
-        // Find rooms of this type that are not blocked/maintenance
+        // Auto-assign an available room of the specified type within the property
+        // Find rooms of this type that are not blocked/maintenance and belong to the property
         const availableRooms = await tx.room.findMany({
           where: {
             type: data.roomType,
             status: { notIn: ['MAINTENANCE', 'BLOCKED'] },
+            propertyId: propertyId,  // Filter by property
           },
         });
 
@@ -294,7 +313,8 @@ export async function POST(request: NextRequest) {
       // Create the booking
       return tx.booking.create({
         data: {
-          bookingNumber,
+          bookingNumber: bookingNumberFinal,
+          propertyId: propertyId,
           guestId: guest.id,
           roomId: actualRoomId,
           checkIn: checkInDate,
@@ -329,7 +349,7 @@ export async function POST(request: NextRequest) {
       entity: 'booking',
       entityId: booking.id,
       metadata: {
-        bookingNumber,
+        bookingNumber: booking.bookingNumber,
         roomId: data.roomId,
         checkIn: data.checkIn,
         checkOut: data.checkOut,

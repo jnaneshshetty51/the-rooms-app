@@ -1,28 +1,71 @@
 // apps/admin/src/app/api/rooms/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import prisma from "@the-rooms/db";
+import { db } from "@the-rooms/db";
 import { Prisma } from "@the-rooms/db";
 import { getPropertyIdFromSession } from "@the-rooms/api/middleware";
+import { ok, created, badRequest, serverError } from "@the-rooms/api/response";
+import { z } from "zod";
 
-function requireAdmin(session: { user?: { role?: string } | null } | null) {
-  if (!session?.user) throw new Error("Unauthorized");
-  const role = session.user.role;
-  if (role !== "ADMIN" && role !== "SUPER_ADMIN") throw new Error("Forbidden");
-}
+// ─── Zod Schemas ──────────────────────────────────────────────────────────────
+
+const GetRoomsSchema = z.object({
+  type: z.enum(["STUDIO", "PREMIUM"]).optional(),
+  status: z.enum(["VACANT", "OCCUPIED", "MAINTENANCE", "BLOCKED"]).optional(),
+});
+
+const CreateRoomSchema = z.object({
+  roomNumber: z.string().min(1),
+  type: z.enum(["STUDIO", "PREMIUM"]).default("STUDIO"),
+  floor: z.number().int().positive().default(1),
+  description: z.string().optional(),
+  maxOccupancy: z.number().int().positive().default(2),
+  sizeSqft: z.number().positive().optional(),
+  basePriceSingle: z.number().positive().optional(),
+  basePriceDouble: z.number().positive().optional(),
+  monthlyPriceSingle: z.number().positive().optional(),
+  monthlyPriceDouble: z.number().positive().optional(),
+  internalNotes: z.string().optional(),
+});
+
+const UpdateRoomSchema = z.object({
+  id: z.string().min(1),
+  roomNumber: z.string().min(1).optional(),
+  type: z.enum(["STUDIO", "PREMIUM"]).optional(),
+  floor: z.number().int().positive().optional(),
+  description: z.string().optional(),
+  maxOccupancy: z.number().int().positive().optional(),
+  sizeSqft: z.number().positive().optional(),
+  basePriceSingle: z.number().positive().optional(),
+  basePriceDouble: z.number().positive().optional(),
+  monthlyPriceSingle: z.number().positive().nullable().optional(),
+  monthlyPriceDouble: z.number().positive().nullable().optional(),
+  internalNotes: z.string().optional(),
+  status: z.enum(["VACANT", "OCCUPIED", "MAINTENANCE", "BLOCKED"]).optional(),
+});
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
-    requireAdmin(session);
+    if (!session?.user) return badRequest("Unauthorized", "UNAUTHORIZED");
+
+    const userRole = (session?.user as { role?: string }).role;
+    if (userRole !== "ADMIN" && userRole !== "SUPER_ADMIN") {
+      return badRequest("Forbidden", "FORBIDDEN");
+    }
 
     const { searchParams } = new URL(request.url);
-    const type = searchParams.get("type");
-    const status = searchParams.get("status");
+
+    // Validate query parameters
+    const validatedParams = GetRoomsSchema.parse({
+      type: searchParams.get("type") ?? undefined,
+      status: searchParams.get("status") ?? undefined,
+    });
+
+    const { type, status } = validatedParams;
 
     // Get propertyId from session for filtering
     const propertyId = await getPropertyIdFromSession(session);
-    const userRole = (session?.user as { role?: string }).role;
 
     const where: Prisma.RoomWhereInput = {};
 
@@ -32,23 +75,22 @@ export async function GET(request: NextRequest) {
         where.propertyId = propertyId;
       } else {
         // User has no property access
-        return NextResponse.json({ rooms: [] });
+        return ok([]);
       }
     }
 
-    if (type) where.type = type as "STUDIO" | "PREMIUM";
-    if (status) where.status = status as "VACANT" | "OCCUPIED" | "MAINTENANCE" | "BLOCKED";
+    if (type) where.type = type;
+    if (status) where.status = status;
 
-    const prismaAny = prisma as unknown as Record<string, { findMany: (args: unknown) => Promise<unknown> }>;
     const [rooms, rawProfiles] = await Promise.all([
-      prisma.room.findMany({
+      db.room.findMany({
         where,
         include: { amenities: { include: { amenity: true } } },
         orderBy: [{ floor: "asc" }, { roomNumber: "asc" }],
       }),
-      prismaAny.roomTypeProfile.findMany({
+      db.roomTypeProfile.findMany({
         include: { images: { orderBy: { sortOrder: "asc" }, take: 1 } },
-      }) as Promise<Array<{ type: string; images: { url: string }[] }>>,
+      }),
     ]);
 
     const typeThumbMap: Record<string, string> = {};
@@ -61,43 +103,55 @@ export async function GET(request: NextRequest) {
       thumbnail: typeThumbMap[r.type] ?? null,
     }));
 
-    return NextResponse.json({ rooms: roomsWithThumbnail });
+    return ok(roomsWithThumbnail);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
-    if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
+    if (error instanceof z.ZodError) {
+      return badRequest(error.errors.map(e => e.message).join(', '), "VALIDATION_ERROR");
+    }
     console.error("[ROOMS_GET]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-    requireAdmin(session);
+    if (!session?.user) return badRequest("Unauthorized", "UNAUTHORIZED");
+
+    const userRole = (session?.user as { role?: string }).role;
+    if (userRole !== "ADMIN" && userRole !== "SUPER_ADMIN") {
+      return badRequest("Forbidden", "FORBIDDEN");
+    }
 
     // Get propertyId from session for filtering
     const propertyId = await getPropertyIdFromSession(session);
-    const userRole = (session?.user as { role?: string }).role;
 
     if (userRole !== "SUPER_ADMIN" && !propertyId) {
-      return NextResponse.json({ error: "No property access found" }, { status: 403 });
+      return badRequest("No property access found", "FORBIDDEN");
     }
 
     const body = await request.json();
-    const { roomNumber, type, floor, description, maxOccupancy, sizeSqft, basePriceSingle, basePriceDouble, monthlyPriceSingle, monthlyPriceDouble, internalNotes } = body;
+    const parsed = CreateRoomSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        parsed.error.errors.map(e => e.message).join(', '),
+        "VALIDATION_ERROR"
+      );
+    }
+
+    const { roomNumber, type, floor, description, maxOccupancy, sizeSqft, basePriceSingle, basePriceDouble, monthlyPriceSingle, monthlyPriceDouble, internalNotes } = parsed.data;
 
     // Check for existing room with same room number in the same property
     const existingWhere: Prisma.RoomWhereInput = { roomNumber };
     if (userRole !== "SUPER_ADMIN" && propertyId) {
       existingWhere.propertyId = propertyId;
     }
-    const existing = await prisma.room.findFirst({ where: existingWhere });
+    const existing = await db.room.findFirst({ where: existingWhere });
     if (existing) {
-      return NextResponse.json({ error: "Room number already exists" }, { status: 409 });
+      return badRequest("Room number already exists", "CONFLICT");
     }
 
-    const room = await prisma.room.create({
+    const room = await db.room.create({
       data: {
         roomNumber,
         propertyId: propertyId || "default",
@@ -118,37 +172,44 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ room }, { status: 201 });
+    return created({ room });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
-    if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
     console.error("[ROOMS_POST]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
     const session = await auth();
-    requireAdmin(session);
+    if (!session?.user) return badRequest("Unauthorized", "UNAUTHORIZED");
+
+    const userRole = (session?.user as { role?: string }).role;
+    if (userRole !== "ADMIN" && userRole !== "SUPER_ADMIN") {
+      return badRequest("Forbidden", "FORBIDDEN");
+    }
 
     // Get propertyId from session for filtering
     const propertyId = await getPropertyIdFromSession(session);
-    const userRole = (session?.user as { role?: string }).role;
 
     const body = await request.json();
-    const { id, roomNumber, type, floor, description, maxOccupancy, sizeSqft, basePriceSingle, basePriceDouble, monthlyPriceSingle, monthlyPriceDouble, internalNotes, status } = body;
+    const parsed = UpdateRoomSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        parsed.error.errors.map(e => e.message).join(', '),
+        "VALIDATION_ERROR"
+      );
+    }
 
-    if (!id) return NextResponse.json({ error: "Room ID required" }, { status: 400 });
+    const { id, roomNumber, type, floor, description, maxOccupancy, sizeSqft, basePriceSingle, basePriceDouble, monthlyPriceSingle, monthlyPriceDouble, internalNotes, status } = parsed.data;
 
     // If not SUPER_ADMIN, verify the room belongs to user's property
     if (userRole !== "SUPER_ADMIN" && propertyId) {
-      const roomToUpdate = await prisma.room.findFirst({
+      const roomToUpdate = await db.room.findFirst({
         where: { id, propertyId },
       });
       if (!roomToUpdate) {
-        return NextResponse.json({ error: "Room not found or access denied" }, { status: 404 });
+        return badRequest("Room not found or access denied", "NOT_FOUND");
       }
     }
 
@@ -166,7 +227,7 @@ export async function PATCH(request: NextRequest) {
     if (monthlyPriceSingle !== undefined) updateData.monthlyPriceSingle = monthlyPriceSingle ? new Prisma.Decimal(monthlyPriceSingle) : null;
     if (monthlyPriceDouble !== undefined) updateData.monthlyPriceDouble = monthlyPriceDouble ? new Prisma.Decimal(monthlyPriceDouble) : null;
 
-    const room = await prisma.room.update({
+    const room = await db.room.update({
       where: { id },
       data: updateData,
       include: {
@@ -175,12 +236,9 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ room });
+    return ok({ room });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
-    if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
     console.error("[ROOMS_PATCH]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }

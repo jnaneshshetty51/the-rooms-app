@@ -3,8 +3,13 @@
   "version": "0.1.0",
   "exports": {
     ".": "./src/index.ts",
+    "./errors": "./src/errors.ts",
+    "./errorHandler": "./src/errorHandler.ts",
+    "./logger": "./src/logger.ts",
     "./middleware": "./src/middleware.ts",
-    "./response": "./src/response.ts"
+    "./response": "./src/response.ts",
+    "./shutdown": "./src/shutdown.ts",
+    "./validation": "./src/validation.ts"
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -16,6 +21,7 @@
     "@the-rooms/db": "workspace:*",
     "ioredis": "^5.11.0",
     "next": "^15.5.18",
+    "pino": "^9.6.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

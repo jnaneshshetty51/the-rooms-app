@@ -1,32 +1,68 @@
 // apps/admin/src/app/api/discounts/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@the-rooms/auth";
-import prisma from "@the-rooms/db";
+import { db } from "@the-rooms/db";
 import { Prisma } from "@the-rooms/db";
+import { ok, created, badRequest, serverError, conflict } from "@the-rooms/api/response";
+import { z } from "zod";
 
-function requireAdmin(session: { user?: { role?: string } | null } | null) {
-  if (!session?.user) throw new Error("Unauthorized");
-  const role = session.user.role;
-  if (role !== "ADMIN" && role !== "SUPER_ADMIN") throw new Error("Forbidden");
-}
+// ─── Zod Schemas ──────────────────────────────────────────────────────────────
+
+const CreateDiscountSchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  type: z.enum(["PERCENTAGE", "FIXED_AMOUNT"]),
+  value: z.number().positive(),
+  validFrom: z.string().datetime().optional(),
+  validUntil: z.string().datetime().optional(),
+  maxUses: z.number().int().nonnegative().optional(),
+  maxUsesPerUser: z.number().int().nonnegative().optional(),
+  minNights: z.number().int().nonnegative().default(1),
+  maxNights: z.number().int().nonnegative().optional(),
+  minBookingValue: z.number().nonnegative().optional(),
+  maxBookingValue: z.number().nonnegative().optional(),
+  applicableRoomTypes: z.array(z.string()).default([]),
+  isActive: z.boolean().default(true),
+});
+
+const UpdateDiscountSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  type: z.enum(["PERCENTAGE", "FIXED_AMOUNT"]).optional(),
+  value: z.number().positive().optional(),
+  validFrom: z.string().datetime().nullable().optional(),
+  validUntil: z.string().datetime().nullable().optional(),
+  maxUses: z.number().int().nonnegative().nullable().optional(),
+  maxUsesPerUser: z.number().int().nonnegative().nullable().optional(),
+  minNights: z.number().int().nonnegative().optional(),
+  maxNights: z.number().int().nonnegative().nullable().optional(),
+  minBookingValue: z.number().nonnegative().nullable().optional(),
+  maxBookingValue: z.number().nonnegative().nullable().optional(),
+  applicableRoomTypes: z.array(z.string()).optional(),
+  isActive: z.boolean().optional(),
+});
 
 // GET /api/discounts - List all discount codes
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
-    requireAdmin(session);
+    if (!session?.user) return badRequest("Unauthorized", "UNAUTHORIZED");
 
-    const discounts = await prisma.discountCode.findMany({
+    const role = session.user.role;
+    if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+      return badRequest("Forbidden", "FORBIDDEN");
+    }
+
+    const discounts = await db.discountCode.findMany({
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ discounts });
+    return ok({ discounts });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
-    if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
     console.error("[DISCOUNTS_GET]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }
 
@@ -34,9 +70,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-    requireAdmin(session);
+    if (!session?.user) return badRequest("Unauthorized", "UNAUTHORIZED");
+
+    const role = session.user.role;
+    if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+      return badRequest("Forbidden", "FORBIDDEN");
+    }
 
     const body = await request.json();
+    const parsed = CreateDiscountSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        parsed.error.errors.map(e => e.message).join(', '),
+        "VALIDATION_ERROR"
+      );
+    }
+
     const {
       code,
       name,
@@ -53,48 +102,25 @@ export async function POST(request: NextRequest) {
       maxBookingValue,
       applicableRoomTypes,
       isActive,
-    } = body;
+    } = parsed.data;
 
-    if (!code || !name || !type || value === undefined) {
-      return NextResponse.json(
-        { error: "code, name, type, and value are required" },
-        { status: 400 }
-      );
-    }
-
-    if (type !== "PERCENTAGE" && type !== "FIXED_AMOUNT") {
-      return NextResponse.json(
-        { error: "type must be PERCENTAGE or FIXED_AMOUNT" },
-        { status: 400 }
-      );
-    }
-
-    if (type === "PERCENTAGE" && (parseFloat(value) <= 0 || parseFloat(value) > 100)) {
-      return NextResponse.json(
-        { error: "Percentage value must be between 0 and 100" },
-        { status: 400 }
-      );
+    if (type === "PERCENTAGE" && (value <= 0 || value > 100)) {
+      return badRequest("Percentage value must be between 0 and 100", "VALIDATION_ERROR");
     }
 
     if (validFrom && validUntil && new Date(validFrom) > new Date(validUntil)) {
-      return NextResponse.json(
-        { error: "Valid From date must be before Valid Until date" },
-        { status: 400 }
-      );
+      return badRequest("Valid From date must be before Valid Until date", "VALIDATION_ERROR");
     }
 
     // Check if code already exists
-    const existing = await prisma.discountCode.findUnique({
+    const existing = await db.discountCode.findUnique({
       where: { code: code.toUpperCase() },
     });
     if (existing) {
-      return NextResponse.json(
-        { error: "Discount code already exists" },
-        { status: 409 }
-      );
+      return conflict("Discount code already exists");
     }
 
-    const discount = await prisma.discountCode.create({
+    const discount = await db.discountCode.create({
       data: {
         code: code.toUpperCase(),
         name,
@@ -114,13 +140,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ discount }, { status: 201 });
+    return created({ discount });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
-    if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
     console.error("[DISCOUNTS_POST]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }
 
@@ -128,79 +151,51 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await auth();
-    requireAdmin(session);
+    if (!session?.user) return badRequest("Unauthorized", "UNAUTHORIZED");
+
+    const role = session.user.role;
+    if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+      return badRequest("Forbidden", "FORBIDDEN");
+    }
 
     const body = await request.json();
-    const {
-      id,
-      name,
-      description,
-      type,
-      value,
-      validFrom,
-      validUntil,
-      maxUses,
-      maxUsesPerUser,
-      minNights,
-      maxNights,
-      minBookingValue,
-      maxBookingValue,
-      applicableRoomTypes,
-      isActive,
-    } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: "id is required" }, { status: 400 });
+    const parsed = UpdateDiscountSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        parsed.error.errors.map(e => e.message).join(', '),
+        "VALIDATION_ERROR"
+      );
     }
 
-    const updateData: Record<string, unknown> = {};
+    const { id, ...updateData } = parsed.data;
 
-    if (name !== undefined) updateData.name = name;
-    if (description !== undefined) updateData.description = description;
-    if (type !== undefined) {
-      if (type !== "PERCENTAGE" && type !== "FIXED_AMOUNT") {
-        return NextResponse.json(
-          { error: "type must be PERCENTAGE or FIXED_AMOUNT" },
-          { status: 400 }
-        );
+    if (updateData.type === "PERCENTAGE" && updateData.value !== undefined && (updateData.value <= 0 || updateData.value > 100)) {
+      return badRequest("Percentage value must be between 0 and 100", "VALIDATION_ERROR");
+    }
+
+    if (updateData.validFrom !== undefined && updateData.validUntil !== undefined && updateData.validFrom !== null && updateData.validUntil !== null) {
+      if (new Date(updateData.validFrom) > new Date(updateData.validUntil)) {
+        return badRequest("Valid From date must be before Valid Until date", "VALIDATION_ERROR");
       }
-      updateData.type = type;
     }
-    if (value !== undefined) {
-      if (type === "PERCENTAGE" && (parseFloat(value) <= 0 || parseFloat(value) > 100)) {
-        return NextResponse.json(
-          { error: "Percentage value must be between 0 and 100" },
-          { status: 400 }
-        );
-      }
-      updateData.value = new Prisma.Decimal(value);
-    }
-    if (validFrom !== undefined) updateData.validFrom = validFrom ? new Date(validFrom) : null;
-    if (validUntil !== undefined) updateData.validUntil = validUntil ? new Date(validUntil) : null;
-    if (maxUses !== undefined) updateData.maxUses = maxUses;
-    if (maxUsesPerUser !== undefined) updateData.maxUsesPerUser = maxUsesPerUser;
-    if (minNights !== undefined) updateData.minNights = minNights;
-    if (maxNights !== undefined) updateData.maxNights = maxNights;
-    if (minBookingValue !== undefined) updateData.minBookingValue = minBookingValue ? new Prisma.Decimal(minBookingValue) : null;
-    if (maxBookingValue !== undefined) updateData.maxBookingValue = maxBookingValue ? new Prisma.Decimal(maxBookingValue) : null;
-    if (applicableRoomTypes !== undefined) updateData.applicableRoomTypes = applicableRoomTypes;
-    if (isActive !== undefined) updateData.isActive = isActive;
 
-    const discount = await prisma.discountCode.update({
+    const discount = await db.discountCode.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...updateData,
+        value: updateData.value !== undefined ? new Prisma.Decimal(updateData.value) : undefined,
+        minBookingValue: updateData.minBookingValue !== undefined ? (updateData.minBookingValue ? new Prisma.Decimal(updateData.minBookingValue) : null) : undefined,
+        maxBookingValue: updateData.maxBookingValue !== undefined ? (updateData.maxBookingValue ? new Prisma.Decimal(updateData.maxBookingValue) : null) : undefined,
+      },
     });
 
-    return NextResponse.json({ discount });
+    return ok({ discount });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
-    if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
     if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
-      return NextResponse.json({ error: "Discount code already exists" }, { status: 409 });
+      return conflict("Discount code already exists");
     }
     console.error("[DISCOUNTS_PATCH]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }
 
@@ -208,24 +203,26 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await auth();
-    requireAdmin(session);
+    if (!session?.user) return badRequest("Unauthorized", "UNAUTHORIZED");
+
+    const role = session.user.role;
+    if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+      return badRequest("Forbidden", "FORBIDDEN");
+    }
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-    if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+    if (!id) return badRequest("id is required", "VALIDATION_ERROR");
 
     // Soft delete by deactivating
-    await prisma.discountCode.update({
+    await db.discountCode.update({
       where: { id },
       data: { isActive: false },
     });
 
-    return NextResponse.json({ success: true });
+    return ok({ success: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
-    if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
     console.error("[DISCOUNTS_DELETE]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }

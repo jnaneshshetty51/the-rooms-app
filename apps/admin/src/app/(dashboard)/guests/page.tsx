@@ -33,8 +33,10 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    EmptyState,
 } from "@the-rooms/ui";
 import { formatDate, formatCurrency } from "@the-rooms/ui";
+import { Users } from "lucide-react";
 
 interface GuestProfile {
     id: string;
@@ -324,13 +326,26 @@ export default function GuestsPage() {
             </div>
 
             {/* Table */}
-            <DataTable
-                columns={columns}
-                data={data?.guests ?? []}
-                isLoading={loading}
-                pageSize={20}
-                filterPlaceholder="Filter guests..."
-            />
+            {!loading && (!data?.guests || data.guests.length === 0) ? (
+                <EmptyState
+                    title="No guests found"
+                    description={filters.search || filters.filter !== "all" ? "Try adjusting your search or filters to find what you're looking for." : "Guests will appear here once they make their first booking."}
+                    icon={<Users className="h-12 w-12" />}
+                    action={
+                        filters.search || filters.filter !== "all"
+                            ? { label: "Clear Filters", onClick: () => setFilters((f) => ({ ...f, search: "", filter: "all" })) }
+                            : undefined
+                    }
+                />
+            ) : (
+                <DataTable
+                    columns={columns}
+                    data={data?.guests ?? []}
+                    isLoading={loading}
+                    pageSize={20}
+                    filterPlaceholder="Filter guests..."
+                />
+            )}
 
             {/* Pagination info */}
             {data && (
@@ -455,9 +470,9 @@ export default function GuestsPage() {
                                                     </div>
                                                     <div className="text-right">
                                                         <span className={`text-xs px-2 py-0.5 rounded-full ${booking.status === "CHECKED_IN" ? "bg-blue-100 text-blue-700" :
-                                                                booking.status === "CHECKED_OUT" ? "bg-gray-100 text-gray-700" :
-                                                                    booking.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
-                                                                        "bg-red-100 text-red-700"
+                                                            booking.status === "CHECKED_OUT" ? "bg-gray-100 text-gray-700" :
+                                                                booking.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
+                                                                    "bg-red-100 text-red-700"
                                                             }`}>
                                                             {booking.status.replace("_", " ")}
                                                         </span>

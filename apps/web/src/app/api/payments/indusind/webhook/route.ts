@@ -20,10 +20,10 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = JSON.parse(rawBody);
-    
+
     // Simulate event format for IndusInd
     const event = payload.event;
-    const paymentData = payload.data; 
+    const paymentData = payload.data;
 
     if (event === "payment.success") {
       const transactionId = paymentData.transaction_id;
@@ -49,6 +49,15 @@ export async function POST(req: NextRequest) {
       const expectedAmount = booking.totalAmount.toNumber();
       // IndusInd amount is in paise
       const paidAmount = fromPaise(Number(paymentData.amount));
+
+      // ─── Amount Validation with Tolerance ─────────────────────────────────────
+      // Some gateways have rounding differences, so we allow 1% tolerance
+      const tolerance = expectedAmount * 0.01;
+      const difference = Math.abs(paidAmount - expectedAmount);
+      if (difference > tolerance) {
+        console.warn(`[IndusInd Webhook] Payment amount mismatch: expected ${expectedAmount}, got ${paidAmount}, difference ${difference}`);
+      }
+
       const paymentStatus = paidAmount >= expectedAmount ? "PAID" : "PARTIAL";
 
       try {
@@ -140,7 +149,7 @@ export async function POST(req: NextRequest) {
             await db.$transaction(async (tx) => {
               const newPayment = await tx.payment.upsert({
                 where: { transactionId },
-                update: {}, 
+                update: {},
                 create: {
                   bookingId: booking.id,
                   amount: booking.totalAmount,
@@ -173,7 +182,7 @@ export async function POST(req: NextRequest) {
               }
             });
           } catch (err: any) {
-             if (err.code !== "P2002") throw err;
+            if (err.code !== "P2002") throw err;
           }
         }
       }

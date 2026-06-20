@@ -31,6 +31,8 @@ import {
     DialogHeader,
     DialogTitle,
     DialogFooter,
+    Breadcrumbs,
+    BreadcrumbItem,
 } from "@the-rooms/ui";
 import { formatCurrency, formatDate } from "@the-rooms/ui";
 
@@ -218,8 +220,14 @@ export default function PaymentsPage() {
         setFilters((f) => ({ ...f, [key]: value, page: 1 }));
     }
 
+    const breadcrumbItems: BreadcrumbItem[] = [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Payments" },
+    ];
+
     return (
         <div className="space-y-6">
+            <Breadcrumbs items={breadcrumbItems} />
             <PageHeader
                 title="Payments"
                 description={`${data?.total ?? 0} total payments`}

@@ -44,11 +44,11 @@ const config: Config = {
         ring: "hsl(var(--ring))",
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
-        // Room status colours (static — used as Tailwind utilities directly)
-        vacant: "#10B981",
-        occupied: "#EF4444",
-        maintenance: "#F59E0B",
-        blocked: "#6B7280",
+        // Room status colors - now use CSS variables for dark mode support
+        vacant: "hsl(var(--room-vacant))",
+        occupied: "hsl(var(--room-occupied))",
+        maintenance: "hsl(var(--room-maintenance))",
+        blocked: "hsl(var(--room-blocked))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -56,8 +56,8 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["DM Sans", "sans-serif"],
-        heading: ["DM Sans", "sans-serif"],
+        sans: ["DM Sans", "system-ui", "sans-serif"],
+        heading: ["DM Sans", "system-ui", "sans-serif"],
       },
     },
   },

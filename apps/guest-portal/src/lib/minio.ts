@@ -97,10 +97,7 @@ export async function uploadGuestDoc(
     'Content-Type': validation.detectedMime!,
   });
 
-  const publicBase = (process.env.MINIO_PUBLIC_URL || '').replace(/\/$/, '');
-  if (publicBase) {
-    return `${publicBase}/${bucket}/${key}`;
-  }
-  // Fallback: presigned URL valid for 7 days
-  return client.presignedGetObject(bucket, key, 7 * 24 * 60 * 60);
+  // Return presigned URL for private access (15 minutes expiry)
+  // NOTE: Documents are sensitive guest data and must remain private
+  return client.presignedGetObject(bucket, key, 15 * 60);
 }

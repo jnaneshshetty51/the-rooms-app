@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   DollarSign,
@@ -23,11 +23,19 @@ import {
   X,
   Bell,
   AlertTriangle,
+  Building2,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@the-rooms/ui";
 import { signOut } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Avatar, AvatarFallback } from "@the-rooms/ui";
+
+interface Property {
+  id: string;
+  name: string;
+  code: string;
+}
 
 interface NavSection {
   label: string;
@@ -74,12 +82,101 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+interface PropertySelectorProps {
+  selectedPropertyId: string | null;
+  onPropertyChange: (propertyId: string | null) => void;
+}
+
+function PropertySelector({ selectedPropertyId, onPropertyChange }: PropertySelectorProps) {
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchProperties() {
+      try {
+        const res = await fetch("/api/properties");
+        const data = await res.json();
+        if (data.properties) {
+          setProperties(data.properties);
+        }
+      } catch (error) {
+        console.error("Failed to fetch properties:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchProperties();
+  }, []);
+
+  const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
+
+  const handleSelect = (propertyId: string | null) => {
+    onPropertyChange(propertyId);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative px-3 py-3 border-b border-white/10">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={isLoading}
+        className="flex w-full items-center gap-2 rounded-lg bg-white/10 px-3 py-2.5 text-sm text-white hover:bg-white/15 transition-colors min-h-[44px]"
+      >
+        <Building2 className="h-4 w-4 shrink-0 text-white/60" />
+        <span className="flex-1 text-left truncate">
+          {isLoading
+            ? "Loading..."
+            : selectedProperty
+              ? selectedProperty.name
+              : "All Properties"}
+        </span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/40 transition-transform", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-[#2D3436] border border-white/10 rounded-lg shadow-lg overflow-hidden">
+            <button
+              onClick={() => handleSelect(null)}
+              className={cn(
+                "flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-white/10 transition-colors min-h-[44px]",
+                selectedPropertyId === null ? "bg-white/10 text-white" : "text-white/70"
+              )}
+            >
+              <Building2 className="h-4 w-4 shrink-0" />
+              <span>All Properties</span>
+            </button>
+            {properties.map((property) => (
+              <button
+                key={property.id}
+                onClick={() => handleSelect(property.id)}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-white/10 transition-colors min-h-[44px]",
+                  selectedPropertyId === property.id ? "bg-white/10 text-white" : "text-white/70"
+                )}
+              >
+                <Building2 className="h-4 w-4 shrink-0" />
+                <span className="truncate">{property.name}</span>
+                <span className="ml-auto text-[10px] text-white/40">{property.code}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 interface SuperAdminSidebarProps {
   userName?: string;
   userEmail?: string;
+  selectedPropertyId: string | null;
+  onPropertyChange: (propertyId: string | null) => void;
 }
 
-export function SuperAdminSidebar({ userName = "Super Admin", userEmail }: SuperAdminSidebarProps) {
+export function SuperAdminSidebar({ userName = "Super Admin", userEmail, selectedPropertyId, onPropertyChange }: SuperAdminSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -88,6 +185,9 @@ export function SuperAdminSidebar({ userName = "Super Admin", userEmail }: Super
       <div className="flex h-20 items-center justify-center border-b border-white/10 px-4">
         <img src="/logo.svg" alt="The Rooms Logo" className="h-14 w-auto object-contain" />
       </div>
+
+      {/* Property Selector */}
+      <PropertySelector selectedPropertyId={selectedPropertyId} onPropertyChange={onPropertyChange} />
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
@@ -160,14 +260,54 @@ interface SuperAdminLayoutProps {
   userEmail?: string;
 }
 
+const PROPERTY_ID_STORAGE_KEY = "superadmin_selected_property_id";
+
 export function SuperAdminLayout({ children, userName, userEmail }: SuperAdminLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Get propertyId from URL or localStorage
+  const [selectedPropertyId, setSelectedPropertyIdState] = useState<string | null>(() => {
+    // First check URL param
+    const urlPropertyId = searchParams.get("propertyId");
+    if (urlPropertyId) {
+      return urlPropertyId === "all" ? null : urlPropertyId;
+    }
+    // Fall back to localStorage
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(PROPERTY_ID_STORAGE_KEY);
+      return stored === "all" ? null : stored;
+    }
+    return null;
+  });
+
+  const handlePropertyChange = useCallback((propertyId: string | null) => {
+    setSelectedPropertyIdState(propertyId);
+    // Store in localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem(PROPERTY_ID_STORAGE_KEY, propertyId ?? "all");
+    }
+    // Update URL
+    const params = new URLSearchParams(searchParams.toString());
+    if (propertyId) {
+      params.set("propertyId", propertyId);
+    } else {
+      params.delete("propertyId");
+    }
+    router.push(`?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop sidebar */}
       <div className="hidden md:flex md:w-64 md:shrink-0">
-        <SuperAdminSidebar userName={userName} userEmail={userEmail} />
+        <SuperAdminSidebar
+          userName={userName}
+          userEmail={userEmail}
+          selectedPropertyId={selectedPropertyId}
+          onPropertyChange={handlePropertyChange}
+        />
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -178,7 +318,12 @@ export function SuperAdminLayout({ children, userName, userEmail }: SuperAdminLa
             onClick={() => setMobileOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 w-64">
-            <SuperAdminSidebar userName={userName} userEmail={userEmail} />
+            <SuperAdminSidebar
+              userName={userName}
+              userEmail={userEmail}
+              selectedPropertyId={selectedPropertyId}
+              onPropertyChange={handlePropertyChange}
+            />
           </div>
         </div>
       )}
@@ -198,7 +343,9 @@ export function SuperAdminLayout({ children, userName, userEmail }: SuperAdminLa
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto" data-property-id={selectedPropertyId}>
+          {children}
+        </main>
       </div>
     </div>
   );

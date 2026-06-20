@@ -18,6 +18,8 @@ import {
     Badge,
     Progress,
     StatCard,
+    Breadcrumbs,
+    BreadcrumbItem,
 } from "@the-rooms/ui";
 import { formatDate } from "@the-rooms/ui";
 import {
@@ -81,8 +83,14 @@ export default function HousekeepingPage() {
         completed: tasks.tasks.filter((t) => t.status === "COMPLETED").length,
     } : { total: 0, pending: 0, inProgress: 0, completed: 0 };
 
+    const breadcrumbItems: BreadcrumbItem[] = [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Housekeeping" },
+    ];
+
     return (
         <div className="space-y-6">
+            <Breadcrumbs items={breadcrumbItems} />
             <PageHeader
                 title="Housekeeping Management"
                 description="Manage daily housekeeping tasks and staff assignments"

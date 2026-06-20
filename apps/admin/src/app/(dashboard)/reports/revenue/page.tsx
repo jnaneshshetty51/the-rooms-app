@@ -11,6 +11,7 @@ import {
     CardHeader,
     CardTitle,
     StatCard,
+    ExportButton,
 } from "@the-rooms/ui";
 import { formatCurrency, formatDate } from "@the-rooms/ui";
 import { fetchRevenueReport, type RevenueReport } from "@/lib/api";
@@ -49,6 +50,15 @@ export default function RevenueReportPage() {
     }
 
     const stats = data?.summary ?? { totalRevenue: 0, avgRevpar: 0, avgAdr: 0 };
+
+    const exportData = data?.reports.map((r) => ({
+        "Date": formatDate(r.date, "short"),
+        "Total Revenue": r.totalRevenue,
+        "Room Revenue": r.roomRevenue,
+        "Addon Revenue": r.addonRevenue,
+        "RevPAR": r.revpar.toFixed(2),
+        "ADR": r.adr.toFixed(2),
+    })) ?? [];
 
     return (
         <div className="space-y-6">
@@ -98,8 +108,13 @@ export default function RevenueReportPage() {
 
             {/* Revenue Table */}
             <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle className="font-heading text-lg">Daily Revenue</CardTitle>
+                    <ExportButton
+                        data={exportData}
+                        filename="revenue-report"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    />
                 </CardHeader>
                 <CardContent>
                     {loading ? (

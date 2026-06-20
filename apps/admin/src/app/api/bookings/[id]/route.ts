@@ -1,21 +1,30 @@
 // apps/admin/src/app/api/bookings/[id]/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@the-rooms/auth";
-import prisma from "@the-rooms/db";
+import { db } from "@the-rooms/db";
+import { ok, badRequest, serverError, notFound } from "@the-rooms/api/response";
+import { z } from "zod";
+import { updateBookingWithLocking } from "@the-rooms/db/queries/bookingQueries";
 
-function requireAdmin(session: { user?: { role?: string } | null } | null) {
-  if (!session?.user) throw new Error("Unauthorized");
-  const role = session.user.role;
-  if (role !== "ADMIN" && role !== "SUPER_ADMIN") throw new Error("Forbidden");
-}
+// ─── Zod Schemas ──────────────────────────────────────────────────────────────
+
+const UpdateBookingStatusSchema = z.object({
+  status: z.enum(["CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW"]),
+  version: z.number().int().positive(),
+});
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
-    requireAdmin(session);
+    if (!session?.user) return badRequest("Unauthorized", "UNAUTHORIZED");
+
+    const userRole = session.user.role;
+    if (userRole !== "ADMIN" && userRole !== "SUPER_ADMIN") {
+      return badRequest("Forbidden", "FORBIDDEN");
+    }
 
     const { id } = await params;
-    const booking = await prisma.booking.findUnique({
+    const booking = await db.booking.findUnique({
       where: { id },
       include: {
         guest: true,
@@ -26,53 +35,53 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
 
-    if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
-    return NextResponse.json({ booking });
+    if (!booking) return notFound("Booking", "NOT_FOUND");
+    return ok({ booking });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
-    if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
     console.error("[BOOKING_GET]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
-    requireAdmin(session);
+    if (!session?.user) return badRequest("Unauthorized", "UNAUTHORIZED");
+
+    const userRole = session.user.role;
+    if (userRole !== "ADMIN" && userRole !== "SUPER_ADMIN") {
+      return badRequest("Forbidden", "FORBIDDEN");
+    }
 
     const { id } = await params;
     const body = await request.json();
-    const { status } = body;
-
-    const VALID_STATUSES = ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW"];
-    if (!VALID_STATUSES.includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    const parsed = UpdateBookingStatusSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        parsed.error.errors.map(e => e.message).join(', '),
+        "VALIDATION_ERROR"
+      );
     }
+
+    const { status, version } = parsed.data;
 
     const updateData: Record<string, unknown> = { status };
     if (status === "CHECKED_IN") updateData.checkInTime = new Date();
     if (status === "CHECKED_OUT") updateData.checkOutTime = new Date();
 
-    const booking = await prisma.booking.update({
-      where: { id },
-      data: updateData,
-    });
+    // Use optimistic locking for update
+    const booking = await updateBookingWithLocking(id, updateData, version);
 
     // Auto-update room status
     if (status === "CHECKED_IN") {
-      await prisma.room.update({ where: { id: booking.roomId }, data: { status: "OCCUPIED" } });
+      await db.room.update({ where: { id: booking.roomId }, data: { status: "OCCUPIED" } });
     } else if (status === "CHECKED_OUT" || status === "CANCELLED") {
-      await prisma.room.update({ where: { id: booking.roomId }, data: { status: "VACANT" } });
+      await db.room.update({ where: { id: booking.roomId }, data: { status: "VACANT" } });
     }
 
-    return NextResponse.json({ booking });
+    return ok({ booking, version: booking.version });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    if (message === "Unauthorized") return NextResponse.json({ error: message }, { status: 401 });
-    if (message === "Forbidden") return NextResponse.json({ error: message }, { status: 403 });
     console.error("[BOOKING_PATCH]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return serverError("Internal server error", "INTERNAL_ERROR");
   }
 }

@@ -11,12 +11,9 @@ import { NotificationsBell } from "@/components/notifications/NotificationsBell"
 
 const GUEST_NAV = [
   { label: "Dashboard", href: "/dashboard", icon: Home },
-  { label: "My Bookings", href: "/bookings", icon: CalendarDays },
+  { label: "Bookings", href: "/bookings", icon: CalendarDays },
+  { label: "Payments", href: "/payments", icon: Receipt },
   { label: "Documents", href: "/documents", icon: FileText },
-  { label: "Services", href: "/addons", icon: PlusSquare },
-  { label: "Complaints", href: "/complaints", icon: HeadphonesIcon },
-  { label: "Feedback", href: "/feedback", icon: MessageSquareText },
-  { label: "Invoices", href: "/invoices", icon: Receipt },
   { label: "Profile", href: "/profile", icon: User },
 ];
 
@@ -83,7 +80,7 @@ export default function GuestLayout({
             </div>
             <div className="flex items-center gap-2">
               <NotificationsBell />
-              <button 
+              <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="p-2 rounded-lg hover:bg-gray-100 text-[#636E72]"
                 title="Sign out"

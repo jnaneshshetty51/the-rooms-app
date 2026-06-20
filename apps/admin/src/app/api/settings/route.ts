@@ -1,65 +1,77 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@the-rooms/auth";
-import prisma from "@the-rooms/db";
+import { db } from "@the-rooms/db";
+import { ok, badRequest, serverError } from "@the-rooms/api/response";
+import { getPropertyIdFromSession } from "@the-rooms/api/middleware";
+import { z } from "zod";
 
-// Helper to get propertyId from session
-async function getPropertyIdFromSession(session: any): Promise<string | null> {
-  const userId = session?.user?.id;
-  if (!userId) return null;
+// ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
-  // Get the user's property access - for ADMIN/SUPER_ADMIN, get their primary property
-  const propertyAccess = await prisma.userPropertyAccess.findFirst({
-    where: {
-      userId,
-      role: { in: ["ADMIN", "MANAGER"] }
-    },
-    include: { property: true }
-  });
-
-  if (!propertyAccess) {
-    // Fallback: try to get any property access
-    const anyAccess = await prisma.userPropertyAccess.findFirst({
-      where: { userId },
-      include: { property: true }
-    });
-    return anyAccess?.propertyId || null;
-  }
-
-  return propertyAccess.propertyId;
-}
+const UpdateSettingsSchema = z.object({
+  hotelName: z.string().optional(),
+  address: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email().optional(),
+  checkInTime: z.string().optional(),
+  checkOutTime: z.string().optional(),
+  lateCheckOutFee: z.number().optional(),
+  earlyCheckInFee: z.number().optional(),
+  extraGuestRateDaily: z.number().optional(),
+  gstNumber: z.string().optional(),
+  emailOnBooking: z.boolean().optional(),
+  emailOnCancel: z.boolean().optional(),
+  dailyReport: z.boolean().optional(),
+  maintenanceAlerts: z.boolean().optional(),
+  noShowChargeType: z.string().optional(),
+  noShowChargeValue: z.number().optional(),
+  noShowCutoffHour: z.number().optional(),
+  noShowEnabled: z.boolean().optional(),
+  earlyCheckinEnabled: z.boolean().optional(),
+  earlyCheckinCutoffHour: z.number().optional(),
+  earlyCheckinChargeType: z.string().optional(),
+  lateCheckoutEnabled: z.boolean().optional(),
+  lateCheckoutCutoffHour: z.number().optional(),
+  lateCheckoutChargeType: z.string().optional(),
+  lateCheckoutMaxHour: z.number().optional(),
+  lateCheckoutFee: z.number().optional(),
+  cancellationPolicy: z.string().optional(),
+  bankName: z.string().optional(),
+  accountNumber: z.string().optional(),
+  ifscCode: z.string().optional(),
+});
 
 export async function GET() {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return badRequest("Unauthorized", "UNAUTHORIZED");
     }
 
     const role = (session.user as { role?: string }).role;
     if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return badRequest("Forbidden", "FORBIDDEN");
     }
 
     const propertyId = await getPropertyIdFromSession(session);
     if (!propertyId) {
-      return NextResponse.json({ error: "No property access found" }, { status: 403 });
+      return badRequest("No property access found", "FORBIDDEN");
     }
 
-    let settings = await prisma.hotelSettings.findUnique({
+    let settings = await db.hotelSettings.findUnique({
       where: { propertyId },
     });
 
     // Create default settings if they don't exist
     if (!settings) {
-      settings = await prisma.hotelSettings.create({
+      settings = await db.hotelSettings.create({
         data: { propertyId },
       });
     }
 
-    return NextResponse.json({ settings });
+    return ok({ settings });
   } catch (error) {
     console.error("Error fetching hotel settings:", error);
-    return NextResponse.json({ error: "Failed to fetch settings" }, { status: 500 });
+    return serverError("Failed to fetch settings", "INTERNAL_ERROR");
   }
 }
 
@@ -67,53 +79,40 @@ export async function PATCH(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return badRequest("Unauthorized", "UNAUTHORIZED");
     }
 
     const role = (session.user as { role?: string }).role;
     if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return badRequest("Forbidden", "FORBIDDEN");
     }
 
     const propertyId = await getPropertyIdFromSession(session);
     if (!propertyId) {
-      return NextResponse.json({ error: "No property access found" }, { status: 403 });
+      return badRequest("No property access found", "FORBIDDEN");
     }
 
     const body = await request.json();
-
-    // Whitelist the fields we allow updating
-    const updateData: any = {};
-    const allowedFields = [
-      "hotelName", "address", "phone", "email",
-      "checkInTime", "checkOutTime", "lateCheckOutFee", "earlyCheckInFee",
-      "extraGuestRateDaily", "gstNumber",
-      "emailOnBooking", "emailOnCancel", "dailyReport", "maintenanceAlerts",
-      // Policy settings
-      "noShowChargeType", "noShowChargeValue", "noShowCutoffHour", "noShowEnabled",
-      "earlyCheckinEnabled", "earlyCheckinCutoffHour", "earlyCheckinChargeType",
-      "lateCheckoutEnabled", "lateCheckoutCutoffHour", "lateCheckoutChargeType", "lateCheckoutMaxHour", "lateCheckoutFee",
-      "cancellationPolicy", "bankName", "accountNumber", "ifscCode",
-    ];
-
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        updateData[field] = body[field];
-      }
+    const parsed = UpdateSettingsSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        parsed.error.errors.map(e => e.message).join(', '),
+        "VALIDATION_ERROR"
+      );
     }
 
-    const settings = await prisma.hotelSettings.upsert({
+    const settings = await db.hotelSettings.upsert({
       where: { propertyId },
-      update: updateData,
+      update: parsed.data,
       create: {
         propertyId,
-        ...updateData,
+        ...parsed.data,
       },
     });
 
-    return NextResponse.json({ settings });
+    return ok({ settings });
   } catch (error) {
     console.error("Error updating hotel settings:", error);
-    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
+    return serverError("Failed to update settings", "INTERNAL_ERROR");
   }
 }

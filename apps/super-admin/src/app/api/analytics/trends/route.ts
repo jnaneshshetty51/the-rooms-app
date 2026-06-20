@@ -10,19 +10,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // ─── Role Check ──────────────────────────────────────────────────────────
+    const userRole = (session.user as { role?: string }).role;
+    if (userRole !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const months = parseInt(searchParams.get("months") ?? "12", 10);
+    const propertyId = searchParams.get("propertyId");
+
+    // Build property filters
+    const roomPropertyFilter = propertyId ? { propertyId } : {};
+    const bookingPropertyFilter = propertyId ? { room: { propertyId } } : {};
 
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
 
     const bookings = await db.booking.findMany({
-      where: { createdAt: { gte: startDate } },
+      where: { ...bookingPropertyFilter, createdAt: { gte: startDate } },
       select: {
         createdAt: true,
         bookingType: true,
         totalAmount: true,
         status: true,
+        room: { select: { propertyId: true } },
       },
     });
 
@@ -59,11 +71,12 @@ export async function GET(request: NextRequest) {
 
     // ADR data with live calculations
     const adrData: { month: string; adr: number; revpar: number; occupancyRate: number }[] = [];
-    const totalRooms = await db.room.count();
+    const totalRooms = await db.room.count({ where: roomPropertyFilter });
 
     // Fetch all bookings with checkIn/checkOut for occupancy calculation
     const allBookingsWithDates = await db.booking.findMany({
       where: {
+        ...bookingPropertyFilter,
         createdAt: { gte: startDate },
         status: { in: ["CHECKED_IN", "CHECKED_OUT"] },
       },
@@ -127,11 +140,41 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // ─── Property breakdown when showing "all" ───────────────────────────────
+    let propertyBreakdown = null;
+    if (!propertyId) {
+      const properties = await db.property.findMany({
+        select: { id: true, name: true, code: true },
+      });
+
+      propertyBreakdown = await Promise.all(
+        properties.map(async (property) => {
+          const propBookings = bookings.filter((b) => b.room.propertyId === property.id);
+          const propTotal = propBookings.length;
+          const propDaily = propBookings.filter((b) => b.bookingType === "DAILY").length;
+          const propMonthly = propBookings.filter((b) => b.bookingType === "MONTHLY").length;
+          const propRevenue = propBookings.reduce((s, b) => s + Number(b.totalAmount), 0);
+
+          return {
+            propertyId: property.id,
+            propertyName: property.name,
+            propertyCode: property.code,
+            totalBookings: propTotal,
+            dailyBookings: propDaily,
+            monthlyBookings: propMonthly,
+            totalRevenue: propRevenue,
+          };
+        })
+      );
+    }
+
     return NextResponse.json({
       data: {
         bookingTrends: monthsArr,
         adrData,
       },
+      propertyBreakdown,
+      selectedPropertyId: propertyId,
     });
   } catch (error) {
     console.error("[TRENDS_ANALYTICS]", error);

@@ -82,7 +82,7 @@ export default function CouponsPage() {
                     </div>
                 </div>
                 <DialogFooter><Button variant="outline" onClick={() => setShowModal(false)}>Cancel</Button><Button onClick={handleSubmit}>{editingCoupon ? "Update" : "Create"}</Button></DialogFooter>
-            </Dialog>
+            </DialogContent></Dialog>
             <Dialog open={showBulkModal} onOpenChange={setShowBulkModal}><DialogContent><DialogHeader><DialogTitle>Bulk Generate Coupons</DialogTitle></DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -93,7 +93,7 @@ export default function CouponsPage() {
                     </div>
                 </div>
                 <DialogFooter><Button variant="outline" onClick={() => setShowBulkModal(false)}>Cancel</Button><Button onClick={handleBulkGenerate}>Generate</Button></DialogFooter>
-            </Dialog>
+            </DialogContent></Dialog>
         </div>
     );
 }

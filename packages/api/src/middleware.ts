@@ -270,6 +270,7 @@ export async function getPropertyIdsFromSession(session: { user?: { id?: string;
 /**
  * Verify user has access to a specific property.
  * SUPER_ADMIN bypasses all property access checks.
+ * All other roles must have their property access verified against UserPropertyAccess table.
  * 
  * @param userId - The user ID to check
  * @param propertyId - The property ID to verify access for
@@ -281,12 +282,13 @@ export async function verifyPropertyAccess(
   propertyId: string,
   userRole: string
 ): Promise<boolean> {
-  // Hotel staff roles have unconditional access in a single-property setup
-  if (['SUPER_ADMIN', 'ADMIN', 'FRONT_OFFICE', 'HOUSEKEEPING'].includes(userRole)) {
+  // SUPER_ADMIN bypasses all property access checks
+  if (userRole === 'SUPER_ADMIN') {
     return true;
   }
 
-  // For other roles (e.g. GUEST), require an explicit UserPropertyAccess record
+  // All other roles (ADMIN, FRONT_OFFICE, HOUSEKEEPING, GUEST, etc.)
+  // must have their property access verified against UserPropertyAccess table
   const { db } = await import('@the-rooms/db');
   const access = await db.userPropertyAccess.findFirst({
     where: { userId, propertyId },

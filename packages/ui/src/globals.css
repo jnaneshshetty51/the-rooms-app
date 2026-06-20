@@ -7,11 +7,11 @@
 @layer base {
   :root {
     --background: 0 0% 98%;
-    --foreground: 220 10% 20%;
+    --foreground: 200 5% 21%;
     --card: 0 0% 100%;
-    --card-foreground: 220 10% 20%;
+    --card-foreground: 200 5% 21%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 10% 20%;
+    --popover-foreground: 200 5% 21%;
     --primary: 200 5% 21%;
     --primary-foreground: 40 18% 96%;
     --secondary: 11 70% 60%;
@@ -28,6 +28,12 @@
     --input: 0 0% 90%;
     --ring: 200 5% 21%;
     --radius: 0.5rem;
+
+    /* Room status colors - now use CSS variables for dark mode support */
+    --room-vacant: 158 84% 38%;
+    --room-occupied: 0 84% 60%;
+    --room-maintenance: 38 92% 50%;
+    --room-blocked: 200 6% 46%;
   }
 
   .dark {
@@ -52,6 +58,12 @@
     --border: 200 10% 20%;
     --input: 200 10% 20%;
     --ring: 40 18% 96%;
+    --radius: 0.5rem;
+    /* Room status colors (dark mode - slightly muted) */
+    --room-vacant: 158 64% 32%;
+    --room-occupied: 0 64% 50%;
+    --room-maintenance: 38 72% 45%;
+    --room-blocked: 200 6% 56%;
   }
 }
 
@@ -59,6 +71,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-size: 14px;
@@ -69,4 +82,23 @@
       font-size: 15px;
     }
   }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
 }

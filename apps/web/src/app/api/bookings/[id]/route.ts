@@ -11,6 +11,7 @@ import { createAuditLog, getClientIp } from '@the-rooms/api/middleware';
 import { Prisma } from '@prisma/client';
 
 import { db, calculateBookingPrice } from '@the-rooms/db';
+import { updateBookingWithLocking } from '@the-rooms/db/queries/bookingQueries';
 
 // M1: Simple HTML sanitizer to prevent XSS in specialRequests
 function sanitizeHTML(input: string | undefined): string | undefined {
@@ -37,6 +38,7 @@ const UpdateBookingSchema = z.object({
   guestsCount: z.number().int().min(1).max(4).optional(),
   specialRequests: z.string().optional(),
   status: z.enum(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED', 'NO_SHOW']).optional(),
+  version: z.number().int().positive(),
 });
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -92,6 +94,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body = await request.json();
     const data = UpdateBookingSchema.parse(body);
+    const { version, ...updateFields } = data;
 
 
     // Get existing booking
@@ -115,37 +118,37 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Build update data
     const updateData: Prisma.BookingUpdateInput = {};
 
-    if (data.checkIn) {
-      updateData.checkIn = new Date(data.checkIn);
+    if (updateFields.checkIn) {
+      updateData.checkIn = new Date(updateFields.checkIn);
     }
-    if (data.checkOut) {
-      updateData.checkOut = new Date(data.checkOut);
+    if (updateFields.checkOut) {
+      updateData.checkOut = new Date(updateFields.checkOut);
     }
-    if (data.guestsCount !== undefined) {
-      updateData.guestsCount = data.guestsCount;
+    if (updateFields.guestsCount !== undefined) {
+      updateData.guestsCount = updateFields.guestsCount;
     }
-    if (data.specialRequests !== undefined) {
-      updateData.specialRequests = sanitizeHTML(data.specialRequests);
+    if (updateFields.specialRequests !== undefined) {
+      updateData.specialRequests = sanitizeHTML(updateFields.specialRequests);
     }
-    if (data.status) {
-      updateData.status = data.status;
+    if (updateFields.status) {
+      updateData.status = updateFields.status;
 
       // Handle status changes
-      if (data.status === 'CHECKED_IN') {
+      if (updateFields.status === 'CHECKED_IN') {
         updateData.checkInTime = new Date();
         // Update room status
         await db.room.update({
           where: { id: existing.roomId },
           data: { status: 'OCCUPIED' },
         });
-      } else if (data.status === 'CHECKED_OUT') {
+      } else if (updateFields.status === 'CHECKED_OUT') {
         updateData.checkOutTime = new Date();
         // Update room status
         await db.room.update({
           where: { id: existing.roomId },
           data: { status: 'VACANT' },
         });
-      } else if (data.status === 'CANCELLED') {
+      } else if (updateFields.status === 'CANCELLED') {
         // Release the room
         await db.room.update({
           where: { id: existing.roomId },
@@ -155,11 +158,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // Recalculate pricing if dates changed
-    if (data.checkIn || data.checkOut) {
+    if (updateFields.checkIn || updateFields.checkOut) {
 
-      const newCheckIn = data.checkIn ? new Date(data.checkIn) : existing.checkIn;
-      const newCheckOut = data.checkOut ? new Date(data.checkOut) : existing.checkOut;
-      const newGuests = data.guestsCount ?? existing.guestsCount;
+      const newCheckIn = updateFields.checkIn ? new Date(updateFields.checkIn) : existing.checkIn;
+      const newCheckOut = updateFields.checkOut ? new Date(updateFields.checkOut) : existing.checkOut;
+      const newGuests = updateFields.guestsCount ?? existing.guestsCount;
 
       const pricing = await calculateBookingPrice(
         existing.roomId,
@@ -173,15 +176,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       updateData.totalAmount = new Prisma.Decimal(pricing.totalAmount);
     }
 
-    const booking = await db.booking.update({
-      where: { id },
-      data: updateData,
-      include: {
-        guest: true,
-        room: true,
-        payments: true,
-      },
-    });
+    // Use optimistic locking for update
+    const booking = await updateBookingWithLocking(id, updateData, version);
 
     // Audit log
     await createAuditLog({
@@ -190,12 +186,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       entity: 'booking',
       entityId: id,
       metadata: {
-        changes: data,
+        changes: updateFields,
       },
       ipAddress: getClientIp(request),
     });
 
-    return ok(booking);
+    return ok({ booking, version: booking.version });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return badRequest(error.errors.map((e) => e.message).join(', '));

@@ -1,11 +1,11 @@
 // apps/super-admin/src/app/api/analytics/dashboard/route.ts
 // RevPAR = Total Room Revenue / Total Available Room-Days
 // ADR = Total Room Revenue / Rooms Sold (occupied nights)
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import { db } from "@the-rooms/db";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -17,16 +17,26 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const propertyId = searchParams.get("propertyId");
+
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0); // last day of month
     const startOfYear = new Date(now.getFullYear(), 0, 1);
 
+    // Build property filter
+    const roomPropertyFilter = propertyId ? { propertyId } : {};
+    const bookingPropertyFilter = propertyId ? { room: { propertyId } } : {};
+    const expensePropertyFilter = propertyId ? { propertyId } : {};
+
+    // ─── Fetch data with property filtering ──────────────────────────────────
     const [totalRooms, monthlyPaidBookings, yearlyPaidBookings, roomStatusCounts] =
       await Promise.all([
-        db.room.count(),
+        db.room.count({ where: roomPropertyFilter }),
         db.booking.findMany({
           where: {
+            ...bookingPropertyFilter,
             createdAt: { gte: startOfMonth },
             paymentStatus: "PAID",
           },
@@ -34,17 +44,18 @@ export async function GET() {
             totalAmount: true,
             checkIn: true,
             checkOut: true,
-            room: { select: { type: true } },
+            room: { select: { type: true, propertyId: true } },
           },
         }),
         db.booking.findMany({
           where: {
+            ...bookingPropertyFilter,
             createdAt: { gte: startOfYear },
             paymentStatus: "PAID",
           },
           select: { totalAmount: true },
         }),
-        db.room.groupBy({ by: ["status"], _count: { id: true } }),
+        db.room.groupBy({ by: ["status"], where: roomPropertyFilter, _count: { id: true } }),
       ]);
 
     // MRR: total revenue this month
@@ -53,14 +64,17 @@ export async function GET() {
 
     // Gross vs Net (MTD) — subtract expenses
     const monthlyExpenses = await db.expense.aggregate({
-      where: { date: { gte: startOfMonth, lte: endOfMonth } },
+      where: { ...expensePropertyFilter, date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     });
     const netRevenue = mrr - Number(monthlyExpenses._sum.amount ?? 0);
 
     // Active bookings
     const activeBookings = await db.booking.count({
-      where: { status: { in: ["CONFIRMED", "CHECKED_IN"] } },
+      where: {
+        ...bookingPropertyFilter,
+        status: { in: ["CONFIRMED", "CHECKED_IN"] },
+      },
     });
 
     // Calculate occupied room-days this month for occupancy rate
@@ -105,12 +119,14 @@ export async function GET() {
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
     const checkedInToday = await db.booking.count({
       where: {
+        ...bookingPropertyFilter,
         status: "CHECKED_IN",
         checkInTime: { gte: todayStart, lt: todayEnd },
       },
     });
     const pendingCheckIns = await db.booking.count({
       where: {
+        ...bookingPropertyFilter,
         status: "CONFIRMED",
         checkIn: { gte: todayStart, lt: todayEnd },
       },
@@ -124,6 +140,36 @@ export async function GET() {
         user: { select: { name: true, email: true } },
       },
     });
+
+    // ─── Property breakdown when showing "all" ───────────────────────────────
+    let propertyBreakdown = null;
+    if (!propertyId) {
+      const properties = await db.property.findMany({
+        select: { id: true, name: true, code: true },
+      });
+
+      propertyBreakdown = await Promise.all(
+        properties.map(async (property) => {
+          const [rooms, bookings] = await Promise.all([
+            db.room.count({ where: { propertyId: property.id } }),
+            db.booking.count({
+              where: {
+                room: { propertyId: property.id },
+                createdAt: { gte: startOfMonth },
+                paymentStatus: "PAID",
+              },
+            }),
+          ]);
+          return {
+            propertyId: property.id,
+            propertyName: property.name,
+            propertyCode: property.code,
+            totalRooms: rooms,
+            monthlyBookings: bookings,
+          };
+        })
+      );
+    }
 
     return NextResponse.json({
       data: {
@@ -143,6 +189,8 @@ export async function GET() {
         checkedInToday,
         pendingCheckIns,
       },
+      propertyBreakdown,
+      selectedPropertyId: propertyId,
       recentAudit: recentAudit.map((log) => ({
         id: log.id,
         action: log.action,

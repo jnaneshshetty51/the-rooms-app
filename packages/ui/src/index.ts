@@ -16,6 +16,8 @@ export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./comp
 export { Skeleton } from "./components/ui/skeleton";
 export { Switch } from "./components/ui/switch";
 export { Separator } from "./components/ui/separator";
+export { Breadcrumbs } from "./components/ui/breadcrumb";
+export type { BreadcrumbItem } from "./components/ui/breadcrumb";
 export { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "./components/ui/form";
 export { SlotElement } from "./components/ui/slot";
 
@@ -61,6 +63,9 @@ export { useLocalStorage } from "./hooks/useLocalStorage";
 export { usePagination } from "./hooks/usePagination";
 // useToast is exported via ToastProvider above
 export { useMediaQuery, useIsMobile, useIsTablet, useIsDesktop, useBreakpoint } from "./hooks/useMediaQuery";
+
+// ─── Design System ────────────────────────────────────────────────────────────
+export { designSystem, colors, typography, spacing, radius, shadows, buttonBase, buttonSizes, inputBase, cardBase, badgeBase, cssVariables, bookingStatusColors, roomStatusColors, paymentStatusColors, animations, zIndex } from "./design-system";
 
 // ─── Utils ─────────────────────────────────────────────────────────────────────
 export { cn } from "./lib/utils";

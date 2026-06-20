@@ -11,6 +11,7 @@ import {
     CardHeader,
     CardTitle,
     StatCard,
+    ExportButton,
 } from "@the-rooms/ui";
 import { formatDate } from "@the-rooms/ui";
 import { fetchOccupancyReport, type OccupancyReport } from "@/lib/api";
@@ -49,6 +50,14 @@ export default function OccupancyReportPage() {
     }
 
     const stats = data?.summary ?? { avgOccupancy: 0, totalBookings: 0 };
+
+    const exportData = data?.reports.map((r) => ({
+        "Date": formatDate(r.date, "short"),
+        "Total Rooms": r.totalRooms,
+        "Occupied": r.occupiedRooms,
+        "Available": r.availableRooms,
+        "Occupancy %": r.occupancyRate.toFixed(1),
+    })) ?? [];
 
     return (
         <div className="space-y-6">
@@ -93,8 +102,13 @@ export default function OccupancyReportPage() {
 
             {/* Occupancy Table */}
             <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle className="font-heading text-lg">Daily Occupancy</CardTitle>
+                    <ExportButton
+                        data={exportData}
+                        filename="occupancy-report"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    />
                 </CardHeader>
                 <CardContent>
                     {loading ? (
@@ -140,8 +154,8 @@ export default function OccupancyReportPage() {
                                             </td>
                                             <td className="p-3 text-right">
                                                 <span className={`font-semibold ${report.occupancyRate >= 70 ? "text-success" :
-                                                        report.occupancyRate >= 50 ? "text-warning" :
-                                                            "text-destructive"
+                                                    report.occupancyRate >= 50 ? "text-warning" :
+                                                        "text-destructive"
                                                     }`}>
                                                     {report.occupancyRate.toFixed(1)}%
                                                 </span>
@@ -181,8 +195,8 @@ export default function OccupancyReportPage() {
                                                 <td className="p-3 text-right">{breakdown.occupied}</td>
                                                 <td className="p-3 text-right">
                                                     <span className={`font-semibold ${breakdown.rate >= 70 ? "text-success" :
-                                                            breakdown.rate >= 50 ? "text-warning" :
-                                                                "text-destructive"
+                                                        breakdown.rate >= 50 ? "text-warning" :
+                                                            "text-destructive"
                                                         }`}>
                                                         {breakdown.rate.toFixed(1)}%
                                                     </span>

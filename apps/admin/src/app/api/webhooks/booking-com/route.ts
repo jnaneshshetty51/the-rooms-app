@@ -52,6 +52,10 @@ export async function POST(request: NextRequest) {
             return badRequest('Channel not configured', 'CHANNEL_NOT_FOUND');
         }
 
+        // Get propertyId from channel config
+        const channelConfig = (channel.config as Record<string, string>) ?? {};
+        const channelPropertyId = channelConfig.propertyId || 'default';
+
         // Create webhook log entry
         const webhookLog = await db.webhookLog.create({
             data: {
@@ -113,7 +117,7 @@ export async function POST(request: NextRequest) {
         switch (event.event) {
             case 'booking.created':
             case 'booking.modified':
-                await handleBookingCreatedOrModified(channel.id, event, webhookLogId);
+                await handleBookingCreatedOrModified(channel.id, channelPropertyId, event, webhookLogId);
                 break;
             case 'booking.cancelled':
                 await handleBookingCancelled(channel.id, event, webhookLogId);
@@ -159,6 +163,7 @@ export async function POST(request: NextRequest) {
 
 async function handleBookingCreatedOrModified(
     channelId: string,
+    channelPropertyId: string,
     event: BookingComWebhookEvent,
     webhookLogId: string
 ) {
@@ -211,7 +216,7 @@ async function handleBookingCreatedOrModified(
     const availableRooms = await db.room.findMany({
         where: {
             status: { in: ['VACANT'] }, // Only vacant rooms
-            propertyId: 'default',
+            propertyId: channelPropertyId,
             NOT: {
                 // Exclude rooms with overlapping bookings
                 bookings: {
@@ -239,14 +244,14 @@ async function handleBookingCreatedOrModified(
         // No vacant room found - use first VACANT room as placeholder
         // This creates an overbooking situation that needs attention
         const fallbackRoom = await db.room.findFirst({
-            where: { status: { in: ['VACANT'] }, propertyId: 'default' },
+            where: { status: { in: ['VACANT'] }, propertyId: channelPropertyId },
         });
 
         if (!fallbackRoom) {
             console.error('[BOOKING_COM_WEBHOOK] No rooms available at all - using placeholder');
             // Find ANY room to use as placeholder - this is an exception
             const anyRoom = await db.room.findFirst({
-                where: { propertyId: 'default' },
+                where: { propertyId: channelPropertyId },
             });
             roomId = anyRoom?.id ?? 'NO-ROOM';
             roomAssignmentNote = `CRITICAL: No rooms available! Manual intervention required.`;
@@ -270,7 +275,7 @@ async function handleBookingCreatedOrModified(
                     bookingNumber,
                     guestId: guest.id,
                     roomId: roomId,
-                    propertyId: 'default',
+                    propertyId: channelPropertyId,
                     checkIn: checkInDate,
                     checkOut: checkOutDate,
                     guestsCount: 1,
