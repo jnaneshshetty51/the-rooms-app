@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@the-rooms/auth";
 import { db } from "@the-rooms/db";
 import { Prisma } from "@the-rooms/db";
+import type { RoomType } from "@the-rooms/db";
 import { ok, created, badRequest, serverError, conflict } from "@the-rooms/api/response";
 import { z } from "zod";
 
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
         maxNights: maxNights ?? null,
         minBookingValue: minBookingValue ? new Prisma.Decimal(minBookingValue) : null,
         maxBookingValue: maxBookingValue ? new Prisma.Decimal(maxBookingValue) : null,
-        applicableRoomTypes: applicableRoomTypes ?? [],
+        applicableRoomTypes: (applicableRoomTypes ?? []) as RoomType[],
         isActive: isActive ?? true,
       },
     });
@@ -186,6 +187,7 @@ export async function PATCH(request: NextRequest) {
         value: updateData.value !== undefined ? new Prisma.Decimal(updateData.value) : undefined,
         minBookingValue: updateData.minBookingValue !== undefined ? (updateData.minBookingValue ? new Prisma.Decimal(updateData.minBookingValue) : null) : undefined,
         maxBookingValue: updateData.maxBookingValue !== undefined ? (updateData.maxBookingValue ? new Prisma.Decimal(updateData.maxBookingValue) : null) : undefined,
+        applicableRoomTypes: updateData.applicableRoomTypes as RoomType[] | undefined,
       },
     });
 
