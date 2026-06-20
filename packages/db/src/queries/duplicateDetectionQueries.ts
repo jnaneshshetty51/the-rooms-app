@@ -81,7 +81,7 @@ export async function checkForDuplicates(params: DuplicateCheckParams): Promise<
                 checkIn: b.checkIn,
                 checkOut: b.checkOut,
                 room: b.room,
-                guest: b.guest
+                guest: { ...b.guest, email: b.guest.email ?? undefined }
             })));
         }
     }
@@ -114,7 +114,7 @@ export async function checkForDuplicates(params: DuplicateCheckParams): Promise<
                         checkIn: booking.checkIn,
                         checkOut: booking.checkOut,
                         room: booking.room,
-                        guest: booking.guest
+                        guest: { ...booking.guest, email: booking.guest.email ?? undefined }
                     });
                 }
             }
@@ -226,9 +226,6 @@ export async function getDuplicateCandidates(filters: {
     const [candidates, total] = await Promise.all([
         prisma.duplicateBookingCandidate.findMany({
             where: { status },
-            include: {
-                // We'll manually join in the next step if needed
-            },
             orderBy: { detectedAt: 'desc' },
             skip: (page - 1) * perPage,
             take: perPage,

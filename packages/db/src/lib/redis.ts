@@ -68,13 +68,15 @@ export const redis = {
             callback(new Error('Redis not available'), 0);
             return;
         }
-        await client.subscribe(channel, callback);
+        const channels = Array.isArray(channel) ? channel : [channel];
+        await client.subscribe(...channels).then((count) => callback(null, count as number)).catch((err: Error) => callback(err, 0));
     },
 
     async unsubscribe(channel: string | string[]): Promise<void> {
         const client = getRedisClient();
         if (client) {
-            await client.unsubscribe(channel);
+            const channels = Array.isArray(channel) ? channel : [channel];
+            await client.unsubscribe(...channels);
         }
     },
 };

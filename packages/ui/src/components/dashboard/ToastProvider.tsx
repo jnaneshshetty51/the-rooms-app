@@ -105,3 +105,10 @@ export function ToastProvider({ children }: ToastProviderProps) {
     </ToastContext.Provider>
   );
 }
+
+// Standalone toast for use outside of ToastProvider context
+export const toast = (opts: { title: string; description?: string; variant?: string }) => {
+    if (typeof window !== 'undefined') {
+        console.info(`[Toast] ${opts.variant ?? 'info'}: ${opts.title}${opts.description ? ` — ${opts.description}` : ''}`);
+    }
+};

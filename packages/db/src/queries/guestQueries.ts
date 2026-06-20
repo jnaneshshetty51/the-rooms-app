@@ -478,3 +478,18 @@ export async function getGuests(options: GetGuestsOptions = {}) {
     totalPages: Math.ceil(total / perPage),
   };
 }
+
+export async function getUpcomingBookingForGuest(guestId: string) {
+    const now = new Date();
+    return prisma.booking.findFirst({
+        where: {
+            guestId,
+            status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+            checkOut: { gte: now },
+        },
+        orderBy: { checkIn: 'asc' },
+        include: {
+            room: { select: { id: true, roomNumber: true, type: true, floor: true } },
+        },
+    });
+}

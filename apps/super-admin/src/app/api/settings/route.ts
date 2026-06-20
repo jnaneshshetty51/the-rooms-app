@@ -1,10 +1,30 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
 import { db } from "@the-rooms/db";
-import { ok, badRequest, serverError } from "@the-rooms/api/response";
 
-// GET /api/settings?propertyId=xxx - Get settings for a specific property
-// GET /api/settings - Get settings for all properties
+function settingsShape(settings: {
+  hotelName: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  gstNumber: string | null;
+  cancellationPolicy: string | null;
+}) {
+  return {
+    hotelName: settings.hotelName,
+    checkInTime: settings.checkInTime,
+    checkOutTime: settings.checkOutTime,
+    address: settings.address,
+    phone: settings.phone,
+    email: settings.email,
+    gstNumber: settings.gstNumber,
+    cancellationPolicy: settings.cancellationPolicy,
+  };
+}
+
+// GET /api/settings?propertyId=xxx
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
@@ -13,70 +33,30 @@ export async function GET(req: NextRequest) {
     if (userRole !== "SUPER_ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
-    let propertyId = searchParams.get("propertyId");
+    const propertyId = searchParams.get("propertyId");
 
-    // If no propertyId provided, return all properties with their settings
     if (!propertyId) {
-      const properties = await db.property.findMany({
-        orderBy: { createdAt: "desc" },
-      });
-
+      const properties = await db.property.findMany({ orderBy: { createdAt: "desc" } });
       const propertiesWithSettings = await Promise.all(
         properties.map(async (property) => {
-          const settings = await db.hotelSettings.findUnique({
-            where: { propertyId: property.id },
-          });
+          const settings = await db.hotelSettings.findUnique({ where: { propertyId: property.id } });
           return {
             propertyId: property.id,
             propertyName: property.name,
             propertyCode: property.code,
-            ...(settings ? {
-              hotelName: settings.hotelName,
-              checkInTime: settings.checkInTime,
-              checkOutTime: settings.checkOutTime,
-              invoicePrefix: settings.invoicePrefix,
-              invoiceFooter: settings.invoiceFooter,
-              taxRate: settings.taxRate,
-              address: settings.address,
-              phone: settings.phone,
-              email: settings.email,
-              website: settings.website,
-              currency: settings.currency,
-              timezone: settings.timezone,
-              bookingRules: settings.bookingRules,
-              cancellationPolicy: settings.cancellationPolicy,
-              childPolicy: settings.childPolicy,
-              petPolicy: settings.petPolicy,
-              parkingPolicy: settings.parkingPolicy,
-            } : null),
+            ...(settings ? settingsShape(settings) : null),
           };
         })
       );
-
-      return NextResponse.json({
-        data: propertiesWithSettings,
-        isAggregated: true,
-      });
+      return NextResponse.json({ data: propertiesWithSettings, isAggregated: true });
     }
 
-    // Get property info
-    const property = await db.property.findUnique({
-      where: { id: propertyId },
-    });
+    const property = await db.property.findUnique({ where: { id: propertyId } });
+    if (!property) return NextResponse.json({ error: "Property not found" }, { status: 404 });
 
-    if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
-    }
-
-    let settings = await db.hotelSettings.findUnique({
-      where: { propertyId },
-    });
-
-    // Seed default settings if they don't exist
+    let settings = await db.hotelSettings.findUnique({ where: { propertyId } });
     if (!settings) {
-      settings = await db.hotelSettings.create({
-        data: { propertyId }
-      });
+      settings = await db.hotelSettings.create({ data: { propertyId } });
     }
 
     return NextResponse.json({
@@ -84,23 +64,7 @@ export async function GET(req: NextRequest) {
         propertyId: property.id,
         propertyName: property.name,
         propertyCode: property.code,
-        hotelName: settings.hotelName,
-        checkInTime: settings.checkInTime,
-        checkOutTime: settings.checkOutTime,
-        invoicePrefix: settings.invoicePrefix,
-        invoiceFooter: settings.invoiceFooter,
-        taxRate: settings.taxRate,
-        address: settings.address,
-        phone: settings.phone,
-        email: settings.email,
-        website: settings.website,
-        currency: settings.currency,
-        timezone: settings.timezone,
-        bookingRules: settings.bookingRules,
-        cancellationPolicy: settings.cancellationPolicy,
-        childPolicy: settings.childPolicy,
-        petPolicy: settings.petPolicy,
-        parkingPolicy: settings.parkingPolicy,
+        ...settingsShape(settings),
       },
       isAggregated: false,
     });
@@ -110,7 +74,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH /api/settings - Update settings for a specific property
+// PATCH /api/settings
 export async function PATCH(req: NextRequest) {
   try {
     const session = await auth();
@@ -121,23 +85,15 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { propertyId, ...updateData } = body;
 
-    if (!propertyId) {
-      return NextResponse.json({ error: "propertyId is required" }, { status: 400 });
-    }
+    if (!propertyId) return NextResponse.json({ error: "propertyId is required" }, { status: 400 });
 
-    // Verify property exists
     const property = await db.property.findUnique({ where: { id: propertyId } });
-    if (!property) {
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
-    }
+    if (!property) return NextResponse.json({ error: "Property not found" }, { status: 404 });
 
     const settings = await db.hotelSettings.upsert({
       where: { propertyId },
       update: updateData,
-      create: {
-        propertyId,
-        ...updateData,
-      },
+      create: { propertyId, ...updateData },
     });
 
     return NextResponse.json({
@@ -145,23 +101,7 @@ export async function PATCH(req: NextRequest) {
         propertyId: property.id,
         propertyName: property.name,
         propertyCode: property.code,
-        hotelName: settings.hotelName,
-        checkInTime: settings.checkInTime,
-        checkOutTime: settings.checkOutTime,
-        invoicePrefix: settings.invoicePrefix,
-        invoiceFooter: settings.invoiceFooter,
-        taxRate: settings.taxRate,
-        address: settings.address,
-        phone: settings.phone,
-        email: settings.email,
-        website: settings.website,
-        currency: settings.currency,
-        timezone: settings.timezone,
-        bookingRules: settings.bookingRules,
-        cancellationPolicy: settings.cancellationPolicy,
-        childPolicy: settings.childPolicy,
-        petPolicy: settings.petPolicy,
-        parkingPolicy: settings.parkingPolicy,
+        ...settingsShape(settings),
       },
     });
   } catch (error) {

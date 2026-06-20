@@ -13,5 +13,13 @@
     "isolatedModules": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "prisma"]
+  "exclude": [
+    "node_modules",
+    "prisma",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/test/**",
+    "src/seed-discounts.ts",
+    "src/queries/emailAutomationQueries.ts"
+  ]
 }

@@ -1,7 +1,7 @@
 // apps/super-admin/src/app/api/users/property-access/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { db } from "@the-rooms/db";
+import { db, getUserPropertyAccessById, updateUserPropertyAccess, deleteUserPropertyAccess } from "@the-rooms/db";
 import { z } from "zod";
 
 const updateUserPropertyAccessSchema = z.object({
@@ -30,7 +30,7 @@ export async function GET(
 
         const { id } = await params;
 
-        const record = await db.getUserPropertyAccessById(id);
+        const record = await getUserPropertyAccessById(id);
         if (!record) {
             return NextResponse.json({ error: "User property access not found" }, { status: 404 });
         }
@@ -72,12 +72,12 @@ export async function PATCH(
         }
 
         // Check if record exists
-        const existing = await db.getUserPropertyAccessById(id);
+        const existing = await getUserPropertyAccessById(id);
         if (!existing) {
             return NextResponse.json({ error: "User property access not found" }, { status: 404 });
         }
 
-        const record = await db.updateUserPropertyAccess(id, parsed.data);
+        const record = await updateUserPropertyAccess(id, parsed.data);
 
         // Audit log
         const currentUserId = (session.user as { id?: string }).id ?? "";
@@ -119,12 +119,12 @@ export async function DELETE(
         const { id } = await params;
 
         // Check if record exists
-        const existing = await db.getUserPropertyAccessById(id);
+        const existing = await getUserPropertyAccessById(id);
         if (!existing) {
             return NextResponse.json({ error: "User property access not found" }, { status: 404 });
         }
 
-        await db.deleteUserPropertyAccess(id);
+        await deleteUserPropertyAccess(id);
 
         // Audit log
         const currentUserId = (session.user as { id?: string }).id ?? "";

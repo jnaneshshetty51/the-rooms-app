@@ -1,7 +1,7 @@
 // apps/super-admin/src/app/api/users/[id]/properties/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { db } from "@the-rooms/db";
+import { db, getPropertiesByUser, upsertUserPropertyAccess } from "@the-rooms/db";
 import { z } from "zod";
 
 const assignPropertySchema = z.object({
@@ -36,7 +36,7 @@ export async function GET(
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        const properties = await db.getPropertiesByUser(id);
+        const properties = await getPropertiesByUser(id);
 
         return NextResponse.json({ data: properties });
     } catch (error) {
@@ -89,7 +89,7 @@ export async function POST(
         }
 
         // Upsert the access
-        const record = await db.upsertUserPropertyAccess({
+        const record = await upsertUserPropertyAccess({
             userId: id,
             propertyId,
             role: role || "VIEWER",

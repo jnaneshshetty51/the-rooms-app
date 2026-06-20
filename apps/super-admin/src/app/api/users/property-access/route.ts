@@ -1,7 +1,7 @@
 // apps/super-admin/src/app/api/users/property-access/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@the-rooms/auth";
-import { db } from "@the-rooms/db";
+import { db, getAllUserPropertyAccess, getUserPropertyAccess, createUserPropertyAccess } from "@the-rooms/db";
 import { z } from "zod";
 
 const createUserPropertyAccessSchema = z.object({
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const records = await db.getAllUserPropertyAccess({
+        const records = await getAllUserPropertyAccess({
             where: {
                 userId: parsed.data.userId,
                 propertyId: parsed.data.propertyId,
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if access already exists
-        const existing = await db.getUserPropertyAccess(userId, propertyId);
+        const existing = await getUserPropertyAccess(userId, propertyId);
         if (existing) {
             return NextResponse.json(
                 { error: "User already has access to this property. Use PATCH to update the role." },
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const record = await db.createUserPropertyAccess({
+        const record = await createUserPropertyAccess({
             userId,
             propertyId,
             role: role || "VIEWER",
