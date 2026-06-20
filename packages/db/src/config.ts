@@ -24,8 +24,10 @@ export function validateEnv() {
     }
 }
 
-// Call at app startup
-validateEnv();
+// Skip validation during Next.js build phase
+if (process.env.NEXT_PHASE !== 'phase-production-build') {
+    validateEnv();
+}
 
 // ─── Pricing constants ────────────────────────────────────────────────────────
 
