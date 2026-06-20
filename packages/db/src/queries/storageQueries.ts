@@ -83,73 +83,26 @@ export async function getFileHashesByModel(modelType: string, modelId: string) {
 // ─── Orphan File Detection ─────────────────────────────────────────────────────
 
 /**
- * Get all storage keys referenced in the database across all models
+ * Get all storage keys referenced in the database across all models.
+ * Returns URL-based keys from models that have url fields.
  */
 async function getAllDbStorageKeys(): Promise<Set<string>> {
     const storageKeys = new Set<string>();
 
-    // RoomPhoto.storageKey
-    const roomPhotos = await db.roomPhoto.findMany({
-        where: { storageKey: { not: null } },
-        select: { storageKey: true },
-    });
-    roomPhotos.forEach((p) => {
-        if (p.storageKey) storageKeys.add(p.storageKey);
+    // RoomPhoto URLs
+    const roomPhotos = await db.roomPhoto.findMany({ select: { url: true } });
+    roomPhotos.forEach((p) => { if (p.url) storageKeys.add(p.url); });
+
+    // GuestDocument URLs
+    const guestDocs = await db.guestDocument.findMany({ select: { frontUrl: true, backUrl: true } });
+    guestDocs.forEach((d) => {
+        if (d.frontUrl) storageKeys.add(d.frontUrl);
+        if (d.backUrl) storageKeys.add(d.backUrl);
     });
 
-    // RoomTypeImage.storageKey
-    const roomTypeImages = await db.roomTypeImage.findMany({
-        where: { storageKey: { not: null } },
-        select: { storageKey: true },
-    });
-    roomTypeImages.forEach((p) => {
-        if (p.storageKey) storageKeys.add(p.storageKey);
-    });
-
-    // GuestDocument.frontStorageKey
-    const guestDocsFront = await db.guestDocument.findMany({
-        where: { frontStorageKey: { not: null } },
-        select: { frontStorageKey: true },
-    });
-    guestDocsFront.forEach((d) => {
-        if (d.frontStorageKey) storageKeys.add(d.frontStorageKey);
-    });
-
-    // GuestDocument.backStorageKey
-    const guestDocsBack = await db.guestDocument.findMany({
-        where: { backStorageKey: { not: null } },
-        select: { backStorageKey: true },
-    });
-    guestDocsBack.forEach((d) => {
-        if (d.backStorageKey) storageKeys.add(d.backStorageKey);
-    });
-
-    // Invoice.pdfStorageKey
-    const invoices = await db.invoice.findMany({
-        where: { pdfStorageKey: { not: null } },
-        select: { pdfStorageKey: true },
-    });
-    invoices.forEach((i) => {
-        if (i.pdfStorageKey) storageKeys.add(i.pdfStorageKey);
-    });
-
-    // Receipt.pdfStorageKey
-    const receipts = await db.receipt.findMany({
-        where: { pdfStorageKey: { not: null } },
-        select: { pdfStorageKey: true },
-    });
-    receipts.forEach((r) => {
-        if (r.pdfStorageKey) storageKeys.add(r.pdfStorageKey);
-    });
-
-    // FileHash.storageKey (for files tracked in FileHash table)
-    const fileHashes = await db.fileHash.findMany({
-        where: { storageKey: { not: null } },
-        select: { storageKey: true },
-    });
-    fileHashes.forEach((f) => {
-        storageKeys.add(f.storageKey);
-    });
+    // FileHash storageKey
+    const fileHashes = await db.fileHash.findMany({ select: { storageKey: true } });
+    fileHashes.forEach((f) => { if (f.storageKey) storageKeys.add(f.storageKey); });
 
     return storageKeys;
 }
@@ -239,7 +192,7 @@ export async function cleanupOrphanFiles(
     orphanFiles: OrphanFile[],
     dryRun: boolean = true,
     minioClient: { removeObject: (bucket: string, key: string) => Promise<void> },
-    fileHashClient: { fileHash: { delete: (where: { hash: string }) => Promise<unknown> } } = db
+    fileHashClient?: unknown
 ): Promise<CleanupResult> {
     const result: CleanupResult = {
         deletedCount: 0,

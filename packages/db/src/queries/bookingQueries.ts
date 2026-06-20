@@ -2,7 +2,8 @@ import prisma from '../index';
 import { Prisma } from '@prisma/client';
 import { hasDateOverlap } from '../config';
 import { markRoomDirty } from './housekeepingQueries';
-import { NotFoundError, ConflictError } from '@the-rooms/api/errors';
+class NotFoundError extends Error { constructor(entity: string) { super(`${entity} not found`); this.name = 'NotFoundError'; } }
+class ConflictError extends Error { constructor(msg: string) { super(msg); this.name = 'ConflictError'; } }
 
 export type BookingFilters = {
   status?: string;
