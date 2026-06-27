@@ -1,171 +1,132 @@
 // Service Worker for The Rooms PWA
 // Provides offline support with cache-first strategy
 
-const CACHE_NAME = 'the-rooms-v1';
+const CACHE_NAME = 'the-rooms-v2';
 const OFFLINE_URL = '/offline';
 
-// Assets to cache on install
 const PRECACHE_ASSETS = [
-  '/',
-  '/home',
-  '/rooms',
-  '/pricing',
   '/offline',
 ];
 
-// Install event - precache assets
+// Install event - precache minimal set
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS))
   );
-  // Activate immediately
   self.skipWaiting();
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    })
+    caches.keys().then((cacheNames) =>
+      Promise.all(
+        cacheNames.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+      )
+    )
   );
-  // Take control of all clients immediately
   self.clients.claim();
 });
 
-// Fetch event - cache-first for static assets, network-first for pages
+// Fetch event
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  const url = new URL(request.url);
 
-  // Skip non-GET requests
+  // Only handle GET requests from the same origin
   if (request.method !== 'GET') return;
 
-  // Skip external requests
+  let url;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return;
+  }
+
   if (url.origin !== location.origin) return;
 
-  // Skip API routes
-  if (url.pathname.startsWith('/api/')) return;
+  // Skip API routes, Next.js internals, and auth routes
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/_next/') ||
+    url.pathname.startsWith('/_vercel/') ||
+    url.pathname.startsWith('/auth/')
+  ) return;
 
-  // Handle different types of requests
   if (isStaticAsset(url.pathname)) {
-    // Static assets: Cache first, fallback to network
     event.respondWith(cacheFirst(request));
   } else if (isPageRequest(request)) {
-    // Pages: Network first, fallback to cache, then offline page
     event.respondWith(networkFirst(request));
-  } else {
-    // Everything else: stale-while-revalidate
-    event.respondWith(staleWhileRevalidate(request));
   }
+  // Everything else: let the browser handle it natively (no SW intercept)
 });
 
-// Static assets to cache immediately
 function isStaticAsset(pathname) {
   return /\.(js|css|png|jpg|jpeg|webp|svg|ico|woff|woff2|ttf|eot)$/.test(pathname);
 }
 
-// Page requests (HTML)
 function isPageRequest(request) {
   return request.headers.get('accept')?.includes('text/html');
 }
 
-// Cache-first strategy
+// Cache-first: serve from cache, fill from network
 async function cacheFirst(request) {
-  const cachedResponse = await caches.match(request);
-  if (cachedResponse) return cachedResponse;
+  const cached = await caches.match(request);
+  if (cached) return cached;
 
   try {
-    const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
+    const response = await fetch(request);
+    if (response.ok) {
       const cache = await caches.open(CACHE_NAME);
-      cache.put(request, networkResponse.clone());
+      cache.put(request, response.clone());
     }
-    return networkResponse;
+    return response;
   } catch {
-    return caches.match('/offline');
-  }
-}
-
-// Network-first strategy
-async function networkFirst(request) {
-  try {
-    const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, networkResponse.clone());
-    }
-    return networkResponse;
-  } catch {
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) return cachedResponse;
     return caches.match(OFFLINE_URL);
   }
 }
 
-// Stale-while-revalidate strategy
-async function staleWhileRevalidate(request) {
-  const cachedResponse = await caches.match(request);
-  
-  const fetchPromise = fetch(request).then((networkResponse) => {
-    if (networkResponse.ok) {
-      const cache = caches.open(CACHE_NAME);
-      cache.then((c) => c.put(request, networkResponse.clone()));
+// Network-first: try network, fall back to cache then offline page
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
     }
-    return networkResponse;
-  }).catch(() => null);
-
-  return cachedResponse || fetchPromise;
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    return cached || caches.match(OFFLINE_URL);
+  }
 }
 
-// Handle push notifications (for booking confirmations, etc.)
+// Push notifications
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-
   const data = event.data.json();
-  const options = {
-    body: data.body,
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/badge-72x72.png',
-    vibrate: [100, 50, 100],
-    data: {
-      url: data.url || '/',
-    },
-    actions: data.actions || [],
-  };
-
   event.waitUntil(
-    self.registration.showNotification(data.title || 'The Rooms', options)
-  );
-});
-
-// Handle notification clicks
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const url = event.notification.data?.url || '/';
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url === url && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(url);
-      }
+    self.registration.showNotification(data.title || 'The Rooms', {
+      body: data.body,
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-72x72.png',
+      data: { url: data.url || '/' },
     })
   );
 });
 
-// Handle messages from the main thread
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if (client.url === url && 'focus' in client) return client.focus();
+      }
+      return clients.openWindow?.(url);
+    })
+  );
+});
+
 self.addEventListener('message', (event) => {
-  if (event.data === 'skipWaiting') {
-    self.skipWaiting();
-  }
+  if (event.data === 'skipWaiting') self.skipWaiting();
 });
