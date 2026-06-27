@@ -4,7 +4,7 @@ import prisma from "@the-rooms/db";
 export async function GET() {
   try {
     const settings = await prisma.hotelSettings.findUnique({
-      where: { id: "default" },
+      where: { propertyId: "default" },
     });
 
     if (!settings) {

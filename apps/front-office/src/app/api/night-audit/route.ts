@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         });
 
         const hotelSettings = await db.hotelSettings.findUnique({
-            where: { id: propertyId === "default" ? "default" : propertyId },
+            where: { propertyId },
         });
         const extraGuestRateDaily = hotelSettings?.extraGuestRateDaily?.toNumber() ?? 500;
 

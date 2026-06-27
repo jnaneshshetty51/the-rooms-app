@@ -269,7 +269,7 @@ export async function postRoomCharges(
         return [];
     }
 
-    const hotelSettings = await prisma.hotelSettings.findUnique({ where: { id: propertyId === 'default' ? 'default' : propertyId } });
+    const hotelSettings = await prisma.hotelSettings.findUnique({ where: { propertyId } });
     const extraGuestRateDaily = hotelSettings?.extraGuestRateDaily?.toNumber() ?? 500;
 
     // Get all existing charges for these bookings on this date in one query
