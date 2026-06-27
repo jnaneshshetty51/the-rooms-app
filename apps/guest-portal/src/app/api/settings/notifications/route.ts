@@ -18,9 +18,8 @@ export async function GET() {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const userId = (session.user as { id?: string }).id;
         const guest = await db.guest.findFirst({
-            where: { bookings: { some: { userId } } },
+            where: { email: session.user.email ?? "" },
             select: { phone: true },
         });
 
