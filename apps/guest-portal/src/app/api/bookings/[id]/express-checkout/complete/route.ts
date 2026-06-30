@@ -31,6 +31,10 @@ export async function POST(
         const { id } = await params;
         const userId = (session.user as { id?: string }).id;
 
+        if (!session.user.email) {
+            return NextResponse.json({ error: 'Guest email not found in session' }, { status: 400 });
+        }
+
         // Get guest by email to verify ownership
         const guest = await prisma.guest.findFirst({
             where: { email: session.user.email },

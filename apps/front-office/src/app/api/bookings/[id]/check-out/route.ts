@@ -247,6 +247,12 @@ export async function POST(
       },
     });
 
+    // Increment stay count on checkout completion
+    await db.guest.update({
+      where: { id: booking.guestId },
+      data: { stayCount: { increment: 1 } },
+    });
+
     // Audit log
     await createAuditLog({
       userId,

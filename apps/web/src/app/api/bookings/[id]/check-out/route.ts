@@ -95,6 +95,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       data: { status: 'VACANT' },
     });
 
+    // Increment stay count on completed checkout (not check-in, to avoid counting cancelled stays)
+    await db.guest.update({
+      where: { id: booking.guestId },
+      data: { stayCount: { increment: 1 } },
+    });
+
     // Check if payment is complete, if not create payment record for extras
     const totalPaid = booking.payments
       .filter((p) => p.status === 'PAID')
@@ -128,6 +134,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Send invoice email
       if (invoice && booking.guest.email) {
+        const taxableBase =
+          Number(updatedBooking!.baseAmount) -
+          Number(updatedBooking!.discountAmount ?? 0) +
+          Number(updatedBooking!.extrasAmount ?? 0);
         await sendInvoice(booking.guest.email, {
           guestName: booking.guest.name ?? 'Guest',
           guestEmail: booking.guest.email,
@@ -139,11 +149,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           checkIn: booking.checkIn.toISOString(),
           checkOut: booking.checkOut.toISOString(),
           guestsCount: booking.guestsCount,
-          baseAmount: Number(booking.baseAmount),
-          discountAmount: Number(booking.discountAmount ?? 0),
-          cgst: Number(booking.totalAmount) * 0.09,
-          sgst: Number(booking.totalAmount) * 0.09,
-          totalAmount: Number(booking.totalAmount),
+          baseAmount: Number(updatedBooking!.baseAmount),
+          discountAmount: Number(updatedBooking!.discountAmount ?? 0),
+          cgst: taxableBase * 0.09,
+          sgst: taxableBase * 0.09,
+          totalAmount: Number(updatedBooking!.totalAmount),
           pdfUrl: invoice.pdfUrl ?? undefined,
         }).catch(
           (e) => console.error('[Check-out] Invoice email error:', e)

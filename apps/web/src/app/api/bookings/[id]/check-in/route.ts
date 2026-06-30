@@ -72,12 +72,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       data: { status: 'OCCUPIED' },
     });
 
-    // Update guest stay count
-    await db.guest.update({
-      where: { id: booking.guestId },
-      data: { stayCount: { increment: 1 } },
-    });
-
     // Mark documents as verified if provided
     if (data.verifiedDocuments && data.verifiedDocuments.length > 0) {
       await db.guestDocument.updateMany({

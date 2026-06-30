@@ -239,7 +239,9 @@ export async function GET(
       return new NextResponse("Invoice not found", { status: 404 });
     }
 
-    const hotel = await prisma.hotelSettings.findUnique({ where: { propertyId: "default" } });
+    const hotel = await prisma.hotelSettings.findUnique({
+      where: { propertyId: invoice.booking.propertyId ?? "default" },
+    });
 
     const element = React.createElement(InvoicePDF, { invoice, hotel });
     // @ts-expect-error react-pdf types diverge from React types
