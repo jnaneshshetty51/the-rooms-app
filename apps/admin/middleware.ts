@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
 
   if (!session?.user) {
     const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("callbackUrl", encodeURIComponent(request.url))
+    loginUrl.searchParams.set("callbackUrl", request.nextUrl.pathname)
     return NextResponse.redirect(loginUrl)
   }
 

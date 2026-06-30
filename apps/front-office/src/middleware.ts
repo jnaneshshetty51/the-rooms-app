@@ -12,7 +12,7 @@ export default auth((req: any) => {
   if (isProtectedRoute) {
     if (!isLoggedIn) {
       const loginUrl = new URL('/login', req.url);
-      loginUrl.searchParams.set('callbackUrl', encodeURIComponent(req.url));
+      loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname);
       return NextResponse.redirect(loginUrl);
     }
 
