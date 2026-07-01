@@ -10,7 +10,7 @@ import { Eye, EyeOff, Lock, AlertCircle, Loader2, Shield } from "lucide-react"
 function LoginInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard"
+  const callbackUrl = decodeURIComponent(searchParams.get("callbackUrl") ?? "/dashboard")
   const errorParam = searchParams.get("error")
 
   const [email, setEmail] = useState("")
