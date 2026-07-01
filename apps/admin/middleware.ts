@@ -6,11 +6,18 @@ import type { NextRequest } from "next/server"
 import type { Role } from "@the-rooms/types"
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Let login and access-denied pages through without auth check
+  if (pathname.startsWith("/login") || pathname.startsWith("/access-denied") || pathname.startsWith("/api")) {
+    return NextResponse.next()
+  }
+
   const session = await auth()
 
   if (!session?.user) {
     const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("callbackUrl", request.nextUrl.pathname)
+    loginUrl.searchParams.set("callbackUrl", pathname)
     return NextResponse.redirect(loginUrl)
   }
 
@@ -26,8 +33,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Wrong role — show access denied
-  const deniedUrl = new URL("/access-denied", request.url)
-  return NextResponse.redirect(deniedUrl)
+  return NextResponse.redirect(new URL("/access-denied", request.url))
 }
 
 export const config = {
