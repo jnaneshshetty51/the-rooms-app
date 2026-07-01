@@ -17,8 +17,13 @@ export async function middleware(request: NextRequest) {
 
   if (!session?.user) {
     const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("callbackUrl", pathname)
+    loginUrl.searchParams.set("callbackUrl", pathname === "/" ? "/dashboard" : pathname)
     return NextResponse.redirect(loginUrl)
+  }
+
+  // Logged-in: redirect root directly to dashboard
+  if (pathname === "/") {
+    return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
   const userRole = (session.user as { role?: string }).role as Role | undefined

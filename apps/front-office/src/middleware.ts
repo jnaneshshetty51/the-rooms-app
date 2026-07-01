@@ -10,10 +10,18 @@ export default auth((req: any) => {
   const isProtectedRoute = !isAuthRoute && !isApiRoute && !isPublicRoute;
 
   if (isProtectedRoute) {
+    const pathname = req.nextUrl.pathname;
+
     if (!isLoggedIn) {
       const loginUrl = new URL('/login', req.url);
-      loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname);
+      // Root path always leads to /dashboard — skip the extra hop
+      loginUrl.searchParams.set('callbackUrl', pathname === '/' ? '/dashboard' : pathname);
       return NextResponse.redirect(loginUrl);
+    }
+
+    // Logged-in: redirect root directly to dashboard
+    if (pathname === '/') {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
     const role = req.auth?.user?.role;
@@ -21,7 +29,7 @@ export default auth((req: any) => {
       return NextResponse.redirect(new URL('/access-denied', req.url));
     }
 
-    if (role === 'HOUSEKEEPING' && !req.nextUrl.pathname.startsWith('/housekeeping')) {
+    if (role === 'HOUSEKEEPING' && !pathname.startsWith('/housekeeping')) {
       return NextResponse.redirect(new URL('/housekeeping', req.url));
     }
   }

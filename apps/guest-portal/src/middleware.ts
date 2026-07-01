@@ -12,11 +12,19 @@ export default auth((req: any) => {
   const isProtectedRoute = !isAuthRoute && !isMagicLink && !isApiRoute && !isPublicRoute;
 
   if (isProtectedRoute) {
+    const pathname = req.nextUrl.pathname;
+
     if (!isLoggedIn) {
       const loginUrl = new URL('/login', req.url);
-      loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname);
+      loginUrl.searchParams.set('callbackUrl', pathname === '/' ? '/dashboard' : pathname);
       return NextResponse.redirect(loginUrl);
     }
+
+    // Logged-in: redirect root directly to dashboard
+    if (pathname === '/') {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+
     // Only GUEST role may access the guest portal
     if (role && role !== 'GUEST') {
       return NextResponse.redirect(new URL('/access-denied', req.url));
