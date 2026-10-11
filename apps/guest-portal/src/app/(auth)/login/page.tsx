@@ -94,9 +94,9 @@ function LoginInner() {
 
         <div className="w-full max-w-md">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-[#2D3436] mb-1">
+            <h1 className="text-2xl font-bold text-[#2D3436] mb-1">
               Guest Portal
-            </h2>
+            </h1>
             <p className="text-[#636E72] text-sm">
               Enter your email to receive a secure login link
             </p>

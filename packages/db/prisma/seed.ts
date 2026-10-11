@@ -186,16 +186,39 @@ async function seedAnnouncement() {
 
 async function seedDiscounts() {
   const discounts = [
-    { id: 'student15', name: 'Student Discount', code: 'STUDENT15', type: 'STUDENT' as const,
-      discountPercent: '15.00', minDays: 3, maxUses: 100 },
-    { id: 'corp10',   name: 'Corporate Discount', code: 'CORP10',  type: 'CORPORATE' as const,
-      discountPercent: '10.00', minDays: 5, maxUses: 500 },
-    { id: 'welcome5', name: 'Welcome Discount',  code: 'WELCOME5', type: 'CUSTOM' as const,
-      discountPercent: '5.00',  minDays: 1 },
+    {
+      id: 'student15',
+      name: 'Student Discount',
+      code: 'STUDENT15',
+      type: 'PERCENTAGE' as const,
+      value: '15.00',
+      minNights: 3,
+      maxUses: 100,
+      applicableRoomTypes: [],
+    },
+    {
+      id: 'corp10',
+      name: 'Corporate Discount',
+      code: 'CORP10',
+      type: 'PERCENTAGE' as const,
+      value: '10.00',
+      minNights: 5,
+      maxUses: 500,
+      applicableRoomTypes: [],
+    },
+    {
+      id: 'welcome5',
+      name: 'Welcome Discount',
+      code: 'WELCOME5',
+      type: 'PERCENTAGE' as const,
+      value: '5.00',
+      minNights: 1,
+      applicableRoomTypes: [],
+    },
   ];
 
   for (const d of discounts) {
-    await prisma.discount.upsert({
+    await prisma.discountCode.upsert({
       where: { code: d.code },
       update: d,
       create: d,
